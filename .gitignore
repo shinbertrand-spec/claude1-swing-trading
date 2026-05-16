@@ -1,0 +1,19 @@
+# Local-only Claude Code config (per-machine permissions, hooks, etc.)
+.claude/settings.local.json
+
+# Trading history, journal entries, positions, candidate snapshots — local state
+journal/
+
+# Old portfolio snapshot reference (pre-cash-out)
+price_check_may14.jsx
+
+# Local plans / scratch
+plans/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+~$*
+*.tmp
