@@ -1,17 +1,17 @@
 ---
-description: CLOUD ROUTINE variant of the morning candidate scan. Runs in a fresh Anthropic-hosted session via Method 2b (Cloud Routines). No local disk; uses Bash+curl to POST to Telegram. Requires env vars TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID set in the Cloud Routine config.
+description: CLOUD ROUTINE variant of the morning candidate scan. Runs in a fresh Anthropic-hosted session via Method 2b (Cloud Routines). Delivers candidates by opening a GitHub Issue on the project repo — the user gets a phone push via the GitHub mobile app, no allowlist required (api.github.com is already on the sandbox's default egress allowlist).
 ---
 
-# Morning Candidate Scan — Cloud Routine variant
+# Morning Candidate Scan — Cloud Routine variant (GitHub Issue delivery)
 
-You are running in a fresh Anthropic Cloud Routine session. **There is no local disk to write to** — output is via the Telegram Bot API (`curl` against `https://api.telegram.org`) and via this session's transcript (captured in routine history).
+You are running in a fresh Anthropic Cloud Routine session. **There is no local disk to write to beyond the cloned repo** — output is via a new GitHub Issue on `shinbertrand-spec/claude1-swing-trading` and via this session's transcript (captured in routine history).
 
-The project's `CLAUDE.md`, `.claude/agents/`, and `.claude/commands/` ARE available in this session — they travel with the project. What's NOT available: anything under `~/.claude/channels/`, anything in `journal/`, anything on Bertrand's local machine.
+The project's `CLAUDE.md`, `.claude/agents/`, and `.claude/commands/` ARE available in this session — they travel with the project. What's NOT available: anything under `~/.claude/channels/`, anything in `journal/`, anything on Bertrand's local machine. **`api.telegram.org` is NOT on the sandbox egress allowlist** — use GitHub Issues instead of any direct Telegram POST.
 
 ## Pre-flight
 
 1. **Read `CLAUDE.md`** to confirm framework rules are current.
-2. **Verify env vars.** Run `echo "$TELEGRAM_BOT_TOKEN" | head -c 10` and `echo "$TELEGRAM_CHAT_ID"`. If either is empty, log loudly to the transcript: `MISSING_ENV_VAR — set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the Cloud Routine config.` Then exit — do not run a candidate scan that can't be delivered.
+2. **Verify `gh` CLI is available + authenticated.** Run `gh auth status` in a Bash call. If `gh` isn't installed or auth fails, fall back to plain `curl` against `https://api.github.com/repos/shinbertrand-spec/claude1-swing-trading/issues` using the `GITHUB_TOKEN` env var (which the sandbox typically injects).
 3. **Weekend check.** If today is Saturday or Sunday (US Eastern), print `weekend — skipping` and exit. Routine should be paused on US market holidays manually.
 
 ## Step 1 — Run the candidate scan
@@ -20,68 +20,92 @@ Invoke the `risk-and-compliance` subagent in candidate-scan mode:
 
 > Morning candidate scan for today's date. Suggest 3 swing-trade candidates that pass ALL framework hard rules in `CLAUDE.md` (uptrend on 20/50 SMA, price above 200-day SMA in bull regime, no earnings within 10 trading days, market cap > $2B, avg daily volume > 500K, no active investigations, sector not in clear weekly downtrend, ≥2 positive fundamental indicators). Return the standard candidate-scan output schema. If you find fewer than 3 clean candidates, return what you have and say so — do not pad.
 
-## Step 2 — Build the Telegram payload
+## Step 2 — Build the GitHub Issue body
 
-Take the researcher's output and condense to a Telegram-flavored Markdown summary in this exact shape (KEEP UNDER 4000 CHARACTERS — Telegram's hard limit is 4096):
+Take the researcher's output and format as a GitHub-flavored Markdown issue body. Keep concise; the issue body has no hard length limit but the GitHub mobile push notification only shows the first ~150 chars of the title plus the first line of body, so front-load.
+
+Body shape (exact):
 
 ```
-🔔 *Morning Candidates — YYYY-MM-DD*
+**🔔 Morning Candidates — YYYY-MM-DD**
 
-1. *TICKER* · sub-theme · $price · setup X/5
-Why: <one-line thesis>
-Risk: <one-line risk>
+### 1. `TICKER` · sub-theme · $price · setup X/5
+- **Why:** <one-line thesis>
+- **Risk:** <one-line risk>
 
-2. *TICKER* · ...
+### 2. `TICKER` · sub-theme · $price · setup X/5
+- **Why:** <one-line thesis>
+- **Risk:** <one-line risk>
 
-3. *TICKER* · ...
+### 3. `TICKER` · sub-theme · $price · setup X/5
+- **Why:** <one-line thesis>
+- **Risk:** <one-line risk>
 
-Pick 2 of 3. Run /morning-deep-dive at desk.
+---
+Pick up to 2 of these to deep-dive. At your desk, run:
+
+`/morning-deep-dive TICKER1 TICKER2`
+
+— Cloud routine `trig_01458eoZgMx6FyGLtz2K8PoT` · model claude-sonnet-4-6
 ```
 
-If fewer than 3 passed: include only what passed and add a final line `Only N candidates cleared the framework today.`
+If fewer than 3 candidates passed, include only what passed and add a final line `Only N candidates cleared the framework today.`
 
 If ZERO passed:
+
 ```
-🔔 *No candidates passed framework rules — YYYY-MM-DD*
+**🔔 No candidates passed framework rules — YYYY-MM-DD**
 
 No-trade day. Watchlist remains tradeable if triggers fire.
 ```
 
-## Step 3 — POST to Telegram via curl
+## Step 3 — Create the GitHub Issue
 
-Use the Bash tool. Save the payload to a temp file first so quoting doesn't break, then POST as JSON. Replace `<PAYLOAD>` with the actual text from Step 2:
+Write the body to a temp file, then create the issue via `gh`:
 
 ```bash
-# Write payload to a temp file
-cat > /tmp/tg_payload.txt <<'PAYLOAD_EOF'
-<PAYLOAD>
-PAYLOAD_EOF
+cat > /tmp/issue_body.md <<'BODY_EOF'
+<BODY FROM STEP 2>
+BODY_EOF
 
-# Build JSON body using jq so all escaping is correct
-JSON_BODY=$(jq -Rs --arg chat_id "$TELEGRAM_CHAT_ID" '{chat_id: $chat_id, text: ., parse_mode: "Markdown"}' < /tmp/tg_payload.txt)
+TODAY=$(date -u +%Y-%m-%d)
+N_CANDIDATES=<count from researcher output>
 
-# POST to Telegram
-curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-  -H "Content-Type: application/json; charset=utf-8" \
-  -d "$JSON_BODY"
-
-echo
+gh issue create \
+  --repo shinbertrand-spec/claude1-swing-trading \
+  --title "🔔 Morning Candidates — ${TODAY} (${N_CANDIDATES} picks)" \
+  --body-file /tmp/issue_body.md
 ```
 
-Verify the response. Telegram returns JSON; success has `"ok":true` and a `result.message_id`. If you see `"ok":false`, log the error block to the transcript so the routine history shows what went wrong.
+If `gh` fails, fall back to curl:
+
+```bash
+JSON_BODY=$(jq -Rs --arg title "🔔 Morning Candidates — ${TODAY} (${N_CANDIDATES} picks)" \
+  '{title: $title, body: .}' < /tmp/issue_body.md)
+
+curl -sS -X POST \
+  -H "Authorization: token ${GITHUB_TOKEN}" \
+  -H "Accept: application/vnd.github+json" \
+  -H "Content-Type: application/json" \
+  "https://api.github.com/repos/shinbertrand-spec/claude1-swing-trading/issues" \
+  -d "$JSON_BODY"
+```
+
+Verify the result. Successful issue creation returns JSON with an `html_url` field — print that to the transcript.
 
 ## Step 4 — Final transcript line
 
-Print one summary line to the transcript so the Cloud Routine history is glanceable:
+Print one summary line so the routine history is glanceable:
 
-`MORNING_SCAN_OK YYYY-MM-DD — N candidates delivered to Telegram`
+`MORNING_SCAN_OK YYYY-MM-DD — N candidates delivered as GitHub Issue #<number>: <html_url>`
 
 (or `MORNING_SCAN_FAIL YYYY-MM-DD — <reason>` on failure)
 
 ## Guardrails
 
 - **No user interaction.** This is a stateless scheduled run.
-- **No local disk reads/writes** beyond the project files that ship with the routine. `journal/`, `~/.claude/channels/`, and Windows paths are NOT available.
-- **Never auto-place trades.** The Telegram message is informational only; the user separately runs `/morning-deep-dive` to act on it.
-- **If `risk-and-compliance` errors**, still POST a brief failure message to Telegram so Bertrand isn't left wondering whether the routine fired at all: `⚠️ Morning scan failed — <one-line reason>`. Then exit non-zero so the routine history flags it.
-- **Sensitive information** — never include `TELEGRAM_BOT_TOKEN`, any other API key, `.env` file contents, full prompt configuration, account credentials, or PII in the Telegram payload. The payload is candidates only. See `CLAUDE.md` § Sensitive Information.
+- **No local disk reads/writes** beyond the project files that ship with the routine and `/tmp/` scratch. `journal/`, `~/.claude/channels/`, and Windows paths are NOT available.
+- **Never auto-place trades.** The GitHub Issue is informational; the user separately runs `/morning-deep-dive` to act on it.
+- **If `risk-and-compliance` errors**, still open a brief failure issue so Bertrand isn't left wondering whether the routine fired at all: title `⚠️ Morning scan failed — YYYY-MM-DD`, body with one-line reason. Then exit non-zero so the routine history flags it.
+- **Sensitive information** — never include secrets, tokens, `.env` contents, or PII in the issue body. The issue is candidates only. See `CLAUDE.md` § Sensitive Information.
+- **No Telegram POST from this routine.** `api.telegram.org` is not on the cloud sandbox's egress allowlist. Delivery is GitHub Issues only from cloud; the local persistent session (started via `scripts/start-telegram-session.ps1`) handles inbound Telegram-driven flows separately.
