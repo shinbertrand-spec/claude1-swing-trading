@@ -24,9 +24,11 @@ Invoke the `risk-and-compliance` subagent in candidate-scan mode:
 
 Take the researcher's output and format as a GitHub-flavored Markdown issue body. Keep concise; the issue body has no hard length limit but the GitHub mobile push notification only shows the first ~150 chars of the title plus the first line of body, so front-load.
 
-Body shape (exact):
+Body shape (exact — the leading `@shinbertrand-spec` line is required, it triggers GitHub's mention notification so the push fires regardless of Watch/authorship rules):
 
 ```
+@shinbertrand-spec — morning candidates ready.
+
 **🔔 Morning Candidates — YYYY-MM-DD**
 
 ### 1. `TICKER` · sub-theme · $price · setup X/5
@@ -54,6 +56,8 @@ If fewer than 3 candidates passed, include only what passed and add a final line
 If ZERO passed:
 
 ```
+@shinbertrand-spec — no-trade day.
+
 **🔔 No candidates passed framework rules — YYYY-MM-DD**
 
 No-trade day. Watchlist remains tradeable if triggers fire.
