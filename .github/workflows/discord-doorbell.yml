@@ -1,0 +1,55 @@
+name: Discord doorbell — morning scan
+
+# Relays morning-scan GitHub Issues to a Discord webhook so pushes land on
+# Bertrand's phone. Runs on GitHub-hosted infrastructure (unrestricted egress),
+# avoiding the Anthropic Cloud Routine sandbox's egress allowlist which blocks
+# discord.com directly.
+#
+# Triggered ONLY by issues opened by the morning-scan cloud routine — title
+# match avoids spam on unrelated manual issues.
+#
+# Required secret: DISCORD_WEBHOOK_URL
+#   Set at: Settings → Secrets and variables → Actions → New repository secret
+#   Value:  the full https://discord.com/api/webhooks/.../... URL
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  doorbell:
+    runs-on: ubuntu-latest
+    if: >-
+      contains(github.event.issue.title, 'Morning Candidates') ||
+      contains(github.event.issue.title, 'Morning scan failed')
+    steps:
+      - name: POST doorbell to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "ERROR: DISCORD_WEBHOOK_URL secret is not set." >&2
+            echo "Add it at: Settings → Secrets and variables → Actions" >&2
+            exit 1
+          fi
+
+          MESSAGE=$(printf '%s\n%s' "$ISSUE_TITLE" "$ISSUE_URL")
+          BODY=$(jq -n --arg content "$MESSAGE" '{content: $content}')
+
+          HTTP_STATUS=$(curl -sS -o /tmp/discord_response.txt -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -d "$BODY" \
+            "$DISCORD_WEBHOOK_URL")
+
+          echo "Discord HTTP status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "Discord POST failed. Response body:" >&2
+            cat /tmp/discord_response.txt >&2
+            exit 1
+          fi
+
+          echo "Discord doorbell delivered for issue: $ISSUE_URL"

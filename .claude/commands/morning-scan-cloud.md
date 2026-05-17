@@ -105,11 +105,19 @@ Print one summary line so the routine history is glanceable:
 
 (or `MORNING_SCAN_FAIL YYYY-MM-DD — <reason>` on failure)
 
+## Mobile push delivery (out of band)
+
+The cloud routine does NOT POST to Discord, Telegram, or any other push channel directly — `discord.com` and `api.telegram.org` are both blocked at the sandbox egress allowlist.
+
+Push delivery happens via the **`.github/workflows/discord-doorbell.yml`** GitHub Actions workflow, which fires on `issues.opened` events whose title matches `Morning Candidates` or `Morning scan failed`. The workflow runs on GitHub-hosted infrastructure (unrestricted egress) and POSTs a doorbell (title + URL) to the Discord webhook stored in the repo's `DISCORD_WEBHOOK_URL` secret.
+
+Net effect from this routine's perspective: just create the issue and exit. The Actions workflow handles delivery automatically.
+
 ## Guardrails
 
 - **No user interaction.** This is a stateless scheduled run.
 - **No local disk reads/writes** beyond the project files that ship with the routine and `/tmp/` scratch. `journal/`, `~/.claude/channels/`, and Windows paths are NOT available.
 - **Never auto-place trades.** The GitHub Issue is informational; the user separately runs `/morning-deep-dive` to act on it.
-- **If `risk-and-compliance` errors**, still open a brief failure issue so Bertrand isn't left wondering whether the routine fired at all: title `⚠️ Morning scan failed — YYYY-MM-DD`, body with one-line reason. Then exit non-zero so the routine history flags it.
+- **If `risk-and-compliance` errors**, still open a brief failure issue so Bertrand isn't left wondering whether the routine fired at all: title `⚠️ Morning scan failed — YYYY-MM-DD`, body with one-line reason. The Actions doorbell workflow matches on this title and will push the failure to phone automatically. Then exit non-zero so the routine history flags it.
 - **Sensitive information** — never include secrets, tokens, `.env` contents, or PII in the issue body. The issue is candidates only. See `CLAUDE.md` § Sensitive Information.
-- **No Telegram POST from this routine.** `api.telegram.org` is not on the cloud sandbox's egress allowlist. Delivery is GitHub Issues only from cloud; the local persistent session (started via `scripts/start-telegram-session.ps1`) handles inbound Telegram-driven flows separately.
+- **No Telegram or Discord POST from this routine.** `api.telegram.org` and `discord.com` are both blocked at the cloud sandbox egress allowlist. The routine writes to GitHub only; phone push happens out-of-band via the `discord-doorbell.yml` Actions workflow. The local persistent session (started via `scripts/start-telegram-session.ps1`) handles inbound Telegram-driven flows separately.
