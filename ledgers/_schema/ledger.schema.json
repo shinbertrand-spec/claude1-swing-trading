@@ -233,7 +233,8 @@
       "description": "Per swing-setup-library: a candidate trade is tagged with exactly one setup type plus a grade. Grading shape depends on type (SEPA-VCP uses A+/A/B/C; EP uses Super Swan / Swan / Duck / Chicken / Golden EP).",
       "properties": {
         "type": {
-          "enum": ["SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout"]
+          "enum": ["SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout", "Manual"],
+          "description": "Named setup tag. Manual is reserved for the portfolio-manager onboard mode (pre-framework positions imported retroactively) — risk-and-compliance morning-routine paths should never accept type=Manual at entry; only the onboard path emits it."
         },
         "grade": {
           "description": "Grade per the grading scale appropriate to the setup type. SEPA-VCP / Pullback / RSI-Div / Resistance-Break use {A+, A, B, C}. EP uses {SuperSwan, Swan, Duck, Chicken, GoldenEP}.",

@@ -16,11 +16,24 @@ This is the hourly-news variant. It runs in parallel to the morning candidate sc
 
 ## Pre-flight checks
 
-Skip steps 1 and 2 if `$ARGUMENTS` contains the literal word `smoketest`. Step 3 always runs.
+Skip steps 1, 2, and 3 if `$ARGUMENTS` contains the literal word `smoketest`. Step 4 always runs.
 
-1. **Is today a US market day?** If today is Saturday or Sunday, print `NEWS_HOURLY_WEEKEND_SKIP YYYY-MM-DD HH:MM` to stdout and exit. No file written. (Holiday detection not yet implemented — assume weekdays are trading days.)
+1. **Is today a US market day?** Run:
+
+   ```
+   uv run python -m tools.market_calendar
+   ```
+
+   Parse the JSON output. If `output.is_closed` is `true`:
+   - If `output.is_weekend` is `true`: print `NEWS_HOURLY_WEEKEND_SKIP YYYY-MM-DD HH:MM` and exit. No file written.
+   - If `output.is_holiday` is `true`: print `NEWS_HOURLY_HOLIDAY_SKIP YYYY-MM-DD HH:MM — <holiday_name>` and exit. No file written.
+   - If `output.out_of_data` is `true`: print a warning to stdout but continue (the table runs through 2027; if Bertrand sees this, the table needs an update).
+
 2. **Is the current hour in scope?** Phase 1 default scope is 09:30 → 16:00 ET (regular session). If the wall-clock hour (US/Eastern) is outside `09..16`, print `NEWS_HOURLY_OUT_OF_HOURS YYYY-MM-DD HH:MM` and exit. (Premarket / afterhours fires can be enabled later by editing the scheduled-task triggers; the slash command itself does not need changes.)
-3. Confirm `C:\Users\User\Desktop\Claude1\ledgers\news\` exists; create the day-subdirectory `ledgers\news\YYYY-MM-DD\` if missing.
+
+3. (reserved — was the legacy "weekend only" check; merged into step 1 via `tools.market_calendar`.)
+
+4. Confirm `C:\Users\User\Desktop\Claude1\ledgers\news\` exists; create the day-subdirectory `ledgers\news\YYYY-MM-DD\` if missing.
 
 ## Determine the current hour key
 
@@ -81,6 +94,7 @@ Print exactly one of:
 - `NEWS_HOURLY_PUSH YYYY-MM-DD HH:00 <count>` — same as OK but `<count> >= 1`; wrapper should POST the summary
 - `NEWS_HOURLY_OK_SMOKETEST YYYY-MM-DD HH:00 <count>` — smoketest variant of OK/PUSH (only when `smoketest` argument was passed)
 - `NEWS_HOURLY_WEEKEND_SKIP YYYY-MM-DD HH:00` — weekend
+- `NEWS_HOURLY_HOLIDAY_SKIP YYYY-MM-DD HH:00 — <holiday_name>` — US market holiday (detected via tools.market_calendar)
 - `NEWS_HOURLY_OUT_OF_HOURS YYYY-MM-DD HH:00` — outside 09–16 ET
 - `NEWS_HOURLY_FAIL YYYY-MM-DD HH:00 — <reason>` — anything went wrong
 

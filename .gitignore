@@ -4,6 +4,16 @@
 # Trading history, journal entries, positions, candidate snapshots — local state
 journal/
 
+# Personal position + candidate ledgers (real share counts, cost basis, stops).
+# The schema (_schema/) and worked examples (_examples/) ARE tracked so the
+# framework is reproducible; the live per-ticker ledgers are not — same convention
+# as journal/.
+ledgers/positions/
+ledgers/candidates/
+
+# News snapshots — runtime data, regenerable from the bot. Schema + examples tracked.
+ledgers/news/[0-9]*-[0-9]*-[0-9]*/
+
 # Old portfolio snapshot reference (pre-cash-out)
 price_check_may14.jsx
 
