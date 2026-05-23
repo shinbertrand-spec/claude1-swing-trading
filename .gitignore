@@ -10,6 +10,20 @@ price_check_may14.jsx
 # Local plans / scratch
 plans/
 
+# Python (Phase 2 tools layer)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+uv.lock
+
+# Phase 5 backtest OHLCV cache (fetched data; reproducible from yfinance)
+tools/backtest/cache/
+
+# Phase 5 backtest result reports (regenerable; large markdown files)
+backtest_results/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

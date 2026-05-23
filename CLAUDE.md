@@ -157,24 +157,105 @@ is "I don't know," do not trade — research more or skip.
 13. Worst case if both the thesis AND the stop fail? (gap-down scenario)
 14. What correlated positions could compound this loss?
 
+## Fact Ledger
+
+Per-ticker structured fact storage that subagents read and write instead of
+re-deriving values in prose. Source of truth: [`ledgers/README.md`](ledgers/README.md).
+Schema: [`ledgers/_schema/ledger.schema.json`](ledgers/_schema/ledger.schema.json).
+Examples: [`ledgers/_examples/`](ledgers/_examples/).
+
+- Candidate ledgers: `ledgers/candidates/YYYY-MM-DD/<TICKER>.yml` (built by
+  `trade-researcher` during deep-dive, consumed by `risk-and-compliance`)
+- Position ledgers: `ledgers/positions/<TICKER>.yml` (one per open position;
+  evolves through STARTER → Stage-2 → Stage-3 → trailing → closed)
+
+This is **Phase 1** of the 4-phase swing-risk-compliance-doctrine path. Phase 1
+defines the schema only — no Python tools yet (Phase 2), no automatic staleness
+enforcement (Phase 3), no automatic reasoning-trace verification (Phase 4).
+Subagents should adopt the contract by convention now; later phases will harden
+enforcement.
+
+**Contract for subagents (effective now):**
+- Every numerical claim in a `trade-researcher` or `risk-and-compliance` output
+  must reference a ledger field or a `reasoning_trace` step ID
+- Every section of the ledger has a `fetched_at` (or `computed_at`) timestamp
+- The phrase "as of my training cutoff" / "as of late [year]" / "I can't verify
+  real-time" MUST NOT appear anywhere in agent output — every fact comes from
+  the live ledger
+- Sell-discipline content is tagged `v1-preliminary` until the Minervini book
+  ingestion produces v2 of `swing-sell-discipline`
+
+## Tools (Phase 2)
+
+Deterministic-arithmetic Python tools live in [`tools/`](tools/). Per
+swing-risk-compliance-doctrine Requirement 2, all decision-affecting
+arithmetic — YoY growth, ATR, trend template, regime check, VCP detection,
+stop sizing, position sizing — runs through these tools, never through agent
+prose. Source of truth: [`tools/README.md`](tools/README.md).
+
+**Phases 2 + 3 + 4 + 5.a + 5.b + 5.c complete** (2026-05-18). 44 modules + 322 tests in `tools/` and `tests/`:
+
+- **2.a SEPA-VCP pathway:** `compute_yoy`, `atr_compute`, `trend_template`, `regime_check`, `vcp_detect`, `stop_sizer`, `position_sizer`
+- **2.b EP pathway:** `prior_rally_pct`, `magna_score`, `ep_grade`, `earnings_calendar`, `ep_detect`, `day7_milestone_check`
+- **2.c.1 Pyramiding:** `sltb_scan`, `momentum_burst_detect`, `combined_breakeven`, `position_state`, `add_on_evaluator`
+- **2.c.2 Sell discipline (v1-preliminary):** `climax_top_detect`, `violations_detect`, `base_stage_detect`, `pe_expansion_check`, `sell_into_strength`, `sell_decision`
+- **2.c.3 Secondary setups:** `pullback_detect`, `rsi_divergence`, `resistance_break`
+- **Phase 3 staleness enforcement:** `freshness`, `stale_phrase_detector`, `ledger_freshness_audit`
+- **Phase 4 reasoning-trace verification:** `trace_validate`, `trace_rerun`, `claim_extract`, `trace_audit`
+- **Phase 5.a walk-forward backtest (SEPA-VCP):** `backtest/data_cache`, `backtest/setup_replay`, `backtest/simulator`, `backtest/metrics`, `backtest/walk_forward`, `backtest/runner`
+- **Phase 5.b backtest extensions (4 more setups + 3 trail modes + rolling walk-forward):** `backtest/ep_replay`, `backtest/pullback_replay`, `backtest/rsi_div_replay`, `backtest/resistance_break_replay`, `backtest/trailing_stop`
+- **Phase 5.c backtest extensions (pyramiding + sell-aware exits):** `backtest/pyramid_simulator` (STARTER + Momentum-Burst ADD-ON #1 + Day-7 ADD-ON #2 with combined-BE stop migration + grade/regime gates), `backtest/sell_aware` (per-bar `sell_decision` composer over OHLCV-derivable detectors; new `--pyramid` and `--sell-aware` flags in runner)
+
+**Contract for `risk-and-compliance` pre-APPROVE (Phases 3 + 4):** before returning APPROVE, the subagent MUST run all three:
+1. `tools.ledger_freshness_audit.compute_from_path(<ledger>)` — any `overall: stale` → BLOCK
+2. `tools.trace_audit.compute_from_path(<ledger>, <researcher_report_path>)` — any `verdict.overall == "BLOCK"` → BLOCK
+3. `tools.stale_phrase_detector.assert_no_stale_phrases(<researcher_report_text>)` — any BLOCK match → BLOCK
+
+`trace_audit` composes `trace_validate` (structural completeness + targeting), `trace_rerun` (pure-tool re-runs + OHLCV-tool shape checks), and `claim_extract` (prose↔ledger cross-reference, WARN-level).
+
+**Deployment gate (Phase 5):** a setup ships to live capital only after `tools.backtest.runner` shows on out-of-sample data: **Sharpe > 1.0 AND |max drawdown| < 25% AND n ≥ 30**. Per the doctrine's "walk-forward validation REQUIRED" callout in every operational note. Phase 5.a covers SEPA-VCP; Phase 5.b adds EP + 3 secondary setups, plus `ratchet` and `ma_trail` stop policies, plus rolling walk-forward windowing. Phase 5.c adds the Anchor-and-Pyramid multi-leg simulator + per-bar sell-discipline composer (4 OHLCV-derivable detectors → `sell_decision` → non-hold action exits). Portfolio-equity simulator (concurrent positions + cash + sector caps), pyramid+sell-aware combined, P/E expansion warning, and HTML reports remain Phase 5.d.
+
+Next: first real-data backtest runs (5 setups × 3 trail modes against a 5y universe) → iterate. Then Phase 5.c.
+
+**Contract for subagents (effective now):**
+- Every numerical claim cites a tool's `TraceEntry` via the ledger's
+  `reasoning_trace` array. Empty `trace_refs[]` on a load-bearing claim is
+  unfaithful by definition (Requirement 3).
+- Tools return a `TraceEntry` shape; the agent appends it to the ledger.
+- CLI usage: `uv run python -m tools.<name> [args...]`. Stdout is the JSON
+  ledger-slottable entry.
+- Library usage: `from tools.<name> import compute, compute_from_ticker`.
+
+Run the test suite before any tool change: `uv run pytest` (38 tests, ~70 ms).
+
 ## Subagent Workflow
 
-Two specialized subagents handle the heavy lifting. The main agent
-orchestrates:
+Two specialized subagents handle the heavy lifting. Both now use the
+fact-ledger + tools + audit infrastructure shipped in Phases 1-4.
 
-1. **`trade-researcher`** — given a ticker or theme, returns a structured
-   Markdown report covering fundamental case (Q4–Q6), technical state
-   (Q7–Q10), analyst signals, macro/sector overlay, and sources. Never
-   recommends trades.
-2. **`risk-and-compliance`** — given a researcher's report plus a candidate
-   trade (entry/stop/target/size) and current portfolio state, independently
-   verifies the researcher's facts via fresh sources, runs the hard-rule
-   compliance check (math shown), and returns APPROVE /
-   APPROVE-WITH-CONDITIONS / BLOCK verdict.
+1. **`trade-researcher`** — given a ticker or theme, runs the relevant
+   deterministic-arithmetic tools (`tools/regime_check`, `trend_template`,
+   `vcp_detect`, `ep_detect`, etc.), populates a fact-ledger YAML at
+   `ledgers/candidates/YYYY-MM-DD/<TICKER>.yml` with full `reasoning_trace`,
+   and returns a Markdown report whose every numerical claim mirrors a
+   ledger field or trace step. Never recommends trades.
 
-Both agents are research-only — they return Markdown reports, they do not
-write to journals or modify files. The main agent decides what to
-incorporate into the journal.
+2. **`risk-and-compliance`** — given a ledger path + proposed trade + portfolio
+   state, runs the five-gate verification sequence:
+   1. `tools.ledger_freshness_audit` (Phase 3) — stale section → BLOCK
+   2. `tools.trace_audit` (Phase 4) — empty trace_refs / divergent re-run → BLOCK
+   3. `tools.stale_phrase_detector` (Phase 3) on researcher prose → BLOCK
+   4. Hard-rule compliance via independent `tools.position_sizer` re-run
+   5. Adversarial review (catalyst quality, correlation, thesis-horizon mismatch)
+      against independent sources
+
+   Returns APPROVE / APPROVE-WITH-CONDITIONS / BLOCK. Adversarial by design;
+   mechanical gates run first.
+
+`trade-researcher` writes ledger YAML files (`Write`/`Edit`). `risk-and-compliance`
+does not modify files — it reads ledgers and emits a verdict. Neither writes
+to journals. The main agent (the orchestrator that invoked them) decides what
+to incorporate into the journal.
 
 ## Sensitive Information
 

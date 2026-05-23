@@ -1,0 +1,306 @@
+# Example fact ledger — open position pyramided STARTER -> Stage-2 -> Stage-3
+#
+# Demonstrates position_state with all three entry legs filled + sell_eval_history
+# with daily evaluations. Per swing-momentum-execution Anchor-and-Pyramid.
+# TEMPLATE, not real market data.
+
+meta:
+  schema_version: "1.0"
+  ticker: SMCI
+  company_name: Super Micro Computer Inc.
+  asof: 2026-05-29T16:00:00-04:00          # ~2 weeks after the EP entry
+  state: stage-3
+  ledger_path: ledgers/positions/SMCI.yml
+  created_by: trade-researcher              # candidate phase
+  created_at: 2026-05-17T09:45:00-04:00
+  updated_by: position-manager              # Phase 5+ when this agent exists
+  updated_at: 2026-05-29T16:00:00-04:00
+
+quote:
+  last: 478.20
+  bid: 478.00
+  ask: 478.40
+  session: regular
+  source: broker_api
+  fetched_at: 2026-05-29T16:00:00-04:00
+
+# Fundamentals snapshot kept from candidate phase; refreshed if next earnings approaches.
+fundamentals:
+  eps_last_q: 8.12
+  eps_yoy_growth: 3.9212
+  revenue_yoy_growth: 1.7358
+  eps_surprise_pct: 0.27
+  guidance_change: raised
+  filing_date: 2026-05-16
+  next_earnings_date: 2026-08-13
+  next_earnings_source: "web:ir.supermicro.com"
+  next_earnings_source_secondary: "web:nasdaq.com"
+  market_cap_usd: 25500000000
+  avg_daily_volume_shares: 9200000
+  source: broker_api
+  fetched_at: 2026-05-29T16:00:00-04:00
+
+technical:
+  price_above_50dma: true
+  price_above_150dma: true                  # gap promoted past 150d
+  price_above_200dma: true
+  ma_alignment_50_150_200: true
+  ma200_rising: true
+  ma200_rising_months: 2
+  price_pct_above_52w_low: 48
+  price_pct_below_52w_high: 12
+  rs_rating: 91
+  trend_template_passes: 8                  # all 8 now (EP -> Stage 2 transition complete)
+  stage: 2
+  weeks_above_200dma: 2
+  atr_14: 19.80
+  adr_20_pct: 4.4
+  rsi_14: 67
+  adx_14: 35
+  volume_today_vs_20d_avg: 1.10
+  computed_at: 2026-05-29T16:00:00-04:00
+  source: "tool:trend_template.py (planned Phase 2)"
+
+regime:
+  broad_market_ticker: SPY
+  broad_market_trend_template_passes: 7
+  broad_market_stage_class: stage_2_confirmed
+  sector_etf: XLK
+  sector_trend_template_passes: 6
+  sector_qualifies_for_long: true
+  regime_multiplier: 1.0
+  computed_at: 2026-05-29T09:30:00-04:00
+
+setup_classification:
+  type: EP
+  grade: GoldenEP
+  confluence_checklist:
+    - { criterion: "Catalyst real + current",          status: PASS, evidence: "Q4 earnings beat 27% + raised guide", trace_refs: [1] }
+    - { criterion: "Gap in 10-19% sweet spot",         status: PASS, evidence: "open_gap=0.142",                       trace_refs: [2] }
+    - { criterion: "Neglected (no 3-6m rally)",        status: PASS, evidence: "3m=+4%, 6m=-12%",                      trace_refs: [3] }
+    - { criterion: "MAGNA 5/5",                        status: PASS, evidence: "magna_score=5",                        trace_refs: [4] }
+  pivot_price: 415.80
+  stop_price: 391.50                         # initial stop on entry day
+  stop_distance_pct: 0.0584
+  trace_refs: [1, 2, 3, 4]
+
+catalyst:
+  type: earnings
+  description: Q4 earnings beat by 27%; revenue +174% YoY; raised FY27 guidance from $30B to $40B
+  date: 2026-05-16
+  source_url: https://ir.supermicro.com/news-releases/news-release-details/super-micro-computer-q4-2026-results
+  source_secondary_url: https://www.reuters.com/technology/super-micro-q4-2026-results
+  verified: true
+  fetched_at: 2026-05-17T09:45:00-04:00
+
+ep_specific:
+  gap_pct: 0.142
+  premarket_volume_shares: 380000
+  first_30min_volume_vs_adv: 1.15
+  prior_rally_3m_pct: 0.04
+  prior_rally_6m_pct: -0.12
+  neglected_qualified: true
+  magna_score: 5
+  ep_grade: GoldenEP
+  opening_range_high: 415.80
+  opening_range_timeframe: "5m"
+  mandatory_exit_date: 2026-08-13            # hard exit before next earnings
+  trace_refs: [1, 2, 3, 4]
+
+position_state:
+  stage: Stage-3
+  intended_full_shares: 60                   # full intended size before pyramiding
+  intended_full_capital_pct: 0.20            # 20% capital at full size (Golden EP per swing-momentum-execution)
+  risk_budget_pct: 0.020                     # 2.0% account risk (GoldenEP per swing-position-sizing)
+
+  starter:
+    trigger: EPGap                           # gap-day entry per swing-earnings-pivot
+    fill_date: 2026-05-17
+    fill_time: "10:32"
+    shares: 20                               # 1/3 of intended (60)
+    fill_price: 415.80
+    limit_price_placed: 416.20
+    initial_stop: 391.50
+    trace_refs: [5]
+
+  addon_1:
+    trigger: MomentumBurst                   # 4%+ on 40%+ volume per swing-momentum-execution
+    fill_date: 2026-05-22
+    fill_time: "11:15"
+    shares: 40                               # brings to full 60
+    fill_price: 448.20
+    limit_price_placed: 448.50
+    initial_stop: 437.00                     # = combined_breakeven for the position
+    trace_refs: [6]
+
+  addon_2:
+    trigger: Day7Milestone                   # survived 7 trading days without breaking entry low or 10-MA
+    fill_date: 2026-05-28
+    fill_time: "10:45"
+    shares: 30                               # 50% on top of full -> 1.5x intended (90 total)
+    fill_price: 465.40
+    limit_price_placed: 465.80
+    initial_stop: 455.00                     # tightened to 10-day MA at time of fill
+    trace_refs: [7]
+
+  combined_breakeven: 437.00                 # weighted: (20*415.80 + 40*448.20 + 30*465.40) / 90 = 446.20
+                                              # NOTE: shown as the post-Stage-2 break-even (20+40=60 shares) which is what
+                                              # the addon_1.initial_stop was set to. Phase 2 combined_breakeven.py will
+                                              # recompute on each leg addition. See sell_eval_history for current stop.
+  current_stop: 461.00                       # currently trailing 10-day MA per Stage 3 rule
+  trail_ma: 10_day_MA
+  mandatory_exit_date: 2026-08-13
+  trail_state_legacy: plus5                  # mirrors journal/positions.json v1 for check-positions.ps1
+  alerts_sent:
+    - "addon_1_filled_2026-05-22"
+    - "addon_2_filled_2026-05-28"
+    - "sell_into_strength_triggered_2026-05-23"
+
+# Daily sell-trigger evaluations. v1-preliminary per swing-sell-discipline.
+sell_eval_history:
+  - date: 2026-05-22
+    evaluated_at: 2026-05-22T16:05:00-04:00
+    climax_top_patterns_firing: 0
+    violations_firing: 0
+    base_stage: 1
+    sell_into_strength_triggered: false
+    action: hold
+    confidence: HIGH
+    new_stop: 437.00                         # moved to combined_breakeven after addon_1
+    trace_refs: [8]
+    v1_preliminary_flag: true
+
+  - date: 2026-05-23
+    evaluated_at: 2026-05-23T16:05:00-04:00
+    climax_top_patterns_firing: 1            # sharp_advance only
+    climax_top_patterns_detail: [sharp_advance]
+    violations_firing: 0
+    base_stage: 1
+    sell_into_strength_triggered: true       # up ~12% in 2 days since addon_1
+    action: sell_50                          # 3-school sell-into-strength rule fires
+    confidence: HIGH
+    new_stop: 442.00                         # tightened after partial sale
+    trace_refs: [9]
+    v1_preliminary_flag: true
+
+  - date: 2026-05-28
+    evaluated_at: 2026-05-28T16:05:00-04:00
+    climax_top_patterns_firing: 0
+    violations_firing: 0
+    base_stage: 1
+    sell_into_strength_triggered: false
+    action: hold
+    confidence: HIGH
+    new_stop: 455.00                         # 10-day MA trail post addon_2
+    trace_refs: [10]
+    v1_preliminary_flag: true
+
+  - date: 2026-05-29
+    evaluated_at: 2026-05-29T16:05:00-04:00
+    climax_top_patterns_firing: 2            # sharp_advance + accelerated_advance
+    climax_top_patterns_detail: [sharp_advance, accelerated_advance]
+    violations_firing: 0
+    base_stage: 1
+    sell_into_strength_triggered: false
+    action: tighten_stop                     # 2 climax patterns + GoldenEP grade = tighten to 5-MA, take 50% (per swing-sell-discipline)
+    confidence: MEDIUM
+    new_stop: 461.00                         # tightened to 5-day MA equivalent
+    trace_refs: [11]
+    v1_preliminary_flag: true
+
+reasoning_trace:
+  - id: 1
+    tool: "manual:sec_filing"
+    inputs: { ticker: SMCI, filing: 10-Q, period: 2026-Q4 }
+    output: { surprise: 0.27, guidance: raised, eps_yoy: 3.92, rev_yoy: 1.74 }
+    fetched_at: 2026-05-17T09:45:00-04:00
+  - id: 2
+    tool: "manual:broker_api"
+    inputs: { ticker: SMCI, prev_close: 364.00, today_open: 415.80 }
+    output: { gap_pct: 0.142, sweet_spot_qualified: true }
+    fetched_at: 2026-05-17T09:45:00-04:00
+  - id: 3
+    tool: "manual:broker_api"
+    inputs: { ticker: SMCI, asof: 2026-05-16 }
+    output: { rally_3m_pct: 0.04, rally_6m_pct: -0.12, neglected: true }
+    fetched_at: 2026-05-17T09:45:00-04:00
+  - id: 4
+    tool: "manual:magna_compute"             # Phase 2: tools/magna_score.py
+    inputs: { massive: true, after_hours_gap: true, gap_confirmed: true, neglected: true, analyst_upgrades: true }
+    output: { magna_score: 5, ep_grade: GoldenEP }
+    fetched_at: 2026-05-17T09:45:00-04:00
+
+  - id: 5
+    tool: "manual:position_sizer"            # Phase 2: tools/position_sizer.py
+    inputs: { account: 150000, entry: 415.80, atr_14: 18.40, risk_budget_pct: 0.020, regime_mult: 1.0 }
+    output:
+      starter_shares: 20
+      starter_capital: 8316
+      starter_stop: 391.50
+      blocking_constraint: "stop_distance (5.84% < 8% cap)"
+    fetched_at: 2026-05-17T10:30:00-04:00
+
+  - id: 6
+    tool: "manual:momentum_burst_detect"     # Phase 2: tools/momentum_burst_detect.py
+    inputs: { ticker: SMCI, date: 2026-05-22 }
+    output: { day_pct: 0.062, volume_ratio: 1.85, triggered: true }
+    fetched_at: 2026-05-22T11:10:00-04:00
+
+  - id: 7
+    tool: "manual:day7_milestone"            # Phase 2: tools/day7_milestone_check.py
+    inputs: { ticker: SMCI, entry_date: 2026-05-17, asof: 2026-05-28 }
+    output:
+      trading_days_since_entry: 7
+      broke_entry_low: false
+      closed_below_10ma: false
+      survives_day7: true
+    fetched_at: 2026-05-28T10:40:00-04:00
+
+  - id: 8
+    tool: "manual:sell_decision"             # Phase 2: tools/sell_decision.py
+    inputs: { ticker: SMCI, date: 2026-05-22, climax_top: 0, violations: 0, setup_grade: GoldenEP }
+    output: { action: hold, confidence: HIGH, new_stop: 437.00 }
+    fetched_at: 2026-05-22T16:05:00-04:00
+
+  - id: 9
+    tool: "manual:sell_decision"
+    inputs:
+      ticker: SMCI
+      date: 2026-05-23
+      climax_top: 1
+      violations: 0
+      pct_gain_2d: 0.12
+      setup_grade: GoldenEP
+    output: { action: sell_50, confidence: HIGH, new_stop: 442.00, trigger: "sell_into_strength" }
+    fetched_at: 2026-05-23T16:05:00-04:00
+
+  - id: 10
+    tool: "manual:sell_decision"
+    inputs: { ticker: SMCI, date: 2026-05-28, climax_top: 0, violations: 0, setup_grade: GoldenEP }
+    output: { action: hold, confidence: HIGH, new_stop: 455.00 }
+    fetched_at: 2026-05-28T16:05:00-04:00
+
+  - id: 11
+    tool: "manual:sell_decision"
+    inputs:
+      ticker: SMCI
+      date: 2026-05-29
+      climax_top: 2
+      violations: 0
+      setup_grade: GoldenEP
+    output:
+      action: tighten_stop
+      confidence: MEDIUM
+      new_stop: 461.00
+      trigger: "2_climax_patterns_firing + GoldenEP grade (per swing-sell-discipline modifier table)"
+    fetched_at: 2026-05-29T16:05:00-04:00
+
+notes: |
+  Full Anchor-and-Pyramid lifecycle: EP gap entry (STARTER 20 sh) -> Momentum Burst
+  add on 2026-05-22 (Stage-2 40 sh add) -> Day 7 milestone add on 2026-05-28 (Stage-3
+  30 sh add) -> currently at 1.5x intended (90 sh). Sell-into-strength triggered
+  partial on 2026-05-23. v1-preliminary flag on every sell_eval_history entry until
+  Minervini book v2 ingestion.
+
+  When this position closes, it moves to ledgers/positions/closed/ (TBD) with a
+  final sell_eval_history entry capturing the exit reason.

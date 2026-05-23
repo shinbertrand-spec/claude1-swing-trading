@@ -1,0 +1,192 @@
+# Example fact ledger — A+ SEPA-VCP candidate
+#
+# This is a TEMPLATE / illustrative file, not real market data. The point is to
+# demonstrate the full schema shape for a Minervini SEPA-VCP setup graded A+.
+#
+# Read this one first — it's the most heavily annotated. The other examples
+# (ep-golden, pullback, rsi-divergence, resistance-break) follow the same
+# shape with less commentary.
+#
+# Path convention: ledgers/candidates/YYYY-MM-DD/<TICKER>.yml
+#                  ledgers/candidates/2026-05-17/AAPL.yml
+#
+# Schema: ../_schema/ledger.schema.json
+
+meta:
+  schema_version: "1.0"
+  ticker: AAPL
+  company_name: Apple Inc.
+  asof: 2026-05-17T14:30:00-04:00
+  state: candidate
+  ledger_path: ledgers/candidates/2026-05-17/AAPL.yml
+  created_by: trade-researcher
+  created_at: 2026-05-17T14:30:00-04:00
+
+quote:
+  last: 192.74
+  bid: 192.71
+  ask: 192.77
+  session: regular
+  source: broker_api
+  source_version: v3
+  fetched_at: 2026-05-17T14:30:00-04:00
+
+fundamentals:
+  eps_last_q: 1.87
+  eps_prior_year_q: 1.55
+  eps_yoy_growth: 0.2065        # 1.87 / 1.55 - 1; Phase 2 will compute via tools/compute_yoy.py
+  revenue_last_q: 89500000000
+  revenue_prior_year_q: 82900000000
+  revenue_yoy_growth: 0.0796
+  eps_surprise_pct: 0.04        # beat consensus by 4%
+  guidance_change: raised
+  filing_date: 2026-04-30
+  next_earnings_date: 2026-07-30
+  next_earnings_source: "web:investor.apple.com"
+  next_earnings_source_secondary: "web:nasdaq.com"   # 2nd source per trade-researcher principle 1
+  market_cap_usd: 2980000000000
+  avg_daily_volume_shares: 52000000
+  source: broker_api
+  fetched_at: 2026-05-17T14:30:00-04:00
+
+technical:
+  price_above_50dma: true
+  price_above_150dma: true
+  price_above_200dma: true
+  ma_alignment_50_150_200: true     # 50d > 150d > 200d
+  ma200_rising: true
+  ma200_rising_months: 6
+  price_pct_above_52w_low: 41       # Trend Template criterion 6: >= 30
+  price_pct_below_52w_high: 6       # Trend Template criterion 7: <= 25
+  rs_rating: 87                     # >= 70 preferred
+  trend_template_passes: 8          # all 8 — Stage 2 confirmed
+  stage: 2
+  weeks_above_200dma: 14
+  atr_14: 4.57
+  adr_20_pct: 2.1
+  rsi_14: 64
+  adx_14: 28
+  volume_today_vs_20d_avg: 1.52     # 52% above — VCP breakout volume confirmation (threshold 1.4)
+  computed_at: 2026-05-17T14:30:00-04:00
+  source: "tool:trend_template.py (planned Phase 2; manual:broker_api today)"
+
+regime:
+  broad_market_ticker: SPY
+  broad_market_trend_template_passes: 7    # 7/7 — Stage 2 confirmed
+  broad_market_stage_class: stage_2_confirmed
+  sector_etf: XLK
+  sector_trend_template_passes: 6
+  sector_qualifies_for_long: true          # >= 5/7
+  regime_multiplier: 1.0
+  computed_at: 2026-05-17T09:30:00-04:00
+
+setup_classification:
+  type: SEPA-VCP
+  grade: A+
+  confluence_checklist:
+    - criterion: "Stage 2 confirmed (trend_template 8/8)"
+      status: PASS
+      evidence: "trend_template_passes=8"
+      trace_refs: [1]
+    - criterion: "VCP detected — 3 progressive contractions over 8 weeks"
+      status: PASS
+      evidence: "contractions=[0.18, 0.11, 0.04]; final <= 5%"
+      trace_refs: [2]
+    - criterion: "Breakout volume >= 1.4x 20d avg"
+      status: PASS
+      evidence: "vol_ratio=1.52"
+      trace_refs: [3]
+    - criterion: "EPS YoY growth >= 0.20"
+      status: PASS
+      evidence: "eps_yoy=0.2065"
+      trace_refs: [4]
+    - criterion: "Revenue YoY growth >= 0.15"
+      status: FAIL
+      evidence: "rev_yoy=0.0796"
+      trace_refs: [5]
+    - criterion: "Beat last consensus and/or guidance raised"
+      status: PASS
+      evidence: "surprise=0.04 AND guidance=raised"
+      trace_refs: [4]
+    - criterion: "Catalyst: specific reason institutions buying now"
+      status: PASS
+      evidence: "Vision Pro 2 announcement Q3 2026"
+      trace_refs: [6]
+    - criterion: "Broad market Stage 2 confirmed"
+      status: PASS
+      evidence: "broad_market_trend_template_passes=7"
+      trace_refs: [7]
+    - criterion: "Sector Stage 2 (>= 5/7)"
+      status: PASS
+      evidence: "XLK 6/7"
+      trace_refs: [7]
+  pivot_price: 194.20
+  stop_price: 186.00                # below low of final VCP contraction
+  stop_distance_pct: 0.0422         # (194.20 - 186.00) / 194.20; under 8% Minervini cap
+  trace_refs: [1, 2, 3, 4, 5, 6, 7]
+  notes: |
+    Revenue YoY misses the 0.15 threshold. Two paths: downgrade to A (one weak SEPA leg)
+    OR hold A+ because Apple's revenue base is so large that 8% is meaningful and EPS
+    growth is the strong signal. Per swing-setup-library, "A" is "All SEPA components
+    present but one is weak" — revenue is weak here. risk-and-compliance should downgrade
+    to A in verification. This example documents the grading edge case explicitly.
+
+catalyst:
+  type: product_launch
+  description: Vision Pro 2 announced for Q3 2026 launch with $1500 price point and major LLM integration
+  date: 2026-05-15
+  source_url: https://www.apple.com/newsroom/2026/05/apple-announces-vision-pro-2/
+  source_secondary_url: https://techcrunch.com/2026/05/15/apple-vision-pro-2/
+  verified: true
+  fetched_at: 2026-05-17T14:30:00-04:00
+
+reasoning_trace:
+  - id: 1
+    tool: "manual:broker_api"
+    inputs: { ticker: AAPL, indicator: trend_template_8pt }
+    output: { passes: 8, stage: 2 }
+    fetched_at: 2026-05-17T14:30:00-04:00
+  - id: 2
+    tool: "manual:chart_analysis"        # Phase 2: tools/vcp_detect.py
+    inputs: { ticker: AAPL, period_weeks: 12 }
+    output: { contractions: [0.18, 0.11, 0.04], final_pct: 0.04, pivot: 194.20 }
+    fetched_at: 2026-05-17T14:30:00-04:00
+  - id: 3
+    tool: "manual:broker_api"
+    inputs: { ticker: AAPL, indicator: volume_ratio_20d, date: 2026-05-17 }
+    output: 1.52
+    fetched_at: 2026-05-17T14:30:00-04:00
+  - id: 4
+    tool: "manual:sec_filing"
+    inputs: { ticker: AAPL, filing: 10-Q, period: 2026-Q2 }
+    output:
+      eps: 1.87
+      eps_yoy_prior: 1.55
+      revenue: 89500000000
+      revenue_yoy_prior: 82900000000
+      consensus_eps: 1.80
+      guidance: raised
+    fetched_at: 2026-05-17T14:30:00-04:00
+  - id: 5
+    tool: "manual:compute"               # Phase 2: tools/compute_yoy.py
+    inputs: { current: 89500000000, prior: 82900000000 }
+    output: 0.0796
+    fetched_at: 2026-05-17T14:30:00-04:00
+  - id: 6
+    tool: "manual:press_release"
+    inputs: { url: "https://www.apple.com/newsroom/2026/05/apple-announces-vision-pro-2/" }
+    output: { product: "Vision Pro 2", launch: "Q3 2026", verified: true }
+    fetched_at: 2026-05-17T14:30:00-04:00
+  - id: 7
+    tool: "manual:broker_api"            # Phase 2: tools/regime_check.py
+    inputs: { ticker: SPY, sector_etf: XLK }
+    output:
+      spy_trend_template_passes: 7
+      spy_stage_class: stage_2_confirmed
+      xlk_trend_template_passes: 6
+      sector_qualifies: true
+    fetched_at: 2026-05-17T09:30:00-04:00
+
+notes: |
+  See setup_classification.notes — A+ vs A grading is a judgment call here.
+  Anything load-bearing must live in a structured field; this section is free-text only.

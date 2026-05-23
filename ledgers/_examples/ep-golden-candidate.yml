@@ -1,0 +1,190 @@
+# Example fact ledger — Golden EP candidate (Episodic Pivot)
+#
+# Catalyst-triggered gap-up entry per swing-earnings-pivot. This is a TEMPLATE,
+# not real market data. Demonstrates ep_specific block + EP grading.
+
+meta:
+  schema_version: "1.0"
+  ticker: SMCI
+  company_name: Super Micro Computer Inc.
+  asof: 2026-05-17T09:45:00-04:00
+  state: candidate
+  ledger_path: ledgers/candidates/2026-05-17/SMCI.yml
+  created_by: trade-researcher
+  created_at: 2026-05-17T09:45:00-04:00
+
+quote:
+  last: 412.50
+  bid: 412.30
+  ask: 412.70
+  session: regular
+  source: broker_api
+  fetched_at: 2026-05-17T09:45:00-04:00
+
+fundamentals:
+  eps_last_q: 8.12
+  eps_prior_year_q: 1.65
+  eps_yoy_growth: 3.9212            # ~392% — triple-digit growth, MAGNA-M criterion
+  revenue_last_q: 5800000000
+  revenue_prior_year_q: 2120000000
+  revenue_yoy_growth: 1.7358        # ~174%
+  eps_surprise_pct: 0.27            # beat consensus by 27%, well above PEAD 10% threshold
+  guidance_change: raised
+  filing_date: 2026-05-16            # yesterday after-hours
+  next_earnings_date: 2026-08-13
+  next_earnings_source: "web:ir.supermicro.com"
+  next_earnings_source_secondary: "web:nasdaq.com"
+  market_cap_usd: 22000000000        # ~$22B — sub-$10B preferred but mid-cap acceptable
+  avg_daily_volume_shares: 8500000
+  source: broker_api
+  fetched_at: 2026-05-17T09:45:00-04:00
+
+technical:
+  price_above_50dma: true
+  price_above_150dma: false          # neglected — was below 150d before gap
+  price_above_200dma: false
+  ma_alignment_50_150_200: false
+  ma200_rising: false
+  ma200_rising_months: 0
+  price_pct_above_52w_low: 28
+  price_pct_below_52w_high: 38       # was beaten down, gap doesn't fix this overnight
+  rs_rating: 62
+  trend_template_passes: 2           # EP intentionally trades outside Stage 2 confirmation
+  stage: 1                           # was Stage 1 before gap; EP creates Stage 1->2 inflection
+  weeks_above_200dma: 0
+  atr_14: 18.40                      # high vol — sizing implications
+  adr_20_pct: 4.8
+  rsi_14: 71                         # extended intraday post-gap; normal for EP day
+  adx_14: 22
+  volume_today_vs_20d_avg: 4.30      # 4.3x — massive
+  computed_at: 2026-05-17T09:45:00-04:00
+  source: "tool:trend_template.py (planned Phase 2)"
+
+regime:
+  broad_market_ticker: SPY
+  broad_market_trend_template_passes: 7
+  broad_market_stage_class: stage_2_confirmed
+  sector_etf: XLK
+  sector_trend_template_passes: 6
+  sector_qualifies_for_long: true
+  regime_multiplier: 1.0
+  computed_at: 2026-05-17T09:30:00-04:00
+
+setup_classification:
+  type: EP
+  grade: GoldenEP
+  confluence_checklist:
+    - criterion: "Catalyst is real and current (earnings beat + raised guidance)"
+      status: PASS
+      evidence: "10-Q filed 2026-05-16; surprise=0.27; guidance=raised"
+      trace_refs: [1]
+    - criterion: "Gap >= 10%"
+      status: PASS
+      evidence: "open_gap=0.142"
+      trace_refs: [2]
+    - criterion: "Gap in Golden sweet spot (10-19%)"
+      status: PASS
+      evidence: "open_gap=0.142 in [0.10, 0.19]"
+      trace_refs: [2]
+    - criterion: "Premarket volume on large size (>= 100k)"
+      status: PASS
+      evidence: "premkt_vol=380000"
+      trace_refs: [3]
+    - criterion: "Stock NOT rallied past 3-6 months (neglected filter)"
+      status: PASS
+      evidence: "3m=+4%, 6m=-12%"
+      trace_refs: [4]
+    - criterion: "Triple-digit EPS growth"
+      status: PASS
+      evidence: "eps_yoy=3.92"
+      trace_refs: [5]
+    - criterion: "Significant beat to consensus (>= 10% surprise)"
+      status: PASS
+      evidence: "surprise=0.27"
+      trace_refs: [5]
+    - criterion: "Forward guidance raised"
+      status: PASS
+      evidence: "guidance_change=raised"
+      trace_refs: [5]
+    - criterion: "MAGNA criteria all align"
+      status: PASS
+      evidence: "magna_score=5/5"
+      trace_refs: [6]
+  pivot_price: 415.80                # opening range high (5-min)
+  stop_price: 391.50                 # lows of day; under min(ATR-cap, ADR-cap, 8% cap)
+  stop_distance_pct: 0.0584          # 5.84% — under 8% Minervini cap
+  trace_refs: [1, 2, 3, 4, 5, 6]
+
+catalyst:
+  type: earnings
+  description: Q4 earnings beat by 27%; revenue grew 174% YoY on AI-server demand; raised FY27 revenue guidance from $30B to $40B
+  date: 2026-05-16
+  source_url: https://ir.supermicro.com/news-releases/news-release-details/super-micro-computer-q4-2026-results
+  source_secondary_url: https://www.reuters.com/technology/super-micro-q4-2026-results
+  verified: true
+  fetched_at: 2026-05-17T09:45:00-04:00
+
+ep_specific:
+  gap_pct: 0.142                     # 14.2% open gap
+  premarket_volume_shares: 380000
+  first_30min_volume_vs_adv: 1.15    # >1.0 — full ADV in first 30 min (excellent)
+  prior_rally_3m_pct: 0.04           # +4% over 3 months — neglected
+  prior_rally_6m_pct: -0.12          # -12% over 6 months — deeply neglected
+  neglected_qualified: true
+  magna_score: 5                     # all 5 MAGNA criteria pass — Golden candidate
+  ep_grade: GoldenEP
+  opening_range_high: 415.80
+  opening_range_timeframe: "5m"
+  mandatory_exit_date: 2026-08-13    # next earnings — hard exit
+  trace_refs: [1, 2, 3, 4, 5, 6]
+
+reasoning_trace:
+  - id: 1
+    tool: "manual:sec_filing"
+    inputs: { ticker: SMCI, filing: 10-Q, period: 2026-Q4 }
+    output:
+      eps: 8.12
+      consensus_eps: 6.40
+      surprise_pct: 0.27
+      revenue: 5800000000
+      revenue_yoy_prior: 2120000000
+      guidance: raised
+      filed_at: 2026-05-16T16:30:00-04:00
+    fetched_at: 2026-05-17T09:45:00-04:00
+  - id: 2
+    tool: "manual:broker_api"        # Phase 2: tools/ep_detect.py
+    inputs: { ticker: SMCI, prev_close: 364.00, today_open: 415.80 }
+    output: { gap_pct: 0.142, sweet_spot_qualified: true }
+    fetched_at: 2026-05-17T09:45:00-04:00
+  - id: 3
+    tool: "manual:broker_api"
+    inputs: { ticker: SMCI, window: "premarket 2026-05-17" }
+    output: { premarket_volume_shares: 380000 }
+    fetched_at: 2026-05-17T09:32:00-04:00
+  - id: 4
+    tool: "manual:broker_api"        # Phase 2: tools/prior_rally_pct.py
+    inputs: { ticker: SMCI, asof: 2026-05-16 }
+    output: { rally_3m_pct: 0.04, rally_6m_pct: -0.12, neglected: true }
+    fetched_at: 2026-05-17T09:45:00-04:00
+  - id: 5
+    tool: "manual:sec_filing"
+    inputs: { ticker: SMCI, eps_current: 8.12, eps_prior: 1.65 }
+    output: { eps_yoy: 3.9212, growth_band: "triple_digit" }
+    fetched_at: 2026-05-17T09:45:00-04:00
+  - id: 6
+    tool: "manual:magna_compute"     # Phase 2: tools/magna_score.py
+    inputs:
+      massive_earnings: true
+      after_hours_gap: true
+      gap_confirmed: true
+      neglected: true
+      analyst_upgrades: true
+    output: { magna_score: 5, ep_grade: GoldenEP }
+    fetched_at: 2026-05-17T09:45:00-04:00
+
+notes: |
+  Classic Golden EP: triple-digit earnings, big beat, raised guidance, neglected name,
+  full MAGNA 5/5, gap in 10-19% sweet spot, big premarket volume. Stage 1->2 inflection
+  via the catalyst itself. Position-sizing input: high ATR ($18.40) means 8% cap may
+  bind; risk-and-compliance verification will compute. Mandatory exit before 2026-08-13
+  earnings per swing-earnings-pivot rule.

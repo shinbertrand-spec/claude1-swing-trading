@@ -1,0 +1,481 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude1.local/schemas/ledger.schema.json",
+  "title": "Swing-trade fact ledger",
+  "description": "Per-candidate / per-position fact ledger for Claude1. Phase 1 of the swing-risk-compliance-doctrine 4-phase path: deterministic fact storage with per-section fetched_at timestamps. Conclusions (setup classification, sell decisions, etc.) MUST cite reasoning_trace entries that reference deterministic tool outputs. The agent never re-derives values that appear in this ledger.",
+  "type": "object",
+  "required": ["meta"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": { "$ref": "#/$defs/meta" },
+    "quote": { "$ref": "#/$defs/quote" },
+    "fundamentals": { "$ref": "#/$defs/fundamentals" },
+    "technical": { "$ref": "#/$defs/technical" },
+    "regime": { "$ref": "#/$defs/regime" },
+    "setup_classification": { "$ref": "#/$defs/setup_classification" },
+    "catalyst": { "$ref": "#/$defs/catalyst" },
+    "ep_specific": { "$ref": "#/$defs/ep_specific" },
+    "position_state": { "$ref": "#/$defs/position_state" },
+    "sell_eval_history": {
+      "description": "Append-only history of sell-trigger evaluations. One entry per evaluation (typically daily on open positions). v1-preliminary: revisit after Minervini book v2 ingestion of swing-sell-discipline.md.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/sell_eval_entry" }
+    },
+    "reasoning_trace": {
+      "description": "Append-only numbered list of tool outputs that conclusions in this ledger cite. Each conclusion in a setup_classification / position_state / sell_eval entry MUST reference one or more reasoning_trace steps by integer id. Per swing-risk-compliance-doctrine Requirement 3 (unfaithful-reasoning detection).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/trace_step" }
+    },
+    "notes": {
+      "description": "Free-text scratchpad. Not load-bearing. Anything load-bearing must move into a structured field.",
+      "type": "string"
+    }
+  },
+
+  "$defs": {
+    "iso_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp with timezone. Example: 2026-05-17T14:30:00-04:00"
+    },
+    "iso_date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO-8601 date (no time). Example: 2026-05-17"
+    },
+    "source_tag": {
+      "type": "string",
+      "description": "Where this datum came from. Free string but follow conventions: broker_api, sec_filing, earnings_release, web:<domain>, tool:<tool_name>, manual.",
+      "examples": ["broker_api", "tool:trend_template.py", "sec_filing", "web:investors.example.com"]
+    },
+
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "ticker", "asof", "state", "created_by", "created_at"],
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "description": "Ledger schema version. Bump when the structure changes; existing ledgers stay on the version they were written under."
+        },
+        "ticker": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9.\\-]{0,9}$",
+          "description": "Uppercase ticker symbol."
+        },
+        "company_name": { "type": "string" },
+        "asof": {
+          "$ref": "#/$defs/iso_timestamp",
+          "description": "The point in time this ledger snapshot represents. For candidates: the moment trade-researcher built the candidate report. For positions: the last update timestamp."
+        },
+        "state": {
+          "enum": ["candidate", "rejected", "starter", "stage-2", "stage-3", "trailing", "closed"],
+          "description": "Lifecycle state. candidate=pre-trade research; rejected=did not pass risk-and-compliance; starter/stage-2/stage-3=open and at the named pyramid stage per swing-momentum-execution; trailing=full size, no further adds, normal trail; closed=exited."
+        },
+        "ledger_path": {
+          "type": "string",
+          "description": "Self-reference relative path. e.g. ledgers/candidates/2026-05-17/AAPL.yml. Set on creation; never changes."
+        },
+        "created_by": {
+          "type": "string",
+          "description": "Which agent or skill created this ledger. e.g. trade-researcher, risk-and-compliance, manual."
+        },
+        "created_at": { "$ref": "#/$defs/iso_timestamp" },
+        "updated_by": { "type": "string" },
+        "updated_at": { "$ref": "#/$defs/iso_timestamp" }
+      }
+    },
+
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["last", "bid", "ask", "source", "fetched_at"],
+      "properties": {
+        "last": { "type": "number", "exclusiveMinimum": 0 },
+        "bid": { "type": "number", "exclusiveMinimum": 0 },
+        "ask": { "type": "number", "exclusiveMinimum": 0 },
+        "session": {
+          "enum": ["premarket", "regular", "afterhours", "closed"],
+          "description": "Market session at fetch time. Stale-during-regular rules differ from stale-during-closed."
+        },
+        "source": { "$ref": "#/$defs/source_tag" },
+        "source_version": { "type": "string" },
+        "fetched_at": { "$ref": "#/$defs/iso_timestamp" }
+      }
+    },
+
+    "fundamentals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "fetched_at"],
+      "description": "Fundamental data. Per Requirement 4 (temporal context): the filing_date is what gates 'stale' — if the next earnings is due, the post-fact figures here are about to change.",
+      "properties": {
+        "eps_last_q": { "type": "number" },
+        "eps_prior_year_q": { "type": "number" },
+        "eps_yoy_growth": {
+          "type": "number",
+          "description": "Decimal fraction. 0.21 = 21%. Computed by tools/compute_yoy.py in Phase 2; until then, populate from broker/filing and flag the source."
+        },
+        "revenue_last_q": { "type": "number" },
+        "revenue_prior_year_q": { "type": "number" },
+        "revenue_yoy_growth": { "type": "number" },
+        "eps_surprise_pct": {
+          "type": "number",
+          "description": "Decimal fraction. 0.10 = beat by 10%. Negative = miss."
+        },
+        "guidance_change": { "enum": ["raised", "maintained", "lowered", "none", "unknown"] },
+        "filing_date": { "$ref": "#/$defs/iso_date" },
+        "next_earnings_date": {
+          "$ref": "#/$defs/iso_date",
+          "description": "Per CLAUDE.md hard rule: no entries within 10 trading days of earnings unless that's the explicit thesis (EP setup)."
+        },
+        "next_earnings_source": { "$ref": "#/$defs/source_tag" },
+        "next_earnings_source_secondary": {
+          "$ref": "#/$defs/source_tag",
+          "description": "Per trade-researcher working principle 1: verify earnings dates against TWO independent sources before stating one."
+        },
+        "market_cap_usd": { "type": "number", "minimum": 0 },
+        "avg_daily_volume_shares": { "type": "integer", "minimum": 0 },
+        "source": { "$ref": "#/$defs/source_tag" },
+        "fetched_at": { "$ref": "#/$defs/iso_timestamp" }
+      }
+    },
+
+    "technical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["computed_at"],
+      "description": "Technical state of the candidate stock. The 8-point Trend Template fields drive Stage classification per swing-regime-playbook Level 3.",
+      "properties": {
+        "price_above_50dma": { "type": "boolean" },
+        "price_above_150dma": { "type": "boolean" },
+        "price_above_200dma": { "type": "boolean" },
+        "ma_alignment_50_150_200": {
+          "type": "boolean",
+          "description": "True iff 50-day MA > 150-day MA > 200-day MA."
+        },
+        "ma200_rising": { "type": "boolean", "description": "200-day MA higher than 30 days ago." },
+        "ma200_rising_months": { "type": "integer", "minimum": 0, "description": "How many months the 200-day MA has been rising. Minervini prefers >= 4-5." },
+        "price_pct_above_52w_low": { "type": "number", "description": "Percent. 41 = 41%. Trend Template requires >= 30%." },
+        "price_pct_below_52w_high": { "type": "number", "description": "Percent. 6 = 6%. Trend Template requires <= 25%." },
+        "rs_rating": { "type": "integer", "minimum": 1, "maximum": 99, "description": "IBD-style relative strength. Trend Template prefers >= 70." },
+        "trend_template_passes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8,
+          "description": "Count of the 8 Trend Template criteria passing for this stock."
+        },
+        "stage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Weinstein stage analysis classification 1–4. Only Stage 2 qualifies for long entries per swing-regime-playbook."
+        },
+        "weeks_above_200dma": { "type": "integer", "minimum": 0 },
+        "atr_14": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "14-period ATR in $. Used by position_sizer.py to derive stop distance per swing-position-sizing."
+        },
+        "adr_20_pct": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "20-day Average Daily Range as percent of price. Kullamägi's stop sizing input."
+        },
+        "rsi_14": { "type": "number", "minimum": 0, "maximum": 100 },
+        "adx_14": { "type": "number", "minimum": 0, "maximum": 100 },
+        "volume_today_vs_20d_avg": {
+          "type": "number",
+          "description": "Ratio. 1.5 = 50% above 20-day average. Setup-confluence input for VCP breakout and Momentum Burst."
+        },
+        "computed_at": { "$ref": "#/$defs/iso_timestamp" },
+        "source": { "$ref": "#/$defs/source_tag" }
+      }
+    },
+
+    "regime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["computed_at"],
+      "description": "Three-level regime check per swing-regime-playbook. Stage 4 broad market = no new entries (circuit breaker).",
+      "properties": {
+        "broad_market_ticker": { "type": "string", "examples": ["SPY", "QQQ"] },
+        "broad_market_trend_template_passes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7,
+          "description": "Score 0-7 against the broad-market trend template (RS criterion skipped for indices)."
+        },
+        "broad_market_stage_class": {
+          "enum": ["stage_2_confirmed", "stage_2_weakening", "stage_3_transitional", "stage_4"],
+          "description": "Maps from broad_market_trend_template_passes: 7=>stage_2_confirmed, 5-6=>stage_2_weakening, 3-4=>stage_3_transitional, 0-2=>stage_4."
+        },
+        "sector_etf": { "type": "string", "examples": ["XLK", "XLE", "XLV"] },
+        "sector_trend_template_passes": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "sector_qualifies_for_long": {
+          "type": "boolean",
+          "description": "True iff sector >= 5/7. False eliminates the candidate per Level 2."
+        },
+        "regime_multiplier": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Per swing-position-sizing: 1.0 stage_2_confirmed, 0.75 stage_2_weakening, 0.5 stage_3_transitional, 0 stage_4."
+        },
+        "computed_at": { "$ref": "#/$defs/iso_timestamp" }
+      }
+    },
+
+    "setup_classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "confluence_checklist", "trace_refs"],
+      "description": "Per swing-setup-library: a candidate trade is tagged with exactly one setup type plus a grade. Grading shape depends on type (SEPA-VCP uses A+/A/B/C; EP uses Super Swan / Swan / Duck / Chicken / Golden EP).",
+      "properties": {
+        "type": {
+          "enum": ["SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout"]
+        },
+        "grade": {
+          "description": "Grade per the grading scale appropriate to the setup type. SEPA-VCP / Pullback / RSI-Div / Resistance-Break use {A+, A, B, C}. EP uses {SuperSwan, Swan, Duck, Chicken, GoldenEP}.",
+          "enum": ["A+", "A", "B", "C", "SuperSwan", "Swan", "Duck", "Chicken", "GoldenEP"]
+        },
+        "confluence_checklist": {
+          "type": "array",
+          "description": "Per-criterion pass/fail with evidence. Each criterion ties back to a setup-library or earnings-pivot named requirement.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["criterion", "status"],
+            "properties": {
+              "criterion": { "type": "string", "description": "Named criterion. e.g. 'eps_yoy >= 0.20', 'final_contraction <= 5pct', 'volume_40pct_above_20d_avg'." },
+              "status": { "enum": ["PASS", "FAIL", "PARTIAL", "UNKNOWN"] },
+              "evidence": { "type": "string", "description": "One-line evidence with the value. e.g. 'eps_yoy=0.21'." },
+              "trace_refs": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1 },
+                "description": "List of reasoning_trace step IDs that produced this evidence. EMPTY = unfaithful by Requirement 3 — risk-and-compliance will downgrade or BLOCK."
+              }
+            }
+          }
+        },
+        "pivot_price": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Entry trigger price. For SEPA-VCP: top of final contraction. For EP: opening range high. For Pullback: reversal-candle high. For RSI-Div: confirmation candle high. For Resistance-Break: resistance level."
+        },
+        "stop_price": { "type": "number", "exclusiveMinimum": 0 },
+        "stop_distance_pct": {
+          "type": "number",
+          "description": "(pivot_price - stop_price) / pivot_price. Must be <= 0.08 per Minervini cap. Computed by tools/stop_sizer.py in Phase 2."
+        },
+        "trace_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "Reasoning trace IDs supporting the overall classification (type + grade)."
+        },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "catalyst": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The 'A' (Announcement) leg of SEPA. Also drives EP setup. Per swing-setup-library: vague AI/cloud tailwind without specific company application does NOT qualify.",
+      "required": ["type", "verified", "fetched_at"],
+      "properties": {
+        "type": {
+          "enum": ["earnings", "guidance", "product_launch", "regulatory_approval", "biotech_trial", "contract_win", "macro_policy", "industry_rotation", "none"]
+        },
+        "description": { "type": "string" },
+        "date": { "$ref": "#/$defs/iso_date" },
+        "source_url": { "type": "string", "format": "uri" },
+        "source_secondary_url": { "type": "string", "format": "uri", "description": "Optional second source. Strongly recommended for earnings catalysts." },
+        "verified": { "type": "boolean", "description": "True iff a deterministic source URL has been fetched and confirmed. Phase 1 = manual confirmation; Phase 2+ may automate." },
+        "fetched_at": { "$ref": "#/$defs/iso_timestamp" }
+      }
+    },
+
+    "ep_specific": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Fields populated only when setup_classification.type == 'EP'. Per swing-earnings-pivot operational guide.",
+      "properties": {
+        "gap_pct": { "type": "number", "description": "Open gap as decimal. 0.10 = 10%. Threshold: >= 0.10 for EP eligibility." },
+        "premarket_volume_shares": { "type": "integer", "minimum": 0 },
+        "first_30min_volume_vs_adv": { "type": "number", "description": "Ratio. Best EPs trade their full ADV in first 15-30 min." },
+        "prior_rally_3m_pct": { "type": "number", "description": "Decimal. EP filter: stock should NOT have rallied past 3-6 months." },
+        "prior_rally_6m_pct": { "type": "number" },
+        "neglected_qualified": { "type": "boolean" },
+        "magna_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Massive earnings / After-hours gap / Gap up confirmed / Neglected / Analyst upgrades. 5/5 = Golden EP candidate."
+        },
+        "ep_grade": {
+          "enum": ["SuperSwan", "Swan", "Duck", "Chicken", "GoldenEP"],
+          "description": "Mirror of setup_classification.grade when type==EP. Stored separately for query convenience."
+        },
+        "opening_range_high": { "type": "number", "exclusiveMinimum": 0 },
+        "opening_range_timeframe": { "enum": ["1m", "5m", "15m", "60m", "daily"] },
+        "mandatory_exit_date": {
+          "$ref": "#/$defs/iso_date",
+          "description": "Per swing-earnings-pivot mandatory rule: exit before next quarterly earnings."
+        },
+        "trace_refs": { "type": "array", "items": { "type": "integer", "minimum": 1 } }
+      }
+    },
+
+    "position_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Lifecycle state for an open position. Populated when meta.state is starter/stage-2/stage-3/trailing/closed. Per swing-momentum-execution Anchor-and-Pyramid three-stage workflow.",
+      "required": ["stage", "intended_full_shares"],
+      "properties": {
+        "stage": { "enum": ["STARTER", "Stage-2", "Stage-3", "trailing", "closed"] },
+        "intended_full_shares": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Target full-size share count this position is aiming for. STARTER = 1/3 of this; Stage-2 = full; Stage-3 = 1.5x."
+        },
+        "intended_full_capital_pct": {
+          "type": "number",
+          "description": "Capital % the full position represents. Caps per swing-position-sizing apply."
+        },
+        "risk_budget_pct": {
+          "type": "number",
+          "description": "Account-risk budget % for this position. Per swing-position-sizing table: A+ SEPA / SuperSwan / GoldenEP = 2.0%, A/Swan = 1.5%, etc."
+        },
+        "starter": { "$ref": "#/$defs/entry_leg" },
+        "addon_1": { "$ref": "#/$defs/entry_leg" },
+        "addon_2": { "$ref": "#/$defs/entry_leg" },
+        "combined_breakeven": {
+          "type": "number",
+          "description": "Weighted-average entry across all filled legs. The stop after ADD-ON #1 migrates to this value. Computed by tools/combined_breakeven.py in Phase 2."
+        },
+        "current_stop": { "type": "number", "exclusiveMinimum": 0 },
+        "trail_ma": {
+          "enum": ["lows_of_day", "5_day_MA", "10_day_MA", "20_day_MA", "50_day_MA", "combined_breakeven"],
+          "description": "Trailing mechanism currently in force. Tightens over time per swing-momentum-execution stop-migration table; never widens."
+        },
+        "mandatory_exit_date": { "$ref": "#/$defs/iso_date" },
+        "trail_state_legacy": {
+          "enum": ["initial", "breakeven", "plus5"],
+          "description": "Mirror of journal/positions.json v1 trail_state for backward compatibility with scripts/check-positions.ps1 until that script is updated."
+        },
+        "alerts_sent": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Alert keys already fired so reminder scripts don't spam. Mirror of v1 alerts_sent."
+        }
+      }
+    },
+
+    "entry_leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fill_date", "shares", "fill_price"],
+      "properties": {
+        "trigger": {
+          "enum": ["SLTB", "MomentumBurst", "Day7Milestone", "EPGap", "VCPBreakout", "PullbackReversal", "manual"],
+          "description": "Which mechanical trigger this leg fired on. Per swing-momentum-execution."
+        },
+        "fill_date": { "$ref": "#/$defs/iso_date" },
+        "fill_time": { "type": "string", "description": "HH:MM ET. Optional." },
+        "shares": { "type": "integer", "minimum": 1 },
+        "fill_price": { "type": "number", "exclusiveMinimum": 0 },
+        "limit_price_placed": { "type": "number", "exclusiveMinimum": 0 },
+        "initial_stop": { "type": "number", "exclusiveMinimum": 0 },
+        "trace_refs": { "type": "array", "items": { "type": "integer", "minimum": 1 } }
+      }
+    },
+
+    "sell_eval_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["date", "action"],
+      "description": "Single daily sell-trigger evaluation per swing-sell-discipline. v1-preliminary: revisit after Minervini book v2 ingestion.",
+      "properties": {
+        "date": { "$ref": "#/$defs/iso_date" },
+        "evaluated_at": { "$ref": "#/$defs/iso_timestamp" },
+        "climax_top_patterns_firing": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6,
+          "description": "Count of the 6 climax-top patterns firing today per swing-sell-discipline Trigger #1. v1-preliminary."
+        },
+        "climax_top_patterns_detail": {
+          "type": "array",
+          "items": { "enum": ["sharp_advance", "8_of_10_up_days", "highest_ever_volume", "accelerated_advance", "largest_up_day", "widest_daily_spread"] }
+        },
+        "violations_firing": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Count of the 5 breakout violations firing per swing-sell-discipline Trigger #2. v1-preliminary."
+        },
+        "violations_detail": {
+          "type": "array",
+          "items": { "enum": ["volume_asymmetry", "three_lower_lows_on_volume", "more_down_than_up", "more_bad_closes_than_good", "close_below_20_or_50_MA_on_heavy_volume"] }
+        },
+        "base_stage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "O'Neil/Minervini base-count stage. 4th/5th-stage new-highs = exit signal per Trigger #3."
+        },
+        "pe_doubled_late_stage": { "type": "boolean" },
+        "sell_into_strength_triggered": {
+          "type": "boolean",
+          "description": "True iff position up 10-15% in 2-3 days with no further catalyst pending. 3-school convergent rule."
+        },
+        "action": {
+          "enum": ["hold", "sell_1_3", "sell_50", "sell_75", "sell_100", "tighten_stop"],
+          "description": "Recommended action from sell_decision.py. In Phase 1 this is recorded manually; in Phase 2 the tool decides."
+        },
+        "confidence": { "enum": ["HIGH", "MEDIUM", "LOW"] },
+        "new_stop": { "type": "number", "exclusiveMinimum": 0 },
+        "trace_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "Reasoning-trace IDs supporting this sell evaluation. EMPTY = unfaithful by Requirement 3."
+        },
+        "v1_preliminary_flag": {
+          "type": "boolean",
+          "description": "Set true while swing-sell-discipline is in v1. Permits sells to fire on incomplete rules but marks them for v2 retrospective review."
+        }
+      }
+    },
+
+    "trace_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tool", "output", "fetched_at"],
+      "description": "Single numbered tool-output entry. Conclusions elsewhere in the ledger cite the id. Phase 1: populated manually as a contract; Phase 2 onward: emitted by the tool itself.",
+      "properties": {
+        "id": { "type": "integer", "minimum": 1, "description": "Stable monotonically-increasing integer within this ledger." },
+        "tool": {
+          "type": "string",
+          "description": "Tool that produced this output. e.g. tools/trend_template.py, tools/ep_detect.py, tools/position_sizer.py. Use 'manual:<source>' for Phase 1 manual entries.",
+          "examples": ["tools/trend_template.py", "tools/vcp_detect.py", "tools/position_sizer.py", "manual:broker_api", "manual:sec_filing"]
+        },
+        "inputs": {
+          "type": "object",
+          "description": "Inputs the tool was called with. Keeps the trace re-runnable.",
+          "additionalProperties": true
+        },
+        "output": {
+          "description": "Tool output. Can be any JSON-serializable shape — number, string, object, array.",
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" },
+            { "type": "object" },
+            { "type": "array" }
+          ]
+        },
+        "fetched_at": { "$ref": "#/$defs/iso_timestamp" }
+      }
+    }
+  }
+}

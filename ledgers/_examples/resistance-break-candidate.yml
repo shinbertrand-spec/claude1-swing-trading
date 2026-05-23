@@ -1,0 +1,150 @@
+# Example fact ledger — Secondary setup: Resistance breakout (non-VCP)
+#
+# Per swing-setup-library Secondary 3. "Lower probability than VCP because the
+# prior structure isn't characterised; use only if SEPA setups are scarce."
+# TEMPLATE, not real market data.
+
+meta:
+  schema_version: "1.0"
+  ticker: AVGO
+  company_name: Broadcom Inc.
+  asof: 2026-05-17T13:15:00-04:00
+  state: candidate
+  ledger_path: ledgers/candidates/2026-05-17/AVGO.yml
+  created_by: trade-researcher
+  created_at: 2026-05-17T13:15:00-04:00
+
+quote:
+  last: 1842.50
+  bid: 1842.20
+  ask: 1842.80
+  session: regular
+  source: broker_api
+  fetched_at: 2026-05-17T13:15:00-04:00
+
+fundamentals:
+  eps_last_q: 14.20
+  eps_prior_year_q: 12.10
+  eps_yoy_growth: 0.1736
+  revenue_last_q: 14900000000
+  revenue_prior_year_q: 13700000000
+  revenue_yoy_growth: 0.0876
+  eps_surprise_pct: 0.03
+  guidance_change: maintained
+  filing_date: 2026-03-06
+  next_earnings_date: 2026-06-04
+  next_earnings_source: "web:investors.broadcom.com"
+  next_earnings_source_secondary: "web:nasdaq.com"
+  market_cap_usd: 870000000000
+  avg_daily_volume_shares: 11000000
+  source: broker_api
+  fetched_at: 2026-05-17T13:15:00-04:00
+
+technical:
+  price_above_50dma: true
+  price_above_150dma: true
+  price_above_200dma: true
+  ma_alignment_50_150_200: true
+  ma200_rising: true
+  ma200_rising_months: 5
+  price_pct_above_52w_low: 38
+  price_pct_below_52w_high: 4
+  rs_rating: 82
+  trend_template_passes: 8
+  stage: 2
+  weeks_above_200dma: 18
+  atr_14: 42.50
+  adr_20_pct: 2.3
+  rsi_14: 68
+  adx_14: 30
+  volume_today_vs_20d_avg: 1.65       # >= 1.5x — resistance-break threshold
+  computed_at: 2026-05-17T13:15:00-04:00
+  source: "tool:trend_template.py (planned Phase 2)"
+
+regime:
+  broad_market_ticker: SPY
+  broad_market_trend_template_passes: 7
+  broad_market_stage_class: stage_2_confirmed
+  sector_etf: XLK
+  sector_trend_template_passes: 6
+  sector_qualifies_for_long: true
+  regime_multiplier: 1.0
+  computed_at: 2026-05-17T09:30:00-04:00
+
+setup_classification:
+  type: Resistance-Breakout
+  grade: B                             # secondary setup, no clean VCP structure
+  confluence_checklist:
+    - criterion: "Clean horizontal resistance violated decisively"
+      status: PASS
+      evidence: "resistance=1820, current=1842.50, broken on close"
+      trace_refs: [1]
+    - criterion: "Volume >= 1.5x 20d avg on breakout"
+      status: PASS
+      evidence: "vol_ratio=1.65"
+      trace_refs: [2]
+    - criterion: "Stage 2 stock (trend_template 8/8)"
+      status: PASS
+      evidence: "trend_template_passes=8"
+      trace_refs: [3]
+    - criterion: "Broad market Stage 2"
+      status: PASS
+      evidence: "broad_market_trend_template_passes=7"
+      trace_refs: [4]
+    - criterion: "Earnings outside 10-day window"
+      status: PASS
+      evidence: "next_earnings=2026-06-04, days_away=13"
+      trace_refs: [5]
+  pivot_price: 1820.00                 # resistance level
+  stop_price: 1745.00                  # below recent swing low
+  stop_distance_pct: 0.0412            # 4.12% — under 8% cap
+  trace_refs: [1, 2, 3, 4, 5]
+  notes: |
+    No VCP — just clean horizontal resistance break on volume. Per swing-setup-library:
+    "Lower probability than VCP because the prior structure isn't characterised."
+    Grade B reflects this. risk-and-compliance should size accordingly per
+    swing-position-sizing Resistance-Breakout (secondary): 0.75% risk budget.
+
+catalyst:
+  type: industry_rotation
+  description: AI-infrastructure rotation continues; AVGO custom-silicon revenue accelerating per channel checks
+  date: 2026-05-12
+  source_url: https://semianalysis.com/2026/05/12/avgo-asic-share-update/
+  verified: true
+  fetched_at: 2026-05-17T13:15:00-04:00
+
+reasoning_trace:
+  - id: 1
+    tool: "manual:chart_analysis"    # Phase 2: tools/resistance_break.py
+    inputs: { ticker: AVGO, lookback_days: 90 }
+    output:
+      resistance_level: 1820.00
+      touches_pre_break: 4
+      breakout_close: 1842.50
+      decisively_broken: true
+    fetched_at: 2026-05-17T13:15:00-04:00
+  - id: 2
+    tool: "manual:broker_api"
+    inputs: { ticker: AVGO, indicator: volume_ratio_20d }
+    output: 1.65
+    fetched_at: 2026-05-17T13:15:00-04:00
+  - id: 3
+    tool: "manual:broker_api"
+    inputs: { ticker: AVGO }
+    output: { trend_template_passes: 8, stage: 2 }
+    fetched_at: 2026-05-17T13:15:00-04:00
+  - id: 4
+    tool: "manual:broker_api"
+    inputs: { ticker: SPY }
+    output: { trend_template_passes: 7, stage_class: stage_2_confirmed }
+    fetched_at: 2026-05-17T09:30:00-04:00
+  - id: 5
+    tool: "manual:broker_api"
+    inputs: { ticker: AVGO }
+    output: { next_earnings_date: 2026-06-04, days_away_trading: 13 }
+    fetched_at: 2026-05-17T09:30:00-04:00
+
+notes: |
+  Clean B-grade resistance breakout. The catalyst is softer than a specific company
+  event (industry_rotation, semianalysis channel check) — Minervini's A-leg
+  framework would call this "okay-not-great." Hence grade B not A.

@@ -1,0 +1,154 @@
+# Example fact ledger — Secondary setup: RSI(14) divergence at support
+#
+# Per swing-setup-library Secondary 2. Use for mean-reversion within an uptrend
+# ONLY; pass if Stage 4 broad market. TEMPLATE, not real market data.
+
+meta:
+  schema_version: "1.0"
+  ticker: NVDA
+  company_name: NVIDIA Corporation
+  asof: 2026-05-17T15:30:00-04:00
+  state: candidate
+  ledger_path: ledgers/candidates/2026-05-17/NVDA.yml
+  created_by: trade-researcher
+  created_at: 2026-05-17T15:30:00-04:00
+
+quote:
+  last: 142.80
+  bid: 142.75
+  ask: 142.85
+  session: regular
+  source: broker_api
+  fetched_at: 2026-05-17T15:30:00-04:00
+
+fundamentals:
+  eps_last_q: 0.85
+  eps_prior_year_q: 0.60
+  eps_yoy_growth: 0.4167
+  revenue_last_q: 39300000000
+  revenue_prior_year_q: 26000000000
+  revenue_yoy_growth: 0.5115
+  eps_surprise_pct: 0.06
+  guidance_change: raised
+  filing_date: 2026-02-26
+  next_earnings_date: 2026-05-28      # within 10 trading days — HARD DISQUALIFIER for non-EP setup
+  next_earnings_source: "web:investor.nvidia.com"
+  next_earnings_source_secondary: "web:nasdaq.com"
+  market_cap_usd: 3500000000000
+  avg_daily_volume_shares: 240000000
+  source: broker_api
+  fetched_at: 2026-05-17T15:30:00-04:00
+
+technical:
+  price_above_50dma: false             # pulled back; price below 50d
+  price_above_150dma: true
+  price_above_200dma: true
+  ma_alignment_50_150_200: true
+  ma200_rising: true
+  ma200_rising_months: 12
+  price_pct_above_52w_low: 22
+  price_pct_below_52w_high: 28         # FAILS Trend Template criterion 7 (must be <= 25)
+  rs_rating: 88
+  trend_template_passes: 6             # NOT all 8 — disqualifies as primary SEPA
+  stage: 2
+  weeks_above_200dma: 60
+  atr_14: 5.20
+  adr_20_pct: 3.4
+  rsi_14: 34                           # at support
+  adx_14: 20
+  volume_today_vs_20d_avg: 0.92
+  computed_at: 2026-05-17T15:30:00-04:00
+  source: "tool:trend_template.py (planned Phase 2)"
+
+regime:
+  broad_market_ticker: SPY
+  broad_market_trend_template_passes: 7
+  broad_market_stage_class: stage_2_confirmed
+  sector_etf: XLK
+  sector_trend_template_passes: 6
+  sector_qualifies_for_long: true
+  regime_multiplier: 1.0
+  computed_at: 2026-05-17T09:30:00-04:00
+
+setup_classification:
+  type: RSI-Divergence
+  grade: C                             # downgraded — earnings inside 10-day window kills the setup
+  confluence_checklist:
+    - criterion: "Price makes lower low, RSI makes higher low"
+      status: PASS
+      evidence: "prev_low=141.20 RSI=37; today_low=139.80 RSI=34 — wait, that's RSI lower-low too. PARTIAL."
+      trace_refs: [1]
+    - criterion: "At obvious support level"
+      status: PASS
+      evidence: "50d SMA at 142.50, also prior swing low 140.00"
+      trace_refs: [2]
+    - criterion: "Volume on new price low <= volume on prior low"
+      status: PASS
+      evidence: "today_vol=0.92x avg, prior_low_vol=1.05x avg"
+      trace_refs: [3]
+    - criterion: "Not Stage 4 broad market"
+      status: PASS
+      evidence: "broad_market_stage_class=stage_2_confirmed"
+      trace_refs: [4]
+    - criterion: "No earnings within 10 trading days (CLAUDE.md hard rule)"
+      status: FAIL
+      evidence: "next_earnings=2026-05-28, days_away=7"
+      trace_refs: [5]
+  pivot_price: 144.20
+  stop_price: 138.50
+  stop_distance_pct: 0.0395
+  trace_refs: [1, 2, 3, 4, 5]
+  notes: |
+    HARD DISQUALIFIER: next earnings 2026-05-28 is 7 trading days out — fails CLAUDE.md
+    rule "no entries within 10 trading days of earnings unless explicit earnings play."
+    risk-and-compliance will BLOCK. This example demonstrates a disqualifier path —
+    the ledger captures the setup analysis but the trade does not pass framework.
+
+    Per the divergence criterion: the first evidence line shows a check that the
+    researcher's eye flagged as PASS but on closer inspection is questionable (RSI lower-low
+    same as price lower-low isn't a real divergence). The reasoning_trace lets
+    risk-and-compliance re-run the deterministic divergence detector and catch this.
+
+catalyst:
+  type: none
+  description: No catalyst — pure technical mean-reversion attempt
+  verified: true
+  fetched_at: 2026-05-17T15:30:00-04:00
+
+reasoning_trace:
+  - id: 1
+    tool: "manual:chart_analysis"     # Phase 2: tools/rsi_divergence.py
+    inputs: { ticker: NVDA, rsi_period: 14, lookback_days: 30 }
+    output:
+      prev_low: { price: 141.20, rsi: 37, date: 2026-05-08 }
+      today_low: { price: 139.80, rsi: 34, date: 2026-05-17 }
+      divergence_detected: false      # NOT a real divergence — RSI also lower-low
+      note: "Listed as PASS in confluence_checklist but tool output disagrees; flag for risk-and-compliance"
+    fetched_at: 2026-05-17T15:30:00-04:00
+  - id: 2
+    tool: "manual:chart_analysis"
+    inputs: { ticker: NVDA, support_lookup: 30d }
+    output: { sma_50: 142.50, swing_low: 140.00, support_confidence: high }
+    fetched_at: 2026-05-17T15:30:00-04:00
+  - id: 3
+    tool: "manual:broker_api"
+    inputs: { ticker: NVDA, indicator: volume_ratio_20d }
+    output: { today: 0.92, prior_low_day: 1.05 }
+    fetched_at: 2026-05-17T15:30:00-04:00
+  - id: 4
+    tool: "manual:broker_api"
+    inputs: { ticker: SPY }
+    output: { trend_template_passes: 7, stage_class: stage_2_confirmed }
+    fetched_at: 2026-05-17T09:30:00-04:00
+  - id: 5
+    tool: "manual:broker_api"         # Phase 2: tools/earnings_calendar.py
+    inputs: { ticker: NVDA }
+    output: { next_earnings_date: 2026-05-28, days_away_trading: 7 }
+    fetched_at: 2026-05-17T09:30:00-04:00
+
+notes: |
+  This example exists to demonstrate (a) a setup with a hard disqualifier flagged
+  cleanly, and (b) the reasoning_trace catching a prose-level confluence claim that
+  the tool output contradicts. Per Requirement 3 (unfaithful-reasoning detection):
+  the confluence_checklist entry's PASS status is contradicted by trace_step 1's
+  divergence_detected=false. risk-and-compliance flags this in Phase 4.

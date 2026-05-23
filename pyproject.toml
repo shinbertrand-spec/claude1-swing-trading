@@ -1,0 +1,30 @@
+[project]
+name = "claude1-tools"
+version = "0.1.0"
+description = "Phase 2 deterministic-arithmetic tools for the Claude1 swing-trading agent. Per swing-risk-compliance-doctrine Requirement 2: all decision-affecting arithmetic lives here, never in agent reasoning."
+requires-python = ">=3.12"
+dependencies = [
+    "yfinance>=0.2.50",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+    "jsonschema>=4.20",
+    "pyarrow>=17.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:yfinance",
+    "ignore::FutureWarning:yfinance",
+]

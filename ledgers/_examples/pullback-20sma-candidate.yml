@@ -1,0 +1,142 @@
+# Example fact ledger — Secondary setup: Pullback to 20-day SMA in Stage 2
+#
+# Per swing-setup-library Secondary 1. Lower confidence than SEPA-VCP; max
+# position size = 60% of SEPA equivalent. TEMPLATE, not real market data.
+
+meta:
+  schema_version: "1.0"
+  ticker: MSFT
+  company_name: Microsoft Corporation
+  asof: 2026-05-17T15:00:00-04:00
+  state: candidate
+  ledger_path: ledgers/candidates/2026-05-17/MSFT.yml
+  created_by: trade-researcher
+  created_at: 2026-05-17T15:00:00-04:00
+
+quote:
+  last: 478.25
+  bid: 478.20
+  ask: 478.30
+  session: regular
+  source: broker_api
+  fetched_at: 2026-05-17T15:00:00-04:00
+
+fundamentals:
+  eps_last_q: 3.65
+  eps_prior_year_q: 3.30
+  eps_yoy_growth: 0.1061
+  revenue_last_q: 70100000000
+  revenue_prior_year_q: 64600000000
+  revenue_yoy_growth: 0.0851
+  eps_surprise_pct: 0.02
+  guidance_change: maintained
+  filing_date: 2026-04-24
+  next_earnings_date: 2026-07-23
+  next_earnings_source: "web:microsoft.com/investor"
+  next_earnings_source_secondary: "web:nasdaq.com"
+  market_cap_usd: 3550000000000
+  avg_daily_volume_shares: 21000000
+  source: broker_api
+  fetched_at: 2026-05-17T15:00:00-04:00
+
+technical:
+  price_above_50dma: true
+  price_above_150dma: true
+  price_above_200dma: true
+  ma_alignment_50_150_200: true
+  ma200_rising: true
+  ma200_rising_months: 8
+  price_pct_above_52w_low: 32
+  price_pct_below_52w_high: 8
+  rs_rating: 78
+  trend_template_passes: 8
+  stage: 2
+  weeks_above_200dma: 22
+  atr_14: 8.40
+  adr_20_pct: 1.7
+  rsi_14: 48                          # pulled back from extended
+  adx_14: 24
+  volume_today_vs_20d_avg: 0.85       # declining volume on pullback (bullish)
+  computed_at: 2026-05-17T15:00:00-04:00
+  source: "tool:trend_template.py (planned Phase 2)"
+
+regime:
+  broad_market_ticker: SPY
+  broad_market_trend_template_passes: 7
+  broad_market_stage_class: stage_2_confirmed
+  sector_etf: XLK
+  sector_trend_template_passes: 6
+  sector_qualifies_for_long: true
+  regime_multiplier: 1.0
+  computed_at: 2026-05-17T09:30:00-04:00
+
+setup_classification:
+  type: Pullback-20SMA
+  grade: A                            # not A+ — no specific catalyst
+  confluence_checklist:
+    - criterion: "Stage 2 confirmed (trend_template 8/8)"
+      status: PASS
+      evidence: "trend_template_passes=8"
+      trace_refs: [1]
+    - criterion: "Price pulled back to 20-day SMA"
+      status: PASS
+      evidence: "20d_SMA=478.10, current=478.25, distance=0.03%"
+      trace_refs: [2]
+    - criterion: "Declining volume on pullback"
+      status: PASS
+      evidence: "vol_ratio=0.85"
+      trace_refs: [3]
+    - criterion: "Bullish reversal candle at SMA touch"
+      status: PASS
+      evidence: "hammer pattern formed at 20d SMA today"
+      trace_refs: [4]
+    - criterion: "Broad market Stage 2"
+      status: PASS
+      evidence: "broad_market_trend_template_passes=7"
+      trace_refs: [5]
+  pivot_price: 480.50                 # high of reversal candle + small buffer
+  stop_price: 472.00                  # below low of reversal candle
+  stop_distance_pct: 0.0177           # 1.77% — comfortable under 8% cap
+  trace_refs: [1, 2, 3, 4, 5]
+  notes: |
+    Per swing-setup-library: Secondary 1 has "lower confidence than VCP; max position
+    size = 60% of SEPA setup." Position sizing should apply that 60% modifier on top of
+    the A-grade risk budget.
+
+catalyst:
+  type: none
+  description: No scheduled event in the 2-6 week window; pure technical pullback setup
+  verified: true
+  fetched_at: 2026-05-17T15:00:00-04:00
+
+reasoning_trace:
+  - id: 1
+    tool: "manual:broker_api"        # Phase 2: tools/trend_template.py
+    inputs: { ticker: MSFT }
+    output: { passes: 8, stage: 2 }
+    fetched_at: 2026-05-17T15:00:00-04:00
+  - id: 2
+    tool: "manual:chart_analysis"    # Phase 2: tools/pullback_detect.py
+    inputs: { ticker: MSFT, ma_period: 20 }
+    output: { sma_20: 478.10, current: 478.25, distance_pct: 0.0003 }
+    fetched_at: 2026-05-17T15:00:00-04:00
+  - id: 3
+    tool: "manual:broker_api"
+    inputs: { ticker: MSFT, indicator: volume_ratio_20d }
+    output: 0.85
+    fetched_at: 2026-05-17T15:00:00-04:00
+  - id: 4
+    tool: "manual:chart_analysis"
+    inputs: { ticker: MSFT, pattern: candle }
+    output: { pattern: hammer, location: at_20sma, confidence: medium }
+    fetched_at: 2026-05-17T15:00:00-04:00
+  - id: 5
+    tool: "manual:broker_api"
+    inputs: { ticker: SPY }
+    output: { trend_template_passes: 7, stage_class: stage_2_confirmed }
+    fetched_at: 2026-05-17T09:30:00-04:00
+
+notes: |
+  Cleaner R:R than SEPA-VCP here (1.77% stop) but lower max-position size per
+  swing-setup-library secondary modifier. Catalyst leg is "none" — that caps the grade
+  at A, not A+ (A+ requires specific catalyst per the SEPA framework).
