@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude1.local/schemas/news_snapshot.schema.json",
+  "title": "News snapshot",
+  "description": "Hourly point-in-time snapshot produced by the news-research subagent. One file per hour during US market hours. Distinct from the per-ticker fact ledger: news snapshots are global (multi-ticker, time-windowed) rather than per-trade-lifecycle. Material deltas between consecutive snapshots drive Telegram push notifications.",
+  "type": "object",
+  "required": ["meta", "market_context", "per_ticker_items"],
+  "additionalProperties": false,
+  "properties": {
+    "meta":             { "$ref": "#/$defs/meta" },
+    "market_context":   { "$ref": "#/$defs/market_context" },
+    "per_ticker_items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/per_ticker_item" }
+    },
+    "top_movers": {
+      "description": "US gainers/losers >5% intraday cross-referenced against watchlist + positions. NEW names (not already tracked) are candidate EP / gap-up / gap-down flags for the orchestrator.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/top_mover" }
+    },
+    "macro_events": {
+      "description": "Scheduled or breaking macro events (Fed speak, FOMC, CPI, employment). Drives broad-market push criteria.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/macro_event" }
+    },
+    "material_deltas": {
+      "description": "Items the synth pass judged worth pushing to Telegram, distilled from per_ticker_items + top_movers + macro_events. Empty array = no push this hour.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/material_delta" }
+    },
+    "notes": {
+      "description": "Free-text scratchpad. Not load-bearing.",
+      "type": "string"
+    }
+  },
+
+  "$defs": {
+    "iso_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp with timezone. Example: 2026-05-19T14:00:00-04:00"
+    },
+    "iso_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "hhmm_et": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+      "description": "24h HH:MM in US/Eastern. Example: 14:00"
+    },
+    "ticker": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9.\\-]{0,9}$"
+    },
+    "source_tag": {
+      "type": "string",
+      "description": "Provenance tag. Conventions: web:<domain>, broker_api, sec_filing, earnings_release, fed_release, tool:<name>, manual. Phase 1 default aggregators are biztoc.com (business-news feed) and finviz.com/news + finviz.com/quote.ashx (per-ticker news + screener for top movers); record the immediate publisher when the aggregator links out.",
+      "examples": ["web:biztoc.com", "web:finviz.com", "web:reuters.com", "web:wedbush.com", "sec_filing", "fed_release"]
+    },
+    "severity": {
+      "enum": ["low", "medium", "high"],
+      "description": "Subagent's judgment of how load-bearing this item is for the trading workflow. high = warrants attention this session."
+    },
+    "delta_vs_prior": {
+      "enum": ["new", "unchanged", "escalated", "resolved"],
+      "description": "Relationship to the same logical item in the prior hour's snapshot. new=first appearance; unchanged=carried over; escalated=severity raised or facts hardened; resolved=situation closed."
+    },
+
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "snapshot_id", "asof", "fetched_at", "ticker_count"],
+      "properties": {
+        "schema_version": { "const": "1.0" },
+        "snapshot_id": {
+          "$ref": "#/$defs/iso_timestamp",
+          "description": "ISO timestamp keyed to the top of the hour (e.g. 14:00:00Z). Matches the filename HH.yml."
+        },
+        "asof": {
+          "$ref": "#/$defs/iso_timestamp",
+          "description": "Point in time the snapshot represents."
+        },
+        "fetched_at": {
+          "$ref": "#/$defs/iso_timestamp",
+          "description": "When the subagent finished its gather pass."
+        },
+        "ticker_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of distinct tickers covered across per_ticker_items + top_movers."
+        },
+        "prior_snapshot_id": {
+          "anyOf": [ { "$ref": "#/$defs/iso_timestamp" }, { "type": "null" } ],
+          "description": "Snapshot_id of the immediately prior hour's snapshot used for delta detection. Null on the first snapshot of a session."
+        },
+        "session": {
+          "enum": ["premarket", "regular", "afterhours", "closed"],
+          "description": "US/Eastern session at fetched_at."
+        },
+        "created_by": { "type": "string" }
+      }
+    },
+
+    "market_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spy", "qqq", "vix"],
+      "properties": {
+        "spy": { "$ref": "#/$defs/index_quote" },
+        "qqq": { "$ref": "#/$defs/index_quote" },
+        "iwm": { "$ref": "#/$defs/index_quote" },
+        "vix": { "$ref": "#/$defs/vix_quote" },
+        "sector_etfs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sector_etf_quote" }
+        }
+      }
+    },
+
+    "index_quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["last", "change_pct"],
+      "properties": {
+        "last": { "type": "number", "exclusiveMinimum": 0 },
+        "change_pct": {
+          "type": "number",
+          "description": "Today's change as decimal. 0.004 = +0.4%."
+        },
+        "vs_prior_snapshot_pct": {
+          "type": "number",
+          "description": "Change since prior hour's snapshot. Null/absent on first snapshot."
+        }
+      }
+    },
+
+    "vix_quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["last", "regime"],
+      "properties": {
+        "last": { "type": "number", "minimum": 0 },
+        "regime": {
+          "enum": ["calm", "elevated", "stressed", "panic"],
+          "description": "calm<15, elevated 15-20, stressed 20-30, panic>30."
+        },
+        "vs_prior_snapshot_pct": { "type": "number" }
+      }
+    },
+
+    "sector_etf_quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticker", "last", "change_pct"],
+      "properties": {
+        "ticker": { "$ref": "#/$defs/ticker" },
+        "last": { "type": "number", "exclusiveMinimum": 0 },
+        "change_pct": { "type": "number" },
+        "vs_prior_snapshot_pct": { "type": "number" }
+      }
+    },
+
+    "per_ticker_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticker", "type", "source", "title", "severity"],
+      "properties": {
+        "ticker": { "$ref": "#/$defs/ticker" },
+        "type": {
+          "enum": ["analyst_action", "sec_filing", "news", "gap", "macro", "earnings_revision", "price_action"],
+          "description": "Item category. price_action = unusual move not explained by news (covers vol spikes, range breaks)."
+        },
+        "source": { "$ref": "#/$defs/source_tag" },
+        "title": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "summary": {
+          "type": "string",
+          "description": "One- to two-sentence subagent summary. Avoid editorialising."
+        },
+        "severity": { "$ref": "#/$defs/severity" },
+        "delta_vs_prior": { "$ref": "#/$defs/delta_vs_prior" },
+        "in_position": { "type": "boolean" },
+        "in_watchlist": { "type": "boolean" },
+        "bear_check": {
+          "type": "object",
+          "description": "Skeptic-pass output. Populated when severity >= medium. Empty disconfirming list does not negate the item — it means the bear pass did not find a counter-source.",
+          "additionalProperties": false,
+          "properties": {
+            "disconfirming_sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source", "summary"],
+                "properties": {
+                  "source": { "$ref": "#/$defs/source_tag" },
+                  "url":    { "type": "string", "format": "uri" },
+                  "summary": { "type": "string" }
+                }
+              }
+            },
+            "fetched_at": { "$ref": "#/$defs/iso_timestamp" }
+          }
+        }
+      }
+    },
+
+    "top_mover": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticker", "pct_change", "flagged_as"],
+      "properties": {
+        "ticker":       { "$ref": "#/$defs/ticker" },
+        "pct_change":   { "type": "number" },
+        "volume_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Today's volume / 20-day avg. Often unknown intraday; populate when available."
+        },
+        "in_watchlist": { "type": "boolean" },
+        "in_position":  { "type": "boolean" },
+        "flagged_as": {
+          "enum": ["potential_ep", "gap_up", "gap_down", "news_driven", "unknown"]
+        },
+        "source": { "$ref": "#/$defs/source_tag" }
+      }
+    },
+
+    "macro_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "time", "relevant_tickers"],
+      "properties": {
+        "event":            { "type": "string" },
+        "time":             { "$ref": "#/$defs/hhmm_et" },
+        "date":             { "$ref": "#/$defs/iso_date" },
+        "relevant_tickers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ticker" }
+        },
+        "source": { "$ref": "#/$defs/source_tag" }
+      }
+    },
+
+    "material_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "summary"],
+      "properties": {
+        "reason": {
+          "enum": [
+            "analyst_action_watched",
+            "gap_watched",
+            "sector_move",
+            "filing_watched",
+            "fed_speak",
+            "fomc_release",
+            "top_mover_new",
+            "position_news"
+          ],
+          "description": "Which row of the Phase 1 material-delta threshold table triggered this push."
+        },
+        "ticker": { "$ref": "#/$defs/ticker" },
+        "summary": {
+          "type": "string",
+          "description": "One-sentence Telegram-ready line."
+        },
+        "source_item_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Index back into per_ticker_items / top_movers / macro_events. Type implied by reason."
+        }
+      }
+    }
+  }
+}

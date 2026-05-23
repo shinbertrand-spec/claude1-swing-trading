@@ -1,0 +1,116 @@
+# Catalyst hour: multiple material deltas firing. Shows the snapshot when the
+# subagent has real work to push:
+#   - High-severity analyst PT raise on a watchlist name (NVDA)
+#   - Medium-severity gap-down on a position (TSLA) with a bear-check pass
+#   - Sector ETF move beyond ±2% (XLE)
+#   - Macro event (Fed speak) flagged for SPY/QQQ
+#   - New top-mover not in watchlist/positions tagged potential_ep
+meta:
+  schema_version: "1.0"
+  snapshot_id: 2026-05-19T14:00:00-04:00
+  asof: 2026-05-19T14:00:00-04:00
+  fetched_at: 2026-05-19T14:03:41-04:00
+  ticker_count: 6
+  prior_snapshot_id: 2026-05-19T13:00:00-04:00
+  session: regular
+  created_by: news-research
+
+market_context:
+  spy:
+    last: 603.10
+    change_pct: -0.003
+    vs_prior_snapshot_pct: -0.0042
+  qqq:
+    last: 521.40
+    change_pct: -0.002
+    vs_prior_snapshot_pct: -0.0036
+  vix:
+    last: 16.8
+    regime: elevated
+    vs_prior_snapshot_pct: 0.084
+  sector_etfs:
+    - { ticker: XLE, last: 89.20, change_pct: -0.024, vs_prior_snapshot_pct: -0.018 }
+    - { ticker: XLK, last: 243.50, change_pct: -0.001, vs_prior_snapshot_pct: -0.0024 }
+
+per_ticker_items:
+  - ticker: NVDA
+    type: analyst_action
+    source: web:wedbush.com
+    title: Wedbush raises NVDA PT to $200 from $175, maintains Outperform
+    url: https://www.wedbush.com/research/nvda-pt-200
+    summary: Wedbush analyst Dan Ives cites accelerating data-center capex commitments through 2026.
+    severity: high
+    delta_vs_prior: new
+    in_position: false
+    in_watchlist: true
+    bear_check:
+      disconfirming_sources: []
+      fetched_at: 2026-05-19T14:03:15-04:00
+  - ticker: TSLA
+    type: gap
+    source: web:reuters.com
+    title: TSLA gaps -6.4% midsession on Reuters Shanghai-recall report
+    url: https://www.reuters.com/business/autos-transportation/tesla-china-recall
+    summary: Reuters reports Tesla recalling 1.6M vehicles in China over autopilot software defect.
+    severity: medium
+    delta_vs_prior: escalated
+    in_position: true
+    in_watchlist: false
+    bear_check:
+      disconfirming_sources:
+        - source: web:bloomberg.com
+          url: https://www.bloomberg.com/news/articles/tesla-china-recall-ota
+          summary: Bloomberg frames the recall as OTA-fixable, not hardware — historically resolved without sales impact.
+      fetched_at: 2026-05-19T14:03:28-04:00
+  - ticker: XLE
+    type: macro
+    source: broker_api
+    title: XLE -2.4% intraday on crude weakness
+    severity: medium
+    delta_vs_prior: new
+    in_position: false
+    in_watchlist: false
+
+top_movers:
+  - ticker: PLTR
+    pct_change: 0.143
+    volume_ratio: 5.8
+    in_watchlist: false
+    in_position: false
+    flagged_as: potential_ep
+    source: web:finviz.com
+  - ticker: COIN
+    pct_change: 0.092
+    volume_ratio: 3.2
+    in_watchlist: true
+    in_position: false
+    flagged_as: gap_up
+    source: web:finviz.com
+
+macro_events:
+  - event: Fed Chair Powell speaks at Jackson Hole
+    time: "14:00"
+    date: 2026-05-19
+    relevant_tickers: [SPY, QQQ, TLT]
+    source: fed_release
+
+material_deltas:
+  - reason: analyst_action_watched
+    ticker: NVDA
+    summary: Wedbush raises NVDA PT to $200 (was $175), Outperform reiterated.
+    source_item_index: 0
+  - reason: position_news
+    ticker: TSLA
+    summary: TSLA gaps -6.4% on Reuters Shanghai-recall report; Bloomberg frames as OTA-fixable.
+    source_item_index: 1
+  - reason: sector_move
+    ticker: XLE
+    summary: XLE -2.4% intraday on crude weakness — energy laggard today.
+    source_item_index: 2
+  - reason: top_mover_new
+    ticker: PLTR
+    summary: PLTR +14.3% on 5.8x volume — not in watchlist; potential EP candidate.
+    source_item_index: 0
+  - reason: fed_speak
+    summary: Powell at Jackson Hole 14:00 ET — SPY/QQQ/TLT relevant.
+    source_item_index: 0

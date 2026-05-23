@@ -1,0 +1,57 @@
+# Quiet hour: no material deltas. Demonstrates the minimum-content snapshot
+# the cron writes when nothing newsworthy happened. Hourly heartbeat only.
+meta:
+  schema_version: "1.0"
+  snapshot_id: 2026-05-19T15:00:00-04:00
+  asof: 2026-05-19T15:00:00-04:00
+  fetched_at: 2026-05-19T15:02:08-04:00
+  ticker_count: 4
+  prior_snapshot_id: 2026-05-19T14:00:00-04:00
+  session: regular
+  created_by: news-research
+
+market_context:
+  spy:
+    last: 605.30
+    change_pct: 0.004
+    vs_prior_snapshot_pct: 0.0012
+  qqq:
+    last: 525.10
+    change_pct: 0.006
+    vs_prior_snapshot_pct: 0.0018
+  iwm:
+    last: 224.40
+    change_pct: 0.001
+    vs_prior_snapshot_pct: -0.0004
+  vix:
+    last: 14.2
+    regime: calm
+    vs_prior_snapshot_pct: -0.021
+  sector_etfs:
+    - { ticker: XLK, last: 245.10, change_pct: 0.008, vs_prior_snapshot_pct: 0.0021 }
+    - { ticker: XLE, last:  91.40, change_pct: -0.004, vs_prior_snapshot_pct: -0.0011 }
+    - { ticker: XLF, last:  48.20, change_pct: 0.002, vs_prior_snapshot_pct: 0.0006 }
+
+per_ticker_items:
+  - ticker: NVDA
+    type: price_action
+    source: broker_api
+    title: NVDA quiet drift +0.3% intraday
+    severity: low
+    delta_vs_prior: unchanged
+    in_position: false
+    in_watchlist: true
+  - ticker: AAPL
+    type: price_action
+    source: broker_api
+    title: AAPL flat, range 195.10 - 195.80
+    severity: low
+    delta_vs_prior: unchanged
+    in_position: true
+    in_watchlist: false
+
+top_movers: []
+
+macro_events: []
+
+material_deltas: []
