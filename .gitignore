@@ -1,6 +1,19 @@
 # Local-only Claude Code config (per-machine permissions, hooks, etc.)
 .claude/settings.local.json
 
+# Broker credentials — Tiger Open Platform private key + account IDs.
+# Canonical location is C:\Users\User\Desktop\tiger\ (outside this repo);
+# these patterns are defense-in-depth in case any cred file lands inside
+# the project tree by accident.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+**/tiger/
+**/.tiger/
+**/broker_credentials/
+
 # Trading history, journal entries, positions, candidate snapshots — local state
 journal/
 
