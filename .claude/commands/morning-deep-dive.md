@@ -67,7 +67,9 @@ If running via Telegram, chunk the output across multiple `reply` calls (Telegra
 
 ## Step 5 — Trade confirmation
 
-For each APPROVE / APPROVE-WITH-CONDITIONS, present the proposed trade in this format (one message per ticker if running via Telegram):
+For each APPROVE / APPROVE-WITH-CONDITIONS, present the proposed trade in this format (one message per ticker if running via Telegram). The reply options depend on whether the setup is **deployable** (has cleared rolling walk-forward — see § Deployable setups below):
+
+### Deployable setups — Tiger paper-placement offered
 
 > *TICKER — proposed trade*
 > Setup: <setup_type> · Grade: <grade>
@@ -75,13 +77,62 @@ For each APPROVE / APPROVE-WITH-CONDITIONS, present the proposed trade in this f
 > Entry (limit): $X.XX · Stop: $Y.YY · T1: $Z.ZZ · T2: $W.WW
 > Shares: N · R:R: A.AA:1 · Risk: $R (P% of portfolio)
 >
-> Reply `TICKER @ <fill_price>` once you've actually placed AND filled the order in your paper account. Reply anything else (or `skip`) to pass on this trade.
+> Reply one of:
+> - `place TICKER` — auto-place a paper limit-buy via Tiger API at the proposed entry. Bot will confirm the order ID; once filled in the paper account, reply `TICKER @ <fill_price>`.
+> - `TICKER @ <fill_price>` — confirm a fill (if you've already placed manually).
+> - `skip TICKER` (or no reply) — pass on this trade.
 
-**Wait for the user's next message.** Parse as a fill confirmation if it matches `TICKER @ <number>`:
+### Non-deployable setups — manual entry only
 
-- Accept variants: `JCI @ 145.33`, `JCI @ $145.33`, `JCI@145.33`, `jci @ 145.33`.
-- Multiple tickers in one message: `JCI @ 145.33, GOOGL @ 401.50`.
-- If the message doesn't parse as a fill for any proposed ticker, treat all unmentioned tickers as passed.
+If the ledger's `setup_classification.type` is NOT in the deployable list (see below), DO NOT offer `place TICKER`. Use this format instead:
+
+> *TICKER — proposed trade*
+> Setup: <setup_type> · Grade: <grade>
+> Ledger: `ledgers/candidates/<YYYY-MM-DD>/<TICKER>.yml`
+> Entry (limit): $X.XX · Stop: $Y.YY · T1: $Z.ZZ · T2: $W.WW
+> Shares: N · R:R: A.AA:1 · Risk: $R (P% of portfolio)
+>
+> ⚠ Setup <setup_type> has not cleared the rolling walk-forward gate — auto-paper-placement not offered. Reply `TICKER @ <fill_price>` if you've placed manually, or `skip` to pass.
+
+### Deployable setups (as of 2026-05-24)
+
+- **SEPA-VCP** (with sell-aware exits) — rolling agg Sharpe 2.28, DD -10.96%, n=394
+- **EP** (loosened + ma_trail on 109-ticker universe) — rolling agg Sharpe 2.13, DD -3.07%, n=43
+
+This list is hard-coded in this prompt — update when new setups clear the gate. The list is the rolling-walk-forward gate's verdict, NOT a per-trade compliance check (the 5-gate sequence handles that separately).
+
+### Reply parsing
+
+**Wait for the user's next message.** Parse:
+
+1. `place TICKER` (or `place TICKER1, place TICKER2`) — auto-place. See § 5p below.
+2. `TICKER @ <number>` (variants: `JCI @ 145.33`, `JCI @ $145.33`, `JCI@145.33`, `jci @ 145.33`; multiple in one message: `JCI @ 145.33, GOOGL @ 401.50`) — confirmed fill. Go to § 5a.
+3. `cancel TICKER` — if a Tiger order was placed via `place` and is still open, cancel via `TigerClient.cancel(order_id)`. Record as no-trade.
+4. Anything else (or no reply, or unmentioned) — passed.
+
+### 5p — Auto-place via Tiger (deployable setups only)
+
+For each `place TICKER`:
+
+```python
+from tools.broker.tiger import TigerClient
+c = TigerClient()  # paper-routed; refuses live by default
+entry = c.place_limit_buy(symbol="<TICKER>", quantity=<N>, limit_price=<X.XX>)
+# entry.output: {order_id, symbol, action, quantity, limit_price, is_paper}
+```
+
+Reply to the user:
+
+> *TICKER — order placed*
+> Order ID: #<order_id> · Account: <account_masked> · Paper: ✅
+> Limit-buy <N> shares @ $<X.XX> (DAY)
+> Once filled, reply `TICKER @ <fill_price>`. To cancel, reply `cancel TICKER`.
+
+Track the `order_id` so a follow-on `cancel TICKER` can call `TigerClient.cancel(order_id)`.
+
+If the placement raises `BrokerOrderError`, surface the error verbatim and DO NOT promote the ledger. The user can retry, place manually, or skip.
+
+If the placement raises `BrokerConfigError`, surface "Tiger config not loadable: <reason>. Falling back to manual flow — reply `TICKER @ <fill>` if you place manually." Continue without Tiger.
 
 For each confirmed fill, in this exact order:
 
@@ -105,6 +156,8 @@ For each confirmed fill, in this exact order:
        fill_price: <user's fill price>
        limit_price_placed: <proposed limit>
        initial_stop: <proposed stop>
+       broker_order_id: <Tiger order_id if placed via § 5p; omit if manual>
+       broker: <"tiger_paper" if placed via § 5p; omit if manual>
        trace_refs: <ledger setup_classification.trace_refs>
      current_stop: <proposed stop>
      trail_ma: lows_of_day                       # initial trail

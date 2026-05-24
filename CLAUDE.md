@@ -218,7 +218,7 @@ prose. Source of truth: [`tools/README.md`](tools/README.md).
 
 Next: first real-data backtest runs (5 setups × 3 trail modes against a 5y universe) → iterate. Then Phase 5.c.
 
-## Quant dimension (queued — Gate-1 research, not yet built)
+## Quant dimension (v1 shipped — Clenow momentum reference strategy)
 
 Bertrand is adding a **quantitative-strategy axis** to Claude1's existing
 discretionary swing-trading stack. The current lineage (Minervini / Weinstein
@@ -228,20 +228,18 @@ Prado) answers different questions: *what's the statistical edge of this
 signal across 10,000 instances? how do I avoid overfitting? what's the right
 sizing model for a portfolio of signals?*
 
-**Current state (as of 2026-05-23):** Gate-1 research phase. Research stub
-at vault `wiki/notes/swing-quant-research.md` (scope: swing) inventories
-practitioners, blogs, papers, and books to clip. No subagent built yet —
-the clipping work has to ripen before the operational shape is decided.
-
-**Working hypothesis for the eventual subagent:**
-**`quant-strategist`** — generates candidate strategies + parameter grids,
-feeds them through `tools.backtest.runner` (Phase 5.a, walk-forward),
-only strategies clearing the deployment gate get promoted. Architectural
-pattern: `[[auto-research-loop]]` — the strategy file is the editable input,
-`tools.backtest.runner` is the immutable `prepare.py`. **The
-quant-strategist + auto-research-loop + Phase 5.a deployment gate = a
-fully-articulated triple that the doctrine's "walk-forward validation
-REQUIRED" callout structurally unlocks.**
+**Current state (as of 2026-05-24):** v1 shipped. `quant-strategist` subagent
++ `tools/quant_strategies/` package with declarative YAML strategy specs +
+kind-plugin registry. Architecture: `[[auto-research-loop]]` — strategy YAML
+is the editable input, `tools.backtest.runner` is the immutable executor,
+deployment gate (Sharpe > 1.0, |MDD| < 25%, n ≥ 30 on aggregated OOS) is the
+promotion filter. **quant-strategist + auto-research-loop + Phase 5.a
+deployment gate = a fully-articulated triple that the doctrine's
+"walk-forward validation REQUIRED" callout structurally unlocks.** v1 ships
+with Clenow Stocks-on-the-Move (88-ticker universe, weekly rebalance, top-K
+rank by 90-day exponential regression slope × R²; 6 combos, all 6 fail the
+gate honestly — the discipline lineage works as designed: refuses weak
+strategies). Cross-sectional mean-reversion (Alvarez/Chan) queued as v1.1.
 
 **Sharper framing from the 2026-05-23 batch:** the quant lineage's gift to
 Claude1 isn't (just) new signal sources — it's the **accumulated
@@ -292,7 +290,7 @@ Run the test suite before any tool change: `uv run pytest` (376 tests, ~1.5 s).
 
 ## Subagent Workflow
 
-Four specialized subagents handle the heavy lifting. All use the fact-ledger
+Five specialized subagents handle the heavy lifting. All use the fact-ledger
 + tools + audit infrastructure shipped in Phases 1-4 (where applicable).
 
 1. **`trade-researcher`** — given a ticker or theme, runs the relevant
@@ -324,8 +322,9 @@ Four specialized subagents handle the heavy lifting. All use the fact-ledger
    pushes Telegram summary only when `material_deltas` non-empty. Does not
    modify fact ledgers — news is a parallel artifact, not per-trade-lifecycle.
 
-4. **`portfolio-manager`** (shipped 2026-05-23) — portfolio-wide assessment +
-   retroactive onboarding. Two modes:
+4. **`portfolio-manager`** (shipped 2026-05-23; sync mode added 2026-05-24) —
+   portfolio-wide assessment + retroactive onboarding + broker reconciliation.
+   Three modes:
    - **`snapshot`** (read-only): reads `journal/positions.json` + per-position
      ledgers + live finviz quotes + runs `tools.regime_check SPY`; computes
      position/sector concentration vs CLAUDE.md hard rules; returns Markdown
@@ -336,25 +335,65 @@ Four specialized subagents handle the heavy lifting. All use the fact-ledger
      existing ledgers. Writes `ledgers/positions/<TICKER>.yml` + appends to
      `journal/positions.json`. Pre-existing positions land with
      `setup_classification.type: "Manual"`, `grade: null`, `stage: trailing`.
+   - **`sync`** (read-only): pulls live state from the Tiger paper account via
+     `tools.broker.tiger.TigerClient` (paper-routed by default; refuses live).
+     Diffs against `journal/positions.json`. Surfaces drift across four buckets:
+     matched-with-mismatches, journal-only, Tiger-only, orphan-orders
+     (with `--include-orders`). Does NOT reconcile — the caller decides whether
+     to onboard, close, or amend.
 
-   Slash commands: `/p_s` (snapshot) and `/p_s_onboard` (onboard). Both accept
-   image attachments (broker-app screenshot from Telegram or IDE — multimodal
-   parse), inline `--positions` paste, or fall through to positions.json.
+   Slash commands: `/p_s` (snapshot), `/p_s_onboard` (onboard), `/p_s_sync`
+   (sync). `/p_s` and `/p_s_onboard` accept image attachments (broker-app
+   screenshot from Telegram or IDE — multimodal parse), inline `--positions`
+   paste, or fall through to positions.json. `/p_s_sync` has no inline-positions
+   input — the broker side is the live Tiger API.
+
+5. **`quant-strategist`** (shipped 2026-05-24, v1 = Clenow momentum) — sibling
+   to `trade-researcher` for quantitative strategies. Architecture:
+   `[[auto-research-loop]]` pattern over the Phase 5.a-c backtest harness.
+   Strategy YAML at `tools/quant_strategies/*.yml` is the editable input;
+   `tools.backtest.runner` is the immutable executor; only configs clearing
+   the deployment gate (Sharpe > 1.0, |MDD| < 25%, n ≥ 30 on aggregated OOS)
+   get promoted. v1 includes Clenow Stocks-on-the-Move (88-ticker universe,
+   weekly rebalance, top-K rank by 90-day exponential regression slope × R²).
+   Cross-sectional mean-reversion (Alvarez/Chan) queued as v1.1.
 
 `trade-researcher` and `portfolio-manager` write ledger YAML files (`Write`/`Edit`).
-`risk-and-compliance` and `news-research` write to their own artifacts only
-(verdict / news snapshot respectively); neither modifies the per-trade fact
-ledgers. The main agent (the orchestrator that invoked them) decides what to
-incorporate into the journal.
+`risk-and-compliance`, `news-research`, and `quant-strategist` write to their
+own artifacts only (verdict / news snapshot / backtest report respectively);
+none modify the per-trade fact ledgers. The main agent (the orchestrator that
+invoked them) decides what to incorporate into the journal.
 
-**Future subagent on the research roadmap** (queued, not built):
-**`quant-strategist`** — sibling to `trade-researcher` for quantitative
-strategies. Architecture: `[[auto-research-loop]]` pattern over the existing
-Phase 5.a-c backtest harness. Only strategies clearing the deployment gate
-(Sharpe > 1.0, |MDD| < 25%, n ≥ 30) get promoted. Research stub at vault
-`wiki/notes/swing-quant-research.md` (scope: swing) — Gate-1 research phase
-as of 2026-05-23; clipping work has to ripen before the subagent shape is
-decided. See **§ Quant dimension** below.
+### Broker bridge — Tiger paper-trading (shipped 2026-05-24)
+
+The framework no longer requires hand-tracking paper fills via finviz
+screenshots. `tools/broker/tiger.py` exposes a `TigerClient` (paper-routed by
+default; refuses live unless `allow_live=True`) with read primitives
+(`account_summary`, `positions`, `open_orders`) and write primitives
+(`place_limit_buy`, `place_limit_sell`, `cancel`). Every call returns a
+`TraceEntry` for ledger audit; PII is masked at the API surface.
+
+Slash-command integration:
+- **`/morning-deep-dive` § 5p** — for **deployable setups** (SEPA-VCP, EP as
+  of 2026-05-24), offers `place TICKER` as a reply option in addition to
+  manual fill confirmation. Auto-places a paper limit-buy via Tiger API at
+  the proposed entry; user confirms the actual fill price once filled.
+  Non-deployable setups (those that have not cleared the rolling-walk-forward
+  gate) suppress the auto-place option — manual entry only.
+- **`/p_s_sync`** — diffs framework view (`journal/positions.json`) against
+  Tiger live state. Read-only.
+
+The position-ledger schema's `entry_leg` block (in `ledgers/_schema/ledger.schema.json`)
+has two new optional fields populated when an entry is placed via Tiger:
+`broker_order_id` (int) and `broker` (enum: `tiger_paper` / `tiger_live` /
+`manual`). Older ledgers without these fields validate fine — both are optional.
+
+**Deployable-setup list** is hard-coded in `/morning-deep-dive` Step 5 and
+must be updated when a new setup clears the deployment gate. Source of truth
+for the gate's verdict: `swing-phases` memory's "Final consolidated verdict"
+table. Future enhancement: extract the list into a config file (e.g.
+`tools/deployable_setups.yml`) so both the slash command and any future
+auto-trading flow read from a single source.
 
 ## Sensitive Information
 

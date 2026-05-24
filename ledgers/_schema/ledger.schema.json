@@ -387,6 +387,15 @@
         "fill_price": { "type": "number", "exclusiveMinimum": 0 },
         "limit_price_placed": { "type": "number", "exclusiveMinimum": 0 },
         "initial_stop": { "type": "number", "exclusiveMinimum": 0 },
+        "broker_order_id": {
+          "type": "integer",
+          "description": "Broker-side global order ID, if the entry was placed via tools.broker.tiger.TigerClient.place_limit_buy. Optional — manual fills leave this null."
+        },
+        "broker": {
+          "type": "string",
+          "enum": ["tiger_paper", "tiger_live", "manual"],
+          "description": "Which broker route produced this fill. Optional; absence implies manual."
+        },
         "trace_refs": { "type": "array", "items": { "type": "integer", "minimum": 1 } }
       }
     },
