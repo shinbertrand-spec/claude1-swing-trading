@@ -347,6 +347,129 @@ class TigerClient:
             },
         )
 
+    def place_stop_loss(
+        self, symbol: str, quantity: float, stop_price: float,
+    ) -> TraceEntry:
+        """Place a paper stop-loss SELL order (closes a long if price drops to stop).
+
+        The order is a STP (not STP-LMT) — fires a market order when stop_price
+        is touched. This is the right primitive for protective stops on long
+        positions; for slippage-control on fast gaps use a stop-limit variant
+        (deferred — Session 3).
+        """
+        if quantity <= 0:
+            raise BrokerOrderError(f"quantity must be positive; got {quantity}")
+        if stop_price <= 0:
+            raise BrokerOrderError(f"stop_price must be positive; got {stop_price}")
+
+        try:
+            from tigeropen.common.util.order_utils import stop_order
+        except ImportError as exc:
+            raise BrokerOrderError("tigeropen SDK not installed") from exc
+
+        try:
+            contract = self._tc.get_contract(symbol=symbol)
+        except Exception as exc:
+            raise BrokerOrderError(f"get_contract({symbol}) failed: {exc}") from exc
+        if contract is None:
+            raise BrokerOrderError(f"no contract found for symbol {symbol}")
+
+        order = stop_order(
+            account=self._account,
+            contract=contract,
+            action="SELL",
+            quantity=quantity,
+            aux_price=stop_price,
+        )
+        try:
+            order_id = self._tc.place_order(order)
+        except Exception as exc:
+            raise BrokerOrderError(
+                f"place_stop_loss({quantity} {symbol} stop={stop_price}) failed: {exc}"
+            ) from exc
+
+        return TraceEntry(
+            tool=TOOL,
+            inputs={
+                "call": "place_stop_loss",
+                "symbol": symbol,
+                "quantity": quantity,
+                "stop_price": stop_price,
+                "account_masked": self._config_info["account_masked"],
+            },
+            output={
+                "order_id": int(order_id) if order_id is not None else None,
+                "symbol": symbol,
+                "action": "SELL",
+                "order_type": "STP",
+                "quantity": quantity,
+                "stop_price": stop_price,
+                "is_paper": self._config_info["is_paper"],
+            },
+        )
+
+    def get_filled_orders(
+        self,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        symbol: Optional[str] = None,
+    ) -> TraceEntry:
+        """Return filled orders for the routed account within a time window.
+
+        Args:
+            start_time: ISO datetime or YYYY-MM-DD; SDK accepts both.
+                When None, defaults to today's session at the broker.
+            end_time: ISO datetime or YYYY-MM-DD; None = now.
+            symbol: optional symbol filter.
+
+        Used by EOD reconciliation to pick up actual fill prices for orders
+        placed via place_limit_buy / place_limit_sell.
+        """
+        try:
+            raw = self._tc.get_filled_orders(
+                account=self._account,
+                start_time=start_time,
+                end_time=end_time,
+                symbol=symbol,
+            )
+        except Exception as exc:
+            raise BrokerOrderError(f"get_filled_orders failed: {exc}") from exc
+
+        orders = []
+        for o in raw or []:
+            orders.append({
+                "order_id": getattr(o, "id", None) or getattr(o, "order_id", None),
+                "symbol": getattr(o.contract, "symbol", None) if hasattr(o, "contract") else None,
+                "action": getattr(o, "action", None),
+                "order_type": getattr(o, "order_type", None),
+                "quantity": float(getattr(o, "quantity", 0) or 0),
+                "filled_quantity": float(getattr(o, "filled", 0) or 0),
+                "avg_fill_price": (
+                    float(getattr(o, "avg_fill_price", 0.0))
+                    if getattr(o, "avg_fill_price", None) is not None else None
+                ),
+                "limit_price": (
+                    float(getattr(o, "limit_price", 0.0))
+                    if getattr(o, "limit_price", None) is not None else None
+                ),
+                "status": getattr(o, "status", None),
+                "trade_time": getattr(o, "trade_time", None),
+            })
+        return TraceEntry(
+            tool=TOOL,
+            inputs={
+                "call": "get_filled_orders",
+                "start_time": start_time,
+                "end_time": end_time,
+                "symbol": symbol,
+            },
+            output={
+                "account_masked": self._config_info["account_masked"],
+                "n_orders": len(orders),
+                "orders": orders,
+            },
+        )
+
     def cancel(self, order_id: int) -> TraceEntry:
         """Cancel an open order by broker (global) order id."""
         try:

@@ -388,12 +388,55 @@ has two new optional fields populated when an entry is placed via Tiger:
 `broker_order_id` (int) and `broker` (enum: `tiger_paper` / `tiger_live` /
 `manual`). Older ledgers without these fields validate fine — both are optional.
 
-**Deployable-setup list** is hard-coded in `/morning-deep-dive` Step 5 and
-must be updated when a new setup clears the deployment gate. Source of truth
-for the gate's verdict: `swing-phases` memory's "Final consolidated verdict"
-table. Future enhancement: extract the list into a config file (e.g.
-`tools/deployable_setups.yml`) so both the slash command and any future
-auto-trading flow read from a single source.
+**Deployable-setup list** lives at `tools/deployable_setups.yml` (one source
+of truth read by both `/morning-deep-dive` § 5p and `tools.auto_paper`).
+Update both this file AND the `swing-phases` memory's "Final consolidated
+verdict" table when a new setup clears the deployment gate.
+
+### Paper-auto carve-out (shipped 2026-05-24, session 1)
+
+The `/morning-deep-dive` guardrail "Never auto-execute. Always require
+explicit fill confirmation per trade" remains in force for the
+**human-discretionary track** (`journal/positions.json` + `ledgers/positions/`).
+
+A **parallel paper-auto track** carves out an exception for autonomous
+validation of deployable strategies:
+
+- **Ledgers:** `ledgers/paper-auto/<TICKER>.yml` (gitignored)
+- **Index:** `journal/paper-auto/positions.json` (gitignored)
+- **Slash command:** `/auto-paper` — reads today's candidate scan, filters
+  to deployable setups, runs the 5-gate per candidate, sizes via
+  `position_sizer` against the paper account, auto-places via
+  `TigerClient.place_limit_buy` without per-trade human confirmation.
+  Supports `--dry-run`.
+- **Module:** `tools/auto_paper/` —
+  - `config.py` reads `tools/deployable_setups.yml`
+  - `state.py` writes paper-auto ledgers in the `submitted` state +
+    appends to `journal/paper-auto/positions.json`. Schema-validates
+    each ledger before write.
+  - `pipeline.py` (`place_candidate`) — composes filter + track-level
+    hard rules + broker call + persistence. Returns `PlacementResult`.
+
+**Safety invariants (paper-auto track):**
+1. `TigerClient()` is constructed without `allow_live=True` — the broker
+   refuses to talk to a live account. `/auto-paper` never overrides.
+2. Only setups on `tools/deployable_setups.yml` are placeable.
+3. CLAUDE.md hard rules (5% / 20% / 8 / 15%) are checked against the
+   paper-auto track alone (separate from human-track positions).
+4. Existing tooling (`check-positions.ps1`, `news-research` Scout, EOD
+   sell-eval) reads `journal/positions.json` only — paper-auto positions
+   don't trigger those alerts in v1. Session 3 may extend them if useful.
+5. New ledger states `submitted` + new field `meta.account_track:
+   "paper-auto"` (additive schema changes; older ledgers validate
+   unchanged).
+
+**Scope progression:**
+- Session 1 (shipped 2026-05-24): entry pipeline; `submitted` state writes.
+- Session 2: EOD reconciliation (pull filled orders → update fill prices);
+  Task Scheduler wiring for daily auto-fire.
+- Session 3: broker-side stop orders (OCA stop+target groups); per-bar
+  sell-decision composer firing real exits.
+- Session 4: performance dashboard — realized vs backtest expectation.
 
 ## Sensitive Information
 

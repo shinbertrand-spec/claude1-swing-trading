@@ -119,6 +119,11 @@ class FakeTradeClient:
         self.calls.append(("cancel_order", account, id))
         return self.cancel_response
 
+    def get_filled_orders(self, *, account, start_time=None, end_time=None,
+                          symbol=None, **_):
+        self.calls.append(("get_filled_orders", account, start_time, end_time, symbol))
+        return getattr(self, "filled_orders_to_return", [])
+
 
 # ---------------------------------------------------------------- fixtures
 
@@ -310,6 +315,96 @@ def test_cancel_wraps_error(paper_client):
     paper_client._tc.cancel_order = _boom
     with pytest.raises(BrokerOrderError, match="ORDER_NOT_FOUND"):
         paper_client.cancel(order_id=10_000)
+
+
+def test_place_stop_loss_basic(paper_client):
+    entry = paper_client.place_stop_loss("NVDA", quantity=10, stop_price=820.00)
+    out = entry.output
+    assert out["order_id"] == 10_000
+    assert out["symbol"] == "NVDA"
+    assert out["action"] == "SELL"
+    assert out["order_type"] == "STP"
+    assert out["quantity"] == 10
+    assert out["stop_price"] == 820.00
+    assert out["is_paper"] is True
+
+    place_call = [c for c in paper_client._tc.calls if c[0] == "place_order"][0]
+    _, account, action, qty, _limit, symbol = place_call
+    assert account == "PAPER87654321"
+    assert action == "SELL"
+    assert qty == 10
+    assert symbol == "NVDA"
+
+    assert entry.inputs["account_masked"] == "...4321"
+    assert "PAPER87654321" not in str(entry.inputs)
+
+
+def test_place_stop_loss_validates_quantity(paper_client):
+    with pytest.raises(BrokerOrderError, match="quantity must be positive"):
+        paper_client.place_stop_loss("NVDA", quantity=0, stop_price=820)
+
+
+def test_place_stop_loss_validates_stop_price(paper_client):
+    with pytest.raises(BrokerOrderError, match="stop_price must be positive"):
+        paper_client.place_stop_loss("NVDA", quantity=10, stop_price=-1)
+
+
+def test_place_stop_loss_no_contract(paper_client):
+    paper_client._tc.get_contract = lambda *, symbol, **_: None
+    with pytest.raises(BrokerOrderError, match="no contract found"):
+        paper_client.place_stop_loss("ZZZZ", quantity=10, stop_price=10)
+
+
+def test_place_stop_loss_wraps_place_error(paper_client):
+    def _boom(order):
+        raise RuntimeError("MARKET_CLOSED")
+
+    paper_client._tc.place_order = _boom
+    with pytest.raises(BrokerOrderError, match="MARKET_CLOSED"):
+        paper_client.place_stop_loss("NVDA", quantity=10, stop_price=820)
+
+
+def test_get_filled_orders_empty(paper_client):
+    paper_client._tc.filled_orders_to_return = []
+    entry = paper_client.get_filled_orders()
+    assert entry.output["n_orders"] == 0
+    assert entry.output["orders"] == []
+    assert entry.inputs["call"] == "get_filled_orders"
+
+
+def test_get_filled_orders_shape(paper_client):
+    paper_client._tc.filled_orders_to_return = [
+        _FakeOrder(
+            id=99_001,
+            contract=_FakeContract(symbol="NVDA"),
+            action="BUY",
+            order_type="LMT",
+            quantity=10,
+            filled=10,
+            avg_fill_price=849.75,
+            limit_price=850.00,
+            status="Filled",
+            trade_time="2026-05-24T13:45:12Z",
+        ),
+    ]
+    entry = paper_client.get_filled_orders(start_time="2026-05-24")
+    out = entry.output
+    assert out["n_orders"] == 1
+    o = out["orders"][0]
+    assert o["order_id"] == 99_001
+    assert o["symbol"] == "NVDA"
+    assert o["filled_quantity"] == 10
+    assert o["avg_fill_price"] == 849.75
+    assert o["limit_price"] == 850.00
+
+
+def test_get_filled_orders_wraps_error(paper_client):
+    def _boom(*a, **kw):
+        raise RuntimeError("RATE_LIMIT")
+
+    paper_client._tc.get_filled_orders = _boom
+    with pytest.raises(BrokerOrderError, match="RATE_LIMIT"):
+        paper_client.get_filled_orders()
 
 
 def test_open_orders_shape(paper_client):

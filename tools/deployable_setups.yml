@@ -1,0 +1,53 @@
+# Setups cleared for paper-trade deployment.
+#
+# A setup is on this list only after it has cleared the rolling-walk-forward
+# deployment gate (Sharpe > 1.0 AND |max DD| < 25% AND aggregated OOS n >= 30).
+# Source of truth for verdicts: project_swing_phases memory's "Final consolidated
+# verdict" table.
+#
+# This file is read by:
+#   - tools.auto_paper.pipeline — autonomous paper-trading entry filter
+#   - .claude/commands/morning-deep-dive.md § 5p — offer auto-place option only
+#     for setups on this list (the prompt grep-greps this file or the agent
+#     references it)
+#
+# Update protocol: when a new setup clears the gate, add a row here AND
+# update swing-phases memory's verdict table. When a setup falls off (e.g.
+# subsequent windows blow up), comment it out — do NOT delete (audit trail).
+
+deployable:
+  - setup: SEPA-VCP
+    variant: sell-aware
+    universe: "10-ticker mega-cap"
+    rolling_agg_sharpe: 2.28
+    rolling_agg_max_dd_pct: -10.96
+    n: 394
+    cleared_at: 2026-05-24
+    notes: "Half-size first month — 2023 OOS window had Sharpe -0.44 individually"
+
+  - setup: EP
+    variant: loosened + ma_trail
+    universe: "109-ticker (88 mega-cap + 21 EP-prone growth)"
+    rolling_agg_sharpe: 2.13
+    rolling_agg_max_dd_pct: -3.07
+    n: 43
+    cleared_at: 2026-05-24
+    notes: "Full-size eligible. No per-window blow-up. DD ~3.5x smaller than SEPA-VCP."
+
+# Retired / parked (kept for audit):
+# parked:
+#   - setup: Resistance-Breakout
+#     variant: sell-aware
+#     rolling_agg_max_dd_pct: -38.09
+#     parked_at: 2026-05-24
+#     reason: "2023 OOS catastrophic (Sharpe -1.74, DD -38%). Single-split was lucky."
+#
+#   - setup: RSI-Divergence
+#     variant: sell-aware
+#     rolling_agg_max_dd_pct: -32.91
+#     parked_at: 2026-05-24
+#     reason: "DD breach in 2024 (trending regime); inverse sensitivity to SEPA-VCP"
+#
+#   - setup: Pullback-20SMA
+#     parked_at: 2026-05-24
+#     reason: "Structurally negative edge (raw Sharpe -1.08, DD -36%); retired from registry"

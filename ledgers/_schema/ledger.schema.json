@@ -69,8 +69,12 @@
           "description": "The point in time this ledger snapshot represents. For candidates: the moment trade-researcher built the candidate report. For positions: the last update timestamp."
         },
         "state": {
-          "enum": ["candidate", "rejected", "starter", "stage-2", "stage-3", "trailing", "closed"],
-          "description": "Lifecycle state. candidate=pre-trade research; rejected=did not pass risk-and-compliance; starter/stage-2/stage-3=open and at the named pyramid stage per swing-momentum-execution; trailing=full size, no further adds, normal trail; closed=exited."
+          "enum": ["candidate", "rejected", "submitted", "starter", "stage-2", "stage-3", "trailing", "closed"],
+          "description": "Lifecycle state. candidate=pre-trade research; rejected=did not pass risk-and-compliance; submitted=auto-paper order placed but not yet filled (paper-auto track only); starter/stage-2/stage-3=open and at the named pyramid stage per swing-momentum-execution; trailing=full size, no further adds, normal trail; closed=exited."
+        },
+        "account_track": {
+          "enum": ["human", "paper-auto"],
+          "description": "Which track owns this position. Absent = human (default; back-compat with pre-2026-05-24 ledgers). paper-auto = autonomous paper-trading track (validation-only, no live capital). Track separation keeps existing tooling (check-positions, news-research Scout, EOD sell-eval) untouched in v1 — those read journal/positions.json which only contains human-track positions."
         },
         "ledger_path": {
           "type": "string",
