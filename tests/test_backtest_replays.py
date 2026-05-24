@@ -45,14 +45,17 @@ def _long_df(n: int = 400) -> pd.DataFrame:
     )
 
 
-def test_registry_has_all_phase5b_setups():
-    for setup in ("SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout"):
+def test_registry_has_all_active_setups():
+    # Pullback-20SMA retired from registry 2026-05-24 per rolling sweep
+    # (Sharpe -1.08 / DD -36% raw). Replay function preserved.
+    for setup in ("SEPA-VCP", "EP", "RSI-Divergence", "Resistance-Breakout"):
         assert setup in SETUP_REPLAY_REGISTRY
+    assert "Pullback-20SMA" not in SETUP_REPLAY_REGISTRY
 
 
 @pytest.mark.parametrize(
     "setup_name",
-    ["EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout"],
+    ["EP", "RSI-Divergence", "Resistance-Breakout"],
 )
 def test_replay_returns_list_on_insufficient_history(setup_name):
     """Short df with not enough history → empty signal list (no crash)."""
@@ -64,7 +67,7 @@ def test_replay_returns_list_on_insufficient_history(setup_name):
 
 @pytest.mark.parametrize(
     "setup_name",
-    ["EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout"],
+    ["EP", "RSI-Divergence", "Resistance-Breakout"],
 )
 def test_replay_validates_required_columns(setup_name):
     fn = SETUP_REPLAY_REGISTRY[setup_name]
@@ -76,7 +79,7 @@ def test_replay_validates_required_columns(setup_name):
 
 @pytest.mark.parametrize(
     "setup_name",
-    ["EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout"],
+    ["EP", "RSI-Divergence", "Resistance-Breakout"],
 )
 def test_replay_returns_list_shape_for_long_df(setup_name):
     """Long synthetic df may or may not produce signals; returned shape

@@ -57,7 +57,6 @@ The tool prints a `TraceEntry` as JSON. Append it to your ledger's `reasoning_tr
 | `tools.magna_score …` | EP candidates — populates `ep_specific.magna_score` |
 | `tools.ep_grade …` | EP candidates — populates `setup_classification.grade` |
 | `tools.earnings_calendar <ticker>` | Always — gate against the 10-trading-day blackout (CLAUDE.md hard rule) |
-| `tools.pullback_detect <ticker>` | Considering Pullback-20SMA secondary |
 | `tools.rsi_divergence <ticker>` | Considering RSI-Divergence secondary |
 | `tools.resistance_break <ticker>` | Considering Resistance-Breakout secondary |
 | `tools.sltb_scan <ticker>` | If staging a pyramided STARTER entry |
@@ -137,7 +136,7 @@ After writing the ledger, emit a Markdown report in this exact section order:
   - Sector in weekly downtrend? <regime.sector_qualifies_for_long>
 
 ### 4. Setup classification (Q7-Q10)
-- Type: <SEPA-VCP | EP | Pullback-20SMA | RSI-Divergence | Resistance-Breakout>
+- Type: <SEPA-VCP | EP | RSI-Divergence | Resistance-Breakout>
 - Grade: <A+/A/B/C or SuperSwan/Swan/Duck/Chicken/GoldenEP>
 - Confluence checklist:
   - <criterion>: <PASS/FAIL/PARTIAL> — <evidence> [trace #N]

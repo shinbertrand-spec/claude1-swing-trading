@@ -11,7 +11,8 @@ Phase 5.b additions:
   walk-forward windows (``--is-years`` IS + ``--oos-years`` OOS, step
   ``--step-years``).
 * Any setup registered in :data:`SETUP_REPLAY_REGISTRY` is selectable
-  (SEPA-VCP / EP / Pullback-20SMA / RSI-Divergence / Resistance-Breakout).
+  (SEPA-VCP / EP / RSI-Divergence / Resistance-Breakout; Pullback-20SMA
+  retired 2026-05-24 per rolling walk-forward sweep).
 
 CLI::
 

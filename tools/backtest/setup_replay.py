@@ -179,6 +179,9 @@ SETUP_REPLAY_REGISTRY: dict[str, Callable[..., list[TradeSignal]]] = {
 # registry on import. Imported AFTER the registry is defined so the
 # circular-import dance resolves cleanly.
 from . import ep_replay as _ep_replay  # noqa: E402, F401
-from . import pullback_replay as _pullback_replay  # noqa: E402, F401
+# Pullback-20SMA retired 2026-05-24 — 109-ticker rolling walk-forward sweep
+# returned Sharpe -1.08 / DD -36% raw (structurally negative edge). The
+# detector tools.pullback_detect is still available for discretionary use.
+# from . import pullback_replay as _pullback_replay  # noqa: E402, F401
 from . import rsi_div_replay as _rsi_div_replay  # noqa: E402, F401
 from . import resistance_break_replay as _resistance_break_replay  # noqa: E402, F401

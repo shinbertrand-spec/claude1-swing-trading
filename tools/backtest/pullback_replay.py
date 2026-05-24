@@ -15,7 +15,7 @@ import pandas as pd
 
 from ..atr_compute import compute_from_ohlcv as atr_compute
 from ..pullback_detect import compute_from_ohlcv as pullback_compute
-from .setup_replay import TradeSignal, SETUP_REPLAY_REGISTRY
+from .setup_replay import TradeSignal
 
 MIN_HISTORY_BARS = 60
 
@@ -87,4 +87,8 @@ def replay_pullback(
     return signals
 
 
-SETUP_REPLAY_REGISTRY["Pullback-20SMA"] = replay_pullback
+# Pullback-20SMA retired from SETUP_REPLAY_REGISTRY 2026-05-24 — 109-ticker
+# rolling walk-forward sweep returned Sharpe -1.08 / DD -36% raw (structurally
+# negative edge). Function kept for revival if detector tuning changes the
+# verdict; side-effect import in setup_replay.py is commented out.
+# SETUP_REPLAY_REGISTRY["Pullback-20SMA"] = replay_pullback

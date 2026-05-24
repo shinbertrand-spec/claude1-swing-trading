@@ -13,7 +13,7 @@ If any of those fails on OOS data, the setup does not ship to live.
 | [`data_cache.py`](data_cache.py) | yfinance OHLCV fetch + on-disk parquet cache; CLI for fetch/info/clear |
 | [`setup_replay.py`](setup_replay.py) | SEPA-VCP replay + central `SETUP_REPLAY_REGISTRY` (side-effect imports for the other setups) |
 | [`ep_replay.py`](ep_replay.py) | EP setup replay — gap+volume catalyst-signature approximation of MAGNA (fundamentals omitted in Phase 5.b) |
-| [`pullback_replay.py`](pullback_replay.py) | Secondary 1 — pullback to 20-day SMA |
+| [`pullback_replay.py`](pullback_replay.py) | Secondary 1 — pullback to 20-day SMA. **Retired from registry 2026-05-24** — Sharpe -1.08 / DD -36% raw on rolling sweep. Kept for revival if detector tunes |
 | [`rsi_div_replay.py`](rsi_div_replay.py) | Secondary 2 — RSI(14) bullish divergence at support |
 | [`resistance_break_replay.py`](resistance_break_replay.py) | Secondary 3 — non-VCP resistance breakout with volume |
 | [`trailing_stop.py`](trailing_stop.py) | Stop-trail policies: `fixed` / `ratchet` (per swing-position-sizing) / `ma_trail` (Kullamägi) |
@@ -82,9 +82,9 @@ The runner prints a Markdown report with full / IS / OOS metrics plus the doctri
 
 ## What's shipped vs deferred
 
-**Phase 5.a + 5.b + 5.c — five setups, three trail modes, pyramiding, sell-aware exits, single + rolling walk-forward:**
+**Phase 5.a + 5.b + 5.c — four active setups, three trail modes, pyramiding, sell-aware exits, single + rolling walk-forward:**
 
-* Setups: SEPA-VCP, EP, Pullback-20SMA, RSI-Divergence, Resistance-Breakout
+* Setups: SEPA-VCP, EP, RSI-Divergence, Resistance-Breakout (Pullback-20SMA retired 2026-05-24 — file remains, registration commented out)
 * Trail policies: `fixed` (Phase 5.a baseline), `ratchet` (trail-to-BE at +5%, trail-to-+5% at +10% per swing-position-sizing), `ma_trail` (Kullamägi N-day SMA, exits on close-below)
 * **Pyramiding (Phase 5.c):** `pyramid_simulator` walks bars and adds legs mid-trade — Momentum Burst within window triggers ADD-ON #1 (brings to full size, stop migrates to combined break-even); Day-7 milestone gates ADD-ON #2 by grade (Super Swan / Golden EP only) + regime
 * **Sell-aware exits (Phase 5.c):** `sell_aware` runs the 4 OHLCV-derivable sell-discipline detectors per bar (climax-top patterns, violations, base stage, sell-into-strength) and composes via `sell_decision`; non-hold action exits at the bar's close

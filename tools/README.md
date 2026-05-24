@@ -100,7 +100,7 @@ Lives in [`backtest/`](backtest/) — see [`backtest/README.md`](backtest/README
 | [`backtest/walk_forward.py`](backtest/walk_forward.py) | IS/OOS windowing — single-split + rolling-splits + trade partitioning |
 | [`backtest/runner.py`](backtest/runner.py) | End-to-end CLI orchestrator; emits Markdown report |
 
-Phase 5.a + 5.b + 5.c ship: 5 setups (SEPA-VCP, EP, Pullback-20SMA, RSI-Divergence, Resistance-Breakout), 3 trail modes (`fixed`, `ratchet`, `ma_trail`), **pyramiding** (`pyramid_simulator` — STARTER + Momentum-Burst ADD-ON #1 + Day-7 ADD-ON #2 with grade/regime gates, combined-BE stop migration), **sell-aware exits** (`sell_aware` — per-bar `sell_decision` composer over OHLCV-derivable detectors), single + rolling walk-forward. Portfolio-equity simulator (concurrent positions + cash + sector caps), pyramid + sell-aware combined, real fundamentals for EP MAGNA, and HTML reports remain Phase 5.d.
+Phase 5.a + 5.b + 5.c ship: 4 active setups (SEPA-VCP, EP, RSI-Divergence, Resistance-Breakout — Pullback-20SMA retired 2026-05-24 per rolling walk-forward sweep; replay function preserved, registration commented out), 3 trail modes (`fixed`, `ratchet`, `ma_trail`), **pyramiding** (`pyramid_simulator` — STARTER + Momentum-Burst ADD-ON #1 + Day-7 ADD-ON #2 with grade/regime gates, combined-BE stop migration), **sell-aware exits** (`sell_aware` — per-bar `sell_decision` composer over OHLCV-derivable detectors), single + rolling walk-forward. Portfolio-equity simulator (concurrent positions + cash + sector caps), pyramid + sell-aware combined, real fundamentals for EP MAGNA, and HTML reports remain Phase 5.d.
 
 Replayability classes for trace re-run:
 
