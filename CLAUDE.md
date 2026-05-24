@@ -193,7 +193,7 @@ arithmetic — YoY growth, ATR, trend template, regime check, VCP detection,
 stop sizing, position sizing — runs through these tools, never through agent
 prose. Source of truth: [`tools/README.md`](tools/README.md).
 
-**Phases 2 + 3 + 4 + 5.a + 5.b + 5.c complete** (2026-05-18). 44 modules + 322 tests in `tools/` and `tests/`:
+**Phases 2 + 3 + 4 + 5.a + 5.b + 5.c complete** (2026-05-18). **Red-team regression harness** added 2026-05-23: 27 adversarial tests over the 5-gate sequence (`tests/test_red_team_gates.py`). **Phase 6 bias audit** added 2026-05-23: periodic universe-side discovery-skew audit per Type 4 of `[[llm-financial-hallucination]]` (`tools/bias_audit.py` + `/bias-audit` slash command). 45 modules + 376 tests in `tools/` and `tests/`:
 
 - **2.a SEPA-VCP pathway:** `compute_yoy`, `atr_compute`, `trend_template`, `regime_check`, `vcp_detect`, `stop_sizer`, `position_sizer`
 - **2.b EP pathway:** `prior_rally_pct`, `magna_score`, `ep_grade`, `earnings_calendar`, `ep_detect`, `day7_milestone_check`
@@ -202,6 +202,7 @@ prose. Source of truth: [`tools/README.md`](tools/README.md).
 - **2.c.3 Secondary setups:** `pullback_detect`, `rsi_divergence`, `resistance_break`
 - **Phase 3 staleness enforcement:** `freshness`, `stale_phrase_detector`, `ledger_freshness_audit`
 - **Phase 4 reasoning-trace verification:** `trace_validate`, `trace_rerun`, `claim_extract`, `trace_audit`
+- **Phase 6 bias audit (Type 4):** `bias_audit` — periodic universe-side discovery-skew audit (sector + market-cap distribution vs S&P 500 baseline). Monthly via `/bias-audit` slash command, or on-demand. Surfaces flagged buckets at |z| >= 2.0 over min sample of 30 candidates. Informational — never blocks trades.
 - **Phase 5.a walk-forward backtest (SEPA-VCP):** `backtest/data_cache`, `backtest/setup_replay`, `backtest/simulator`, `backtest/metrics`, `backtest/walk_forward`, `backtest/runner`
 - **Phase 5.b backtest extensions (4 more setups + 3 trail modes + rolling walk-forward):** `backtest/ep_replay`, `backtest/pullback_replay`, `backtest/rsi_div_replay`, `backtest/resistance_break_replay`, `backtest/trailing_stop`
 - **Phase 5.c backtest extensions (pyramiding + sell-aware exits):** `backtest/pyramid_simulator` (STARTER + Momentum-Burst ADD-ON #1 + Day-7 ADD-ON #2 with combined-BE stop migration + grade/regime gates), `backtest/sell_aware` (per-bar `sell_decision` composer over OHLCV-derivable detectors; new `--pyramid` and `--sell-aware` flags in runner)
@@ -226,7 +227,7 @@ Next: first real-data backtest runs (5 setups × 3 trail modes against a 5y univ
   ledger-slottable entry.
 - Library usage: `from tools.<name> import compute, compute_from_ticker`.
 
-Run the test suite before any tool change: `uv run pytest` (38 tests, ~70 ms).
+Run the test suite before any tool change: `uv run pytest` (376 tests, ~1.5 s).
 
 ## Subagent Workflow
 

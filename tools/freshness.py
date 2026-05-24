@@ -56,6 +56,11 @@ COMPUTED_AT_SECTIONS = {"technical", "regime"}
 # Sections that get an earnings-blackout warning, not a freshness failure.
 EARNINGS_BLACKOUT_TRADING_DAYS = 10
 
+# Sections that MUST be present for a candidate ledger to be auditable.
+# Missing → audit returns overall=stale (was silently fresh pre-2026-05-23
+# red-team fix; dropping the most-volatile section bypassed the gate).
+REQUIRED_SECTIONS: tuple[str, ...] = ("quote",)
+
 ET_ZONE = ZoneInfo("America/New_York")
 MARKET_OPEN = time(9, 30)
 MARKET_CLOSE = time(16, 0)
@@ -94,7 +99,9 @@ class LedgerFreshnessReport:
 
     @property
     def stale_sections(self) -> list[str]:
-        return [s.section for s in self.sections if s.status == "stale"]
+        # Includes literal stale + missing_timestamp + missing_section, since
+        # all three flip overall to stale (see audit_ledger).
+        return [s.section for s in self.sections if s.status != "fresh"]
 
 
 def _parse_iso(value: str | datetime) -> datetime:
@@ -341,21 +348,35 @@ def audit_ledger(
     ledger: dict,
     sections: list[str] | None = None,
     asof: datetime | None = None,
+    required_sections: tuple[str, ...] | None = None,
 ) -> LedgerFreshnessReport:
     """Run :func:`check_section` over a set of sections.
 
     Args:
         ledger: parsed YAML ledger as a dict.
         sections: subset to evaluate. Default = every section in
-            :data:`MAX_STALENESS_SECONDS` that is present in the ledger.
+            :data:`MAX_STALENESS_SECONDS` that is present in the ledger,
+            plus any in ``required_sections`` (which may be absent).
         asof: evaluation time; defaults to now UTC.
+        required_sections: sections that MUST be present; if absent the
+            section is reported with status ``missing_section`` and flips
+            ``overall`` to stale. Default :data:`REQUIRED_SECTIONS`.
+
+    Overall verdict is ``fresh`` iff every audited section is ``fresh``.
+    ``stale``, ``missing_section``, and ``missing_timestamp`` all flip
+    overall to ``stale`` — absence of evidence is not evidence of freshness.
     """
     asof = asof or _now_utc()
     asof = _to_utc(asof)
+    if required_sections is None:
+        required_sections = REQUIRED_SECTIONS
     if sections is None:
-        sections = [s for s in MAX_STALENESS_SECONDS if s in ledger]
+        present = [s for s in MAX_STALENESS_SECONDS if s in ledger]
+        # Always include required sections even if missing — check_section
+        # reports them as missing_section.
+        sections = list(dict.fromkeys(present + list(required_sections)))
     results = [check_section(ledger, s, asof=asof) for s in sections]
-    overall = "fresh" if all(r.status != "stale" for r in results) else "stale"
+    overall = "fresh" if all(r.status == "fresh" for r in results) else "stale"
     return LedgerFreshnessReport(
         asof_utc=asof.isoformat(timespec="seconds"),
         sections=results,
@@ -375,9 +396,9 @@ def assert_ledger_fresh(
     report = audit_ledger(ledger, sections=sections, asof=asof)
     if not report.is_fresh:
         details = "; ".join(
-            f"{r.section}({r.detail or 'age_s=' + str(r.age_seconds)})"
+            f"{r.section}[{r.status}]({r.detail or 'age_s=' + str(r.age_seconds)})"
             for r in report.sections
-            if r.status == "stale"
+            if r.status != "fresh"
         )
         raise StalenessError(
             f"ledger stale sections: {report.stale_sections}. Details: {details}"

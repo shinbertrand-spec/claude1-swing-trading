@@ -77,7 +77,17 @@ CLI examples in `tools/README.md`.
 
 1. **Verify earnings dates against TWO independent sources.** Populate both `fundamentals.next_earnings_source` and `next_earnings_source_secondary`. If they disagree, surface the discrepancy in the Markdown report.
 2. **No prose arithmetic.** EPS YoY, ATR, stop distance, gap %, regime score — all from tools, all in `reasoning_trace`. If you find yourself computing a percentage by hand, stop and call the tool.
-3. **No "as of my training cutoff" / "as of late 2024" / "I don't have access to real-time" hedging.** `stale_phrase_detector` will BLOCK these in `risk-and-compliance`. Every fact comes from a fetched source recorded in the ledger.
+3. **No stale-data hedging in any form.** `stale_phrase_detector` (expanded 2026-05-23 to 15 BLOCK + 2 WARN patterns) will BLOCK on:
+   - Explicit cutoff references: "as of my training cutoff", "as of late 2024", "at the time of my data"
+   - Memory framings: "based on what I recall", "from what I remember", "per my memory of similar stocks"
+   - Knowledge-state references: "my knowledge ends around", "my knowledge base reflects", "within my training window", "up until my last refresh"
+   - No-data admissions: "I don't have access to real-time", "I cannot verify current", "without current data"
+   - Probabilistic numerical claims: "probably near $230", "AAPL was probably around $200"
+   - Personal-recall temporal hedges: "last I checked", "last I looked", "last I saw"
+   - Historical-vague pricing: "historically traded around $200"
+   - Speculative estimation (WARN-level): "I would estimate", "likely around $X", "roughly 200, give or take"
+
+   **The rule isn't "avoid these phrases" — it's "every fact comes from a fetched source recorded in the ledger."** If you find yourself reaching for any of these phrasings, the underlying problem is that you didn't fetch the data. Fix the fetch, not the wording.
 4. **Per-section `fetched_at` is load-bearing.** `quote.fetched_at` ≤ 4 h during market hours. `technical.computed_at` ≤ 24 h. `catalyst.fetched_at` ≤ 7 days. Phase 3 enforces this; stale sections = downstream BLOCK.
 5. **Distinguish event-driven from thesis-only catalysts plainly.** No scheduled event in the 2-6 week window? `catalyst.type: none` — do not pad with vague macro narratives.
 6. **Surface analyst nuance.** PT direction AND rating direction. "Raised PT, kept Neutral" is information; "PT raised" alone is misleading.

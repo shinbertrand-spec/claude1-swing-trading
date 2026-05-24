@@ -1,0 +1,50 @@
+# Universe baseline — sector + market-cap distribution for the swing-eligible US equity universe.
+#
+# Used by tools/bias_audit.py as the expected (null-hypothesis) distribution
+# that the agent's candidate selection is compared against. Z-scores are
+# computed assuming a binomial sampling model with the proportions below.
+#
+# Source: S&P 500 sector weights as of 2026-Q1 + a rough market-cap split
+# of the S&P 500 by component count. The S&P 500 is a reasonable proxy
+# for the swing-eligible universe given Claude1's hard rule (market_cap >
+# $2B, ADV > 500K shares) — most S&P 500 names clear both bars by orders
+# of magnitude, and the marginal Russell 2000 names that don't are excluded.
+#
+# Refresh cadence: quarterly. Sector weights drift meaningfully (e.g.
+# Technology has grown from ~22% in 2020 to ~30% in 2026 thanks to the AI
+# rotation). When updating, also bump `as_of_quarter` so the audit report
+# can surface a "baseline stale" note.
+#
+# When using a different universe (e.g. Russell 1000), supply via
+# `--baseline path/to/your.yml` on the CLI.
+
+as_of_quarter: 2026-Q1
+source: "S&P 500 sector weights (state street SPDR) + Bloomberg market-cap distribution"
+
+sector:
+  Technology: 0.30
+  Financials: 0.13
+  Health Care: 0.11
+  Consumer Discretionary: 0.10
+  Communication Services: 0.09
+  Industrials: 0.08
+  Consumer Staples: 0.06
+  Energy: 0.04
+  Real Estate: 0.02
+  Utilities: 0.025
+  Materials: 0.025
+
+# Market-cap buckets:
+#   mid_cap   = $2B  to $10B
+#   large_cap = $10B to $200B
+#   mega_cap  = > $200B
+#
+# Bucket-count proportions in the S&P 500 (approximate):
+#   - ~50 mega-cap (10%)
+#   - ~350 large-cap (70%)
+#   - ~100 mid-cap (20%)
+# These rebalance over time as cap-weighted bets compound.
+market_cap:
+  mid_cap: 0.20
+  large_cap: 0.55
+  mega_cap: 0.25

@@ -91,10 +91,14 @@ uv run python -m tools.trace_audit <ledger path> [--report <report path>]
 
 `output.verdict.overall == "BLOCK"` → BLOCK. Show the specific `block_reasons` list. Distinguish:
 
-- `validate:*` failures — structural (missing trace_refs, dangling refs) — researcher must fix the ledger
+- `validate:*` failures — structural — researcher must fix the ledger. Specific codes:
+  - `empty_trace_refs` / `non_integer_trace_ref` / `dangling_trace_ref` — missing or broken provenance
+  - `no_load_bearing_section` (added 2026-05-23) — ledger has no `setup_classification`, `position_state`, or `ep_specific`; nothing to validate
+  - `confluence_checklist_wrong_type` (added 2026-05-23) — checklist is not a list (e.g. a string); structural failure
+  - `trace_step_*` codes — malformed `reasoning_trace` entries
 - `rerun:*` failures — divergence (recorded output doesn't match a re-run) — most dangerous; means either ledger drifted OR a model wrote a tool output that doesn't match what the tool produces. Report the specific step id and diff path.
 
-`warn_reasons` (uncited steps, prose claims without ledger match) → APPROVE-WITH-CONDITIONS at most; surface every warning.
+`warn_reasons` (uncited steps, prose claims without ledger match, **all-UNKNOWN confluence checklists**) → APPROVE-WITH-CONDITIONS at most; surface every warning. The `all_unknown_confluence` warning (added 2026-05-23) means the agent is making a load-bearing classification with zero evidence — request resolution or downgrade.
 
 ### Gate 3 — Stale-phrase scan on the researcher report (Requirement 4)
 

@@ -204,9 +204,28 @@ def _validate_confluence(
     ledger: dict, valid_ids: set[int]
 ) -> list[TraceFinding]:
     findings: list[TraceFinding] = []
-    checklist = _get_by_path(ledger, ("setup_classification", "confluence_checklist"))
-    if not isinstance(checklist, list):
-        return findings  # absence is handled by the LOAD_BEARING_PATHS check
+    # Distinguish "key absent" (handled by LOAD_BEARING_PATHS) from "key
+    # present with wrong type" (a structural failure — e.g. checklist set
+    # to a string defeats validation entirely).
+    setup = _get_by_path(ledger, ("setup_classification",))
+    if isinstance(setup, dict) and "confluence_checklist" in setup:
+        checklist = setup["confluence_checklist"]
+        if not isinstance(checklist, list):
+            findings.append(
+                TraceFinding(
+                    severity="BLOCK",
+                    code="confluence_checklist_wrong_type",
+                    location="setup_classification.confluence_checklist",
+                    message=(
+                        f"confluence_checklist must be a list, got "
+                        f"{type(checklist).__name__}"
+                    ),
+                )
+            )
+            return findings
+    else:
+        return findings
+    statuses_seen: list[str] = []
     for i, item in enumerate(checklist):
         if not isinstance(item, dict):
             findings.append(
@@ -219,6 +238,7 @@ def _validate_confluence(
             )
             continue
         status = item.get("status")
+        statuses_seen.append(str(status))
         if status in ("PASS", "FAIL", "PARTIAL"):
             # Only PASS / FAIL / PARTIAL claims need trace; UNKNOWN does not.
             findings.extend(
@@ -231,6 +251,22 @@ def _validate_confluence(
                     ),
                 )
             )
+    # If every item is UNKNOWN, the agent is making a load-bearing
+    # classification with zero evidence. Warn — not block, in case there's
+    # a legitimate early-stage research workflow that this would interrupt.
+    if statuses_seen and all(s == "UNKNOWN" for s in statuses_seen):
+        findings.append(
+            TraceFinding(
+                severity="WARN",
+                code="all_unknown_confluence",
+                location="setup_classification.confluence_checklist",
+                message=(
+                    f"all {len(statuses_seen)} confluence checklist items are UNKNOWN — "
+                    "load-bearing setup_classification is being made with no evidence; "
+                    "either resolve the criteria or downgrade the classification"
+                ),
+            )
+        )
     return findings
 
 
@@ -306,6 +342,26 @@ def validate(ledger: dict) -> TraceValidationReport:
     trace_steps, step_findings = _trace_steps(ledger)
     findings.extend(step_findings)
     valid_ids = {s["id"] for s in trace_steps}
+
+    # A ledger that omits every load-bearing section has nothing to validate
+    # and would silently pass. At least one of these must be present.
+    load_bearing_present = any(
+        isinstance(ledger.get(s), dict)
+        for s in ("setup_classification", "position_state", "ep_specific")
+    )
+    if not load_bearing_present:
+        findings.append(
+            TraceFinding(
+                severity="BLOCK",
+                code="no_load_bearing_section",
+                location="<root>",
+                message=(
+                    "ledger must contain at least one of setup_classification, "
+                    "position_state, or ep_specific — otherwise there is no "
+                    "load-bearing claim to validate"
+                ),
+            )
+        )
 
     findings.extend(_validate_load_bearing_paths(ledger, valid_ids))
     findings.extend(_validate_confluence(ledger, valid_ids))

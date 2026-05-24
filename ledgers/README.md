@@ -221,9 +221,9 @@ Free-text scratchpad. **Anything load-bearing must move into a structured field*
 
 ---
 
-## Staleness rules (Phase 3 will enforce)
+## Staleness rules (Phase 3 — enforced)
 
-Per swing-risk-compliance-doctrine Requirement 4 and the table in that doctrine. The schema only **stores** `fetched_at`; Phase 3 tools will reject ledgers whose timestamps exceed these limits.
+Per swing-risk-compliance-doctrine Requirement 4 and the table in that doctrine. The schema **stores** `fetched_at`; `tools.ledger_freshness_audit` rejects ledgers whose timestamps exceed these limits.
 
 | Section | Max staleness | Action if stale |
 |---|---|---|
@@ -233,7 +233,15 @@ Per swing-risk-compliance-doctrine Requirement 4 and the table in that doctrine.
 | `regime` | End-of-day | Recompute |
 | `catalyst` | 7 days from publication | Re-verify still relevant |
 
-Phrases like *"as of my training cutoff"* or *"as of late 2024"* MUST NOT appear anywhere in the agent's prose — see doctrine Requirement 4 for the exact BLOCK trigger list.
+**Absence-of-evidence rule (added 2026-05-23 red-team patch):** the verdict is `overall: fresh` iff **every** audited section has status `fresh`. The following all flip the verdict to `stale`:
+
+- **`stale`** — section present with a timestamp past its max-staleness window
+- **`missing_timestamp`** — section present but no `fetched_at` / `computed_at` populated
+- **`missing_section`** — a section in `freshness.REQUIRED_SECTIONS` (currently `quote`) is entirely absent
+
+Pre-patch behavior treated `missing_timestamp` and `missing_section` as "not stale, therefore fresh" — silently passing ledgers that omitted load-bearing sections. The red-team harness catches regressions in this rule.
+
+Phrases like *"as of my training cutoff"* or *"as of late 2024"* MUST NOT appear anywhere in the agent's prose — see doctrine Requirement 4 for the exact BLOCK trigger list. The detector's 15 BLOCK + 2 WARN patterns now cover memory framings ("based on what I recall"), knowledge-cutoff variants ("my knowledge ends around"), probabilistic numerical claims ("probably near $230"), and similar paraphrases.
 
 ---
 

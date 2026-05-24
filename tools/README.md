@@ -79,6 +79,14 @@ All four Phase 2 slices shipped: SEPA-VCP (2.a) + EP (2.b) + pyramiding + sell d
 | [`claim_extract.py`](claim_extract.py) | Extracts numeric claims from prose; cross-references against ledger | `risk-and-compliance` output gate (WARN-level) |
 | [`trace_audit.py`](trace_audit.py) | Composite APPROVE/BLOCK verdict over all three above; CLI + library | `risk-and-compliance` single entry point |
 
+### Phase 6 — Bias audit (Type 4, periodic ritual)
+
+| Tool | Returns | Used by |
+|---|---|---|
+| [`bias_audit.py`](bias_audit.py) | Sector + market-cap distribution vs S&P 500 baseline; per-bucket z-scores; flagged buckets at \|z\| >= 2.0; CLI emits TraceEntry JSON or Markdown report | `/bias-audit` slash command; monthly cadence + on-demand |
+
+Addresses Type 4 from `[[llm-financial-hallucination]]` — the only doctrine requirement not covered by the per-trade 5-gate sequence. Bias is structural and persists across trades; per-trade gates can't see systematic skew. The audit walks `ledgers/candidates/YYYY-MM-DD/<TICKER>.yml` over a date window, buckets candidates by sector (via `regime.sector_etf` → GICS) and market cap (from `fundamentals.market_cap_usd`), and flags buckets that deviate >= 2σ from the [`data/universe_baseline.yml`](data/universe_baseline.yml) expected proportions. Informational — never blocks trades.
+
 ### Phase 5 — Walk-forward backtest harness
 
 Lives in [`backtest/`](backtest/) — see [`backtest/README.md`](backtest/README.md). Gates setup deployment to live capital on **OOS Sharpe > 1.0 AND |OOS DD| < 25% AND OOS n ≥ 30**.
@@ -227,7 +235,19 @@ print(size_entry.output["shares"], size_entry.output["binding_constraint"])
 uv run pytest
 ```
 
-322 tests pass in ~1.7 s. All synthetic — no network. Fixtures in [`tests/conftest.py`](../tests/conftest.py). Both curated example ledgers (`sepa-vcp-candidate.yml`, `pyramided-position.yml`) audit clean through `trace_audit`. Phase 5 backtest modules tested end-to-end against synthetic OHLCV — runner CLI requires network for real backtests.
+376 tests pass in ~1.5 s. All synthetic — no network. Fixtures in [`tests/conftest.py`](../tests/conftest.py). Both curated example ledgers (`sepa-vcp-candidate.yml`, `pyramided-position.yml`) audit clean through `trace_audit`. Phase 5 backtest modules tested end-to-end against synthetic OHLCV — runner CLI requires network for real backtests.
+
+### Red-team regression harness (added 2026-05-23)
+
+[`tests/test_red_team_gates.py`](../tests/test_red_team_gates.py) — 27 adversarial tests over the 5-gate hallucination-prevention sequence. Probes each gate with deliberately-malformed inputs that should BLOCK; passes when the gate catches them. A failing red-team test = the gate has a regressed leak.
+
+The harness uncovered and closed 19 leaks in its first run:
+
+- **Gate 1 (`ledger_freshness_audit`)** — missing sections and missing timestamps were silently treated as fresh. Patched via `freshness.REQUIRED_SECTIONS` + the new "fresh iff every section is fresh" verdict rule.
+- **Gate 2 (`trace_audit`)** — ledgers with no load-bearing section, all-UNKNOWN confluence checklists, and wrong-type checklists passed silently. Patched via new `no_load_bearing_section` BLOCK, `confluence_checklist_wrong_type` BLOCK, and `all_unknown_confluence` WARN codes in `trace_validate`.
+- **Gate 3 (`stale_phrase_detector`)** — 11 paraphrase families plus NBSP/newline escapes defeated the original 6-pattern catalog. Patched by expanding to 15 BLOCK + 2 WARN patterns and using `\s+` instead of literal space.
+
+Convention: `test_hit_<gate>_<vector>` for caught attacks; `test_leak_<gate>_<vector>` for known-open attacks (none currently). When a new attack vector is discovered, add it as `test_leak_*` to track it; flip to `test_hit_*` when closed.
 
 Real-data correctness is validated by running the CLI against live tickers and comparing against the worked examples in the operational notes:
 

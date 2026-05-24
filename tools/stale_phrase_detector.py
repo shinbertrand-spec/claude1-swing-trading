@@ -40,12 +40,18 @@ class Pattern:
     description: str
 
 
-# Per the doctrine's explicit BLOCK list:
+# Per the doctrine's explicit BLOCK list.
+#
+# Whitespace handling: patterns use ``\s+`` between tokens instead of a
+# literal space so they catch Unicode whitespace (NBSP `` ``, ZWSP,
+# narrow no-break space) and soft line breaks. Python 3 ``\s`` matches
+# Unicode whitespace by default. This closed an escape vector found in
+# the 2026-05-23 red-team pass.
 PATTERNS: tuple[Pattern, ...] = (
     Pattern(
         name="as_of_my_training",
         regex=re.compile(
-            r"\bas of (?:my training|my last training|my last update|my knowledge cutoff|my data cutoff)\b",
+            r"\bas\s+of\s+(?:my\s+training|my\s+last\s+training|my\s+last\s+update|my\s+knowledge\s+cutoff|my\s+data\s+cutoff)\b",
             re.IGNORECASE,
         ),
         severity="BLOCK",
@@ -54,7 +60,7 @@ PATTERNS: tuple[Pattern, ...] = (
     Pattern(
         name="as_of_late_year",
         regex=re.compile(
-            r"\bas of (?:late|early|mid|end of) (?:19|20)\d{2}\b",
+            r"\bas\s+of\s+(?:late|early|mid|end\s+of)\s+(?:19|20)\d{2}\b",
             re.IGNORECASE,
         ),
         severity="BLOCK",
@@ -63,7 +69,7 @@ PATTERNS: tuple[Pattern, ...] = (
     Pattern(
         name="at_the_time_of_my_data",
         regex=re.compile(
-            r"\bat the time of (?:my (?:data|training|knowledge))\b",
+            r"\bat\s+the\s+time\s+of\s+(?:my\s+(?:data|training|knowledge))\b",
             re.IGNORECASE,
         ),
         severity="BLOCK",
@@ -72,9 +78,9 @@ PATTERNS: tuple[Pattern, ...] = (
     Pattern(
         name="no_realtime_access",
         regex=re.compile(
-            r"\b(?:i (?:do not|don'?t|cannot|can'?t) (?:have )?access (?:to )?real[\s-]?time"
-            r"|i cannot (?:verify|access) current"
-            r"|i'?m not able to (?:access|verify) (?:current|real[\s-]?time))\b",
+            r"\b(?:i\s+(?:do\s+not|don'?t|cannot|can'?t)\s+(?:have\s+)?access\s+(?:to\s+)?real[\s-]?time"
+            r"|i\s+cannot\s+(?:verify|access)\s+current"
+            r"|i'?m\s+not\s+able\s+to\s+(?:access|verify)\s+(?:current|real[\s-]?time))\b",
             re.IGNORECASE,
         ),
         severity="BLOCK",
@@ -83,7 +89,7 @@ PATTERNS: tuple[Pattern, ...] = (
     Pattern(
         name="i_dont_have_current",
         regex=re.compile(
-            r"\bi (?:do not|don'?t) have (?:the )?(?:current|latest|up[-\s]?to[-\s]?date) (?:price|data|figure|number|rate|value)\b",
+            r"\bi\s+(?:do\s+not|don'?t)\s+have\s+(?:the\s+)?(?:current|latest|up[-\s]?to[-\s]?date)\s+(?:price|data|figure|number|rate|value)\b",
             re.IGNORECASE,
         ),
         severity="BLOCK",
@@ -92,20 +98,118 @@ PATTERNS: tuple[Pattern, ...] = (
     Pattern(
         name="based_on_pre_training",
         regex=re.compile(
-            r"\bbased on (?:my )?(?:pre[-\s]?training|training data|historical training)\b",
+            r"\bbased\s+on\s+(?:my\s+)?(?:pre[-\s]?training|training\s+data|historical\s+training)\b",
             re.IGNORECASE,
         ),
         severity="BLOCK",
         description="Decision-grounding in pre-training data is unfaithful per Requirement 4.",
     ),
+    # --- 2026-05-23 red-team additions: paraphrase / memory / knowledge ---
+    Pattern(
+        name="memory_recall",
+        regex=re.compile(
+            r"\b(?:based\s+on|from)\s+what\s+i\s+(?:recall|remember|recollect)\b",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Memory-based recall instead of ledger lookup — implicit stale-data admission.",
+    ),
+    Pattern(
+        name="per_my_memory",
+        regex=re.compile(
+            r"\bper\s+my\s+(?:memory|recollection|recall)\b",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Anchoring on personal memory rather than the fact ledger.",
+    ),
+    Pattern(
+        name="knowledge_state_reference",
+        regex=re.compile(
+            # "my knowledge ends", "my knowledge base reflects", "my training window",
+            # "within my training window", etc.
+            r"\b(?:my|within\s+my)\s+(?:knowledge|training)(?:\s+base|\s+window|\s+cutoff)?\s+(?:ends|reflects|extends|stops|window|cutoff|covers)\b",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Explicit reference to model knowledge-state boundary — should call a tool.",
+    ),
+    Pattern(
+        name="within_training_window",
+        regex=re.compile(
+            r"\bwithin\s+my\s+training\s+window\b",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Anchoring claims to the pre-training time window.",
+    ),
+    Pattern(
+        name="up_until_my_refresh",
+        regex=re.compile(
+            r"\bup\s+until\s+my\s+(?:last\s+)?(?:refresh|update|knowledge|training|data)\b",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Time-bounded admission of stale knowledge state.",
+    ),
+    Pattern(
+        name="without_current_data_phrase",
+        regex=re.compile(
+            r"\bwithout\s+(?:current|live|recent|up[-\s]?to[-\s]?date|real[\s-]?time)\s+(?:data|prices|info|information|quotes?)\b",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Model is producing analysis while admitting absence of current data.",
+    ),
+    Pattern(
+        name="probably_temporal_value",
+        regex=re.compile(
+            # "AAPL was probably near $230 last I checked"
+            r"\bprobably\s+(?:near|around|at|about)\s+\$?\d",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Probabilistic numerical claim — values must come from the ledger, not guesses.",
+    ),
+    Pattern(
+        name="last_i_temporal",
+        regex=re.compile(
+            r"\blast\s+i\s+(?:checked|looked|saw|recall|remember)\b",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Personal-recall temporal hedge — implicit stale-data admission.",
+    ),
+    Pattern(
+        name="historical_vague_price",
+        regex=re.compile(
+            # "historically AAPL traded around $200" — historical context + vague pricing
+            r"\bhistorically\b[^.]{0,80}?(?:near|around|roughly|approximately)\s+\$?\d",
+            re.IGNORECASE,
+        ),
+        severity="BLOCK",
+        description="Historical anchoring combined with vague pricing — pre-training narrative.",
+    ),
+    # --- WARN patterns (downgrade rather than block) ---
     Pattern(
         name="model_speculative_now",
         regex=re.compile(
-            r"\b(?:i (?:would|might|may) (?:guess|estimate|assume|presume)|likely (?:around|approximately) \$)\b",
+            r"\b(?:i\s+(?:would|might|may)\s+(?:guess|estimate|assume|presume)|likely\s+(?:around|approximately)\s+\$)\b",
             re.IGNORECASE,
         ),
         severity="WARN",
         description="Speculative phrasing about quantitative values; downgrade rather than block.",
+    ),
+    Pattern(
+        name="give_or_take_estimate",
+        regex=re.compile(
+            # "Roughly 200, give or take 10" — vague estimation marker; high
+            # specificity due to "give or take".
+            r"\b(?:roughly|approximately|about)\s+\d[\d,.]*\b.{0,30}?\bgive\s+or\s+take\b",
+            re.IGNORECASE,
+        ),
+        severity="WARN",
+        description="Estimation hedge with explicit imprecision marker — quantitative claims must cite tools.",
     ),
 )
 
