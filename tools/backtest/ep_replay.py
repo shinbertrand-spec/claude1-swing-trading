@@ -39,7 +39,14 @@ MASSIVE_GAP_PCT = 0.15
 MIN_VOLUME_RATIO = 3.0
 NEGLECTED_LOOKBACK_3M = 63
 NEGLECTED_LOOKBACK_6M = 126
-NEGLECTED_THRESHOLD = 0.20
+# "Neglected base" means the stock isn't in a euphoric runaway. For the
+# original MAGNA on small/mid-caps, 20% over 6mo was tight. For an
+# S&P 500-leaning liquid universe, normal bull-market quality names
+# trend up 30-40%/yr; 20% is too strict and rejects nearly all candidates.
+# 50% over 6mo is genuinely "not yet euphoric" and matches the doctrine's
+# intent: filter out names that have already had their move, not names
+# in a healthy uptrend.
+NEGLECTED_THRESHOLD = 0.50
 MIN_HISTORY_BARS = 200    # need enough for 6m lookback + ATR + indicators
 GAP_LARGE_FAIL_PCT = 0.20  # 20%+ gaps have 44.8% Day-1 failure → downgrade
 
@@ -95,12 +102,16 @@ def _grade_ep(
     intraday_expansion_pct: float,
 ) -> str:
     """Phase 5.b grading — same shape as :mod:`tools.ep_grade` but with
-    the score scaled out of 4 (MAGNA-A_analyst omitted)."""
-    # Baseline by score (out of 4, equiv to ep_grade's 4/5 = Swan threshold).
-    if score >= 4:
+    the score scaled out of 4 (MAGNA-A_analyst omitted).
+
+    Threshold mapping: original ep_grade.py uses 4-of-5 → Swan. Faithful
+    translation to the 4-criterion OHLCV approximation is 3-of-4 → Swan
+    (i.e., one missing criterion permitted), not 4-of-4 (which was
+    effectively "perfect score"). The caller (_detect_ep_at_bar) gates
+    additionally on G_gap_confirmed to preserve the "held the gap" rule.
+    """
+    if score >= 3:
         grade = "Swan"
-    elif score == 3:
-        grade = "Duck"
     else:
         grade = "Chicken"
 
@@ -141,7 +152,19 @@ def _detect_ep_at_bar(df_slice: pd.DataFrame) -> tuple[bool, str | None, dict]:
             "gap_pct": gap_pct,
         }
 
+    # Doctrine guard: even at score=3, refuse to enter if today's close
+    # was at/below today's open — the gap was not held. EP without
+    # confirmation = high-failure setup.
+    if not breakdown["G_gap_confirmed"]:
+        return False, None, {
+            "reason": "gap not held (today close <= open)",
+            "breakdown": breakdown,
+            "gap_pct": gap_pct,
+        }
+
     grade = _grade_ep(score, gap_pct, intraday_expansion_pct)
+    # Chicken = score below 3. Duck = downgrade from Swan after a 20%+ gap
+    # (44.8% Day-1 failure rate per doctrine). Both are non-tradeable.
     if grade in {"Chicken", "Duck"}:
         return False, None, {
             "reason": f"grade {grade} below Swan threshold",
