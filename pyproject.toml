@@ -11,10 +11,9 @@ dependencies = [
     "jsonschema>=4.20",
     "pyarrow>=17.0",
     "lxml>=6.1.1",
-    # Broker bridge — Tiger Open Platform Python SDK. Staged here as a
-    # known dependency; uncomment and run `uv sync` when ready to build
-    # the broker module. See tools/broker/tiger.py skeleton for the plan.
-    # "tigeropen>=3.3",
+    # Broker bridge — Tiger Open Platform Python SDK. Paper-trading only
+    # in v1. See tools/broker/tiger.py.
+    "tigeropen>=3.3",
 ]
 
 [dependency-groups]
