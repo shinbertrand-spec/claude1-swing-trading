@@ -1,0 +1,154 @@
+# Clenow Stocks-on-the-Move — v1 reference strategy
+# Source: Clenow, *Stocks on the Move* (2015). Horizon-perfect match for
+# Claude1's 2-day-to-6-week swing window (Clenow runs weekly rebalance;
+# typical hold is multi-week).
+
+meta:
+  name: clenow_stocks_on_the_move
+  version: "1.0"
+  source: "Clenow, *Stocks on the Move* (2015)"
+  description: |
+    Multi-week momentum: SPY 200d-SMA regime filter + per-name 90d
+    exponential-regression slope (annualised, * R^2) cross-sectional
+    ranking + weekly rebalance into top-K. v1 uses TradeSignal
+    compatibility shim — re-entries each rebalance if still in top-K
+    (faithful continuous-hold semantics are Phase 5.d portfolio-sim work).
+  horizon_days: 60
+  status: v1_reference
+
+kind: clenow_momentum
+
+universe:
+  # Same 88-ticker S&P-500-leaning universe used in the 2026-05-24
+  # setup-sweep. Benchmark must be in the list (cross-sectional ranker
+  # excludes it; regime filter uses its SMA).
+  tickers:
+    - AAPL
+    - ABBV
+    - ADBE
+    - AMD
+    - AMT
+    - AMZN
+    - APD
+    - ASML
+    - AVGO
+    - AXP
+    - BABA
+    - BAC
+    - BKNG
+    - BLK
+    - CAT
+    - CEG
+    - CMCSA
+    - COIN
+    - COP
+    - COST
+    - CRM
+    - CVX
+    - DIS
+    - DUK
+    - EQIX
+    - ETN
+    - FCX
+    - FDX
+    - GE
+    - GOOGL
+    - GS
+    - HD
+    - HON
+    - HUBB
+    - ISRG
+    - JNJ
+    - JPM
+    - KLAC
+    - KO
+    - LIN
+    - LLY
+    - LMT
+    - LULU
+    - MA
+    - MCD
+    - META
+    - MO
+    - MRK
+    - MRVL
+    - MS
+    - MSFT
+    - MU
+    - NBIS
+    - NEE
+    - NFLX
+    - NKE
+    - NUE
+    - NVDA
+    - ORCL
+    - OXY
+    - PDD
+    - PEP
+    - PG
+    - PLD
+    - PLTR
+    - QCOM
+    - QQQ
+    - RBLX
+    - SBUX
+    - SCHW
+    - SLB
+    - SO
+    - T
+    - TLN
+    - TMO
+    - TMUS
+    - TSLA
+    - UNH
+    - UPS
+    - V
+    - VRT
+    - VRTX
+    - VST
+    - WCC
+    - WMT
+    - XLK
+    - XOM
+  benchmark: SPY
+
+period:
+  start: "2020-01-01"
+  end: "2025-12-31"
+
+walk_forward:
+  mode: single        # or "rolling"
+  is_fraction: 0.70   # single mode only
+
+params:
+  # Cross-sectional ranking.
+  momentum_lookback_days: [60, 90, 120]   # GRID
+  top_k: [10, 20]                          # GRID
+
+  # Regime filter.
+  regime_filter_period: 200
+
+  # Rebalance cadence (bars between top-K re-rankings).
+  rebalance_period_days: 5                 # weekly
+
+  # Risk sizing — ATR(period) * multiple = stop distance from entry.
+  atr_period: 20
+  atr_stop_multiple: 3.0
+
+  # Hold semantics — v1 shim: re-enter every rebalance if still top-K.
+  max_hold_days: 5                          # match rebalance cadence
+  target_r_multiple: null                  # no fixed target — exit on stop or max-hold
+
+  risk_per_trade: 0.01                     # 1% of equity per trade (for Sharpe / DD calc)
+
+execution:
+  # The Phase 5 simulator's stop policy. Clenow uses no explicit trailing
+  # stop in the original (positions exit on top-K dropout); v1 shim uses
+  # fixed stop only.
+  trail: fixed
+
+gate:
+  # Defaults to doctrine values. Override here if needed.
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
