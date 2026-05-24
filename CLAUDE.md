@@ -432,11 +432,29 @@ validation of deployable strategies:
 
 **Scope progression:**
 - Session 1 (shipped 2026-05-24): entry pipeline; `submitted` state writes.
-- Session 2: EOD reconciliation (pull filled orders → update fill prices);
-  Task Scheduler wiring for daily auto-fire.
+- Session 2 (shipped 2026-05-24): EOD reconciliation
+  (`tools.auto_paper.reconcile.reconcile_today()` pulls filled + open orders
+  from Tiger, matches by `broker_order_id`, transitions ledger state:
+  `submitted` → `starter` on full / partial fill, → `closed` on
+  DAY-expired). Slash command `/auto-paper-reconcile` + Task Scheduler
+  installer `scripts/install-auto-paper-tasks.ps1` (registers entry at
+  9:35 AM ET + reconcile at 4:30 PM ET, Mon-Fri).
 - Session 3: broker-side stop orders (OCA stop+target groups); per-bar
   sell-decision composer firing real exits.
 - Session 4: performance dashboard — realized vs backtest expectation.
+
+**Cron wiring (Session 2):** `scripts/install-auto-paper-tasks.ps1`
+registers two Windows Task Scheduler jobs:
+
+| Task | Fires | Slash command |
+|---|---|---|
+| `ClaudeTradingAutoPaperEntry` | 9:35 AM ET, Mon-Fri | `/auto-paper` |
+| `ClaudeTradingAutoPaperReconcile` | 4:30 PM ET, Mon-Fri | `/auto-paper-reconcile` |
+
+Both self-gate inside the slash command (no candidates → exit clean; no
+pending → exit clean), so over-firing on holidays is harmless. Install
+with `.\scripts\install-auto-paper-tasks.ps1` (defaults assume US Eastern;
+override `-EntryLocalTime` and `-ReconcileLocalTime` for other zones).
 
 ## Sensitive Information
 
