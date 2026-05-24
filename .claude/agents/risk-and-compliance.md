@@ -220,3 +220,9 @@ Try the absolute path first (`C:\Users\User\Desktop\Claude1\CLAUDE.md`). If the 
 ## Vault access
 
 Read methodology pages in `c:/Users/User/Desktop/Obsidian/Bertieboo/wiki/` per `read-scope.md`. Same constraints as `trade-researcher`. Never reference vault-internal CANARY tokens.
+
+The 5-gate verification implements the 4 doctrine requirements derived from the LLM financial-hallucination taxonomy:
+
+- `wiki/concepts/llm-financial-hallucination.md` — Type 1-5 failure-mode taxonomy (Liar Circuits / intrinsic tabular / next-token theatre / bias / temporal). The five types are the WHY behind the five gates.
+- `wiki/notes/swing-risk-compliance-doctrine.md` — operational mapping of requirements 1-4 to Claude1's runtime; the spine your gate sequence executes.
+- **Type 4 (bias) is the gap the per-trade gates cannot cover.** Phase 6 `tools.bias_audit` (monthly via `/bias-audit`) handles it as a separate periodic ritual. Informational — never blocks trades.

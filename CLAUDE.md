@@ -218,6 +218,67 @@ prose. Source of truth: [`tools/README.md`](tools/README.md).
 
 Next: first real-data backtest runs (5 setups × 3 trail modes against a 5y universe) → iterate. Then Phase 5.c.
 
+## Quant dimension (queued — Gate-1 research, not yet built)
+
+Bertrand is adding a **quantitative-strategy axis** to Claude1's existing
+discretionary swing-trading stack. The current lineage (Minervini / Weinstein
+/ Kullamägi / Bonde) is discretionary chart-pattern + narrative-thesis work.
+The quant lineage (Clenow / Alvarez / Connors / Longmore / Chan / López de
+Prado) answers different questions: *what's the statistical edge of this
+signal across 10,000 instances? how do I avoid overfitting? what's the right
+sizing model for a portfolio of signals?*
+
+**Current state (as of 2026-05-23):** Gate-1 research phase. Research stub
+at vault `wiki/notes/swing-quant-research.md` (scope: swing) inventories
+practitioners, blogs, papers, and books to clip. No subagent built yet —
+the clipping work has to ripen before the operational shape is decided.
+
+**Working hypothesis for the eventual subagent:**
+**`quant-strategist`** — generates candidate strategies + parameter grids,
+feeds them through `tools.backtest.runner` (Phase 5.a, walk-forward),
+only strategies clearing the deployment gate get promoted. Architectural
+pattern: `[[auto-research-loop]]` — the strategy file is the editable input,
+`tools.backtest.runner` is the immutable `prepare.py`. **The
+quant-strategist + auto-research-loop + Phase 5.a deployment gate = a
+fully-articulated triple that the doctrine's "walk-forward validation
+REQUIRED" callout structurally unlocks.**
+
+**Sharper framing from the 2026-05-23 batch:** the quant lineage's gift to
+Claude1 isn't (just) new signal sources — it's the **accumulated
+anti-self-deception machinery**: White 2000 Reality Check → Aronson 2006
+evidence-based TA → Pardo 2008 walk-forward methodology → Alvarez 2026
+practitioner protocol → López de Prado 2018 modern statistical defenses.
+The discretionary lineage doesn't have this discipline natively — it relies
+on judgment + journaling. See `wiki/concepts/walk-forward-analysis.md`
+§ "The discipline lineage" for the full citation chain.
+
+**Open architectural questions** (to resolve as clipping surfaces real
+practitioner workflows):
+- One subagent (`quant-strategist`) or two (`signal-analyst` for per-bar
+  computation + `backtest-orchestrator` for the loop)?
+- Mean-reversion strategies (Alvarez / Connors / Chan) target 1-5 day holds —
+  shorter than the 2-day-to-6-week swing window. Sibling axis or in-scope?
+  See `wiki/concepts/cross-sectional-mean-reversion.md` and
+  `wiki/concepts/mean-reversion-strategy.md`.
+- Multi-agent adversarial debate (`wiki/concepts/multi-agent-adversarial-debate.md`)
+  was flagged as a partial mitigation for Type 4 bias (alongside Phase 6
+  `bias_audit`). Is it additive to `quant-strategist` (strategy debate over
+  the same backtest) or to `risk-and-compliance` (per-trade debate)?
+
+**Cross-cutting concept refs added to the vault since 2026-05-17** that
+this project should be aware of:
+- `wiki/concepts/quantitative-trading.md` — spine for the new axis
+- `wiki/concepts/cross-sectional-mean-reversion.md` — Alvarez / Chan strategy class
+- `wiki/concepts/mean-reversion-strategy.md` — broader hub
+- `wiki/concepts/walk-forward-analysis.md` — already cited (deployment gate)
+- `wiki/concepts/auto-research-loop.md` — architectural pattern
+- `wiki/concepts/harness-engineering.md` — operational concept
+- `wiki/concepts/multi-agent-adversarial-debate.md` — architectural candidate
+- `wiki/concepts/post-earnings-drift.md` — academic foundation for the
+  existing EP setup (Bonde's discretionary `[[episodic-pivot]]` framing
+  is convergent with the academic PEAD literature)
+- `wiki/concepts/alpha-decay.md` — strategy lifecycle concept
+
 **Contract for subagents (effective now):**
 - Every numerical claim cites a tool's `TraceEntry` via the ledger's
   `reasoning_trace` array. Empty `trace_refs[]` on a load-bearing claim is
@@ -231,8 +292,8 @@ Run the test suite before any tool change: `uv run pytest` (376 tests, ~1.5 s).
 
 ## Subagent Workflow
 
-Two specialized subagents handle the heavy lifting. Both now use the
-fact-ledger + tools + audit infrastructure shipped in Phases 1-4.
+Four specialized subagents handle the heavy lifting. All use the fact-ledger
++ tools + audit infrastructure shipped in Phases 1-4 (where applicable).
 
 1. **`trade-researcher`** — given a ticker or theme, runs the relevant
    deterministic-arithmetic tools (`tools/regime_check`, `trend_template`,
@@ -253,10 +314,47 @@ fact-ledger + tools + audit infrastructure shipped in Phases 1-4.
    Returns APPROVE / APPROVE-WITH-CONDITIONS / BLOCK. Adversarial by design;
    mechanical gates run first.
 
-`trade-researcher` writes ledger YAML files (`Write`/`Edit`). `risk-and-compliance`
-does not modify files — it reads ledgers and emits a verdict. Neither writes
-to journals. The main agent (the orchestrator that invoked them) decides what
-to incorporate into the journal.
+3. **`news-research`** (shipped 2026-05-23) — hourly news / price / analyst-action
+   gatherer. Fires once per hour during US market hours via `/news-hourly`
+   (Windows Task Scheduler). Four internal passes: Scout (per-ticker for
+   watchlist + open positions, via finviz quote panels) → Top-movers (finviz
+   screener for gainers ≥5%) → Bear/skeptic (disconfirming sources on
+   medium+severity items) → Synth (compose snapshot + material_deltas). Writes
+   `ledgers/news/YYYY-MM-DD/HH.yml` against `ledgers/news/_schema/news_snapshot.schema.json`;
+   pushes Telegram summary only when `material_deltas` non-empty. Does not
+   modify fact ledgers — news is a parallel artifact, not per-trade-lifecycle.
+
+4. **`portfolio-manager`** (shipped 2026-05-23) — portfolio-wide assessment +
+   retroactive onboarding. Two modes:
+   - **`snapshot`** (read-only): reads `journal/positions.json` + per-position
+     ledgers + live finviz quotes + runs `tools.regime_check SPY`; computes
+     position/sector concentration vs CLAUDE.md hard rules; returns Markdown
+     report with sector heatmap, rule violations, "what would fix it" notes.
+   - **`onboard`** (direct-write): converts pre-framework positions into
+     ledgered positions. Picks stop = `max(cost × 0.92, current_price − 1×ATR)`;
+     loud-flags any position past the 8% threshold; refuses to overwrite
+     existing ledgers. Writes `ledgers/positions/<TICKER>.yml` + appends to
+     `journal/positions.json`. Pre-existing positions land with
+     `setup_classification.type: "Manual"`, `grade: null`, `stage: trailing`.
+
+   Slash commands: `/p_s` (snapshot) and `/p_s_onboard` (onboard). Both accept
+   image attachments (broker-app screenshot from Telegram or IDE — multimodal
+   parse), inline `--positions` paste, or fall through to positions.json.
+
+`trade-researcher` and `portfolio-manager` write ledger YAML files (`Write`/`Edit`).
+`risk-and-compliance` and `news-research` write to their own artifacts only
+(verdict / news snapshot respectively); neither modifies the per-trade fact
+ledgers. The main agent (the orchestrator that invoked them) decides what to
+incorporate into the journal.
+
+**Future subagent on the research roadmap** (queued, not built):
+**`quant-strategist`** — sibling to `trade-researcher` for quantitative
+strategies. Architecture: `[[auto-research-loop]]` pattern over the existing
+Phase 5.a-c backtest harness. Only strategies clearing the deployment gate
+(Sharpe > 1.0, |MDD| < 25%, n ≥ 30) get promoted. Research stub at vault
+`wiki/notes/swing-quant-research.md` (scope: swing) — Gate-1 research phase
+as of 2026-05-23; clipping work has to ripen before the subagent shape is
+decided. See **§ Quant dimension** below.
 
 ## Sensitive Information
 

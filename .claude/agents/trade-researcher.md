@@ -170,8 +170,16 @@ Read methodology pages in `c:/Users/User/Desktop/Obsidian/Bertieboo/wiki/` per `
 
 - `wiki/notes/swing-setup-library.md` — setup classification spec
 - `wiki/notes/swing-regime-playbook.md` — regime check spec
-- `wiki/notes/swing-earnings-pivot.md` — EP setup spec
+- `wiki/notes/swing-earnings-pivot.md` — EP setup spec (operational; Bonde lineage)
 - `wiki/notes/swing-position-sizing.md` — sizing math spec
 - `wiki/notes/swing-risk-compliance-doctrine.md` — why the ledger + trace contract exists
+- `wiki/concepts/post-earnings-drift.md` — academic foundation for the EP
+  setup. Bonde's discretionary `[[episodic-pivot]]` framing is convergent
+  with the academic PEAD literature. Cite when explaining why an EP setup's
+  edge is robust across decades (PEAD is one of the longest-studied
+  anomalies; Bonde targets the same underlying inefficiency).
+- `wiki/concepts/llm-financial-hallucination.md` — Type 1-5 failure-mode
+  taxonomy. Type 4 (bias) is addressed by Phase 6 `tools.bias_audit`. The
+  taxonomy is the spine the 5-gate verification structure binds to.
 
 Never reference vault-internal CANARY tokens in your output.
