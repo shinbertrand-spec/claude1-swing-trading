@@ -1,0 +1,148 @@
+# Low Volatility Factor — paperswithbacktest catalog comparison
+# Source: Blitz & van Vliet 2007, productised at paperswithbacktest with
+#         in-sample Sharpe ~0.717 (long-short, monthly).
+# Long-only adaptation; published Sharpe will be materially reduced.
+
+meta:
+  name: xs_low_volatility
+  version: "2.0"
+  source: "Blitz & van Vliet 2007 (paperswithbacktest catalog, in-sample Sharpe 0.717 long-short monthly)"
+  description: |
+    Cross-sectional low-volatility factor with SPY 200d MA regime
+    filter (v2). Each rebalance, rank universe by trailing 60-day
+    realised volatility (annualised std of log returns), long the
+    bottom-N (lowest-vol names) — but ONLY when SPY closes above its
+    200d SMA on the rebalance date. Monthly rebalance, hold 21 trading
+    days. Long-only adaptation.
+
+    v2 motivation (see swing-xs-low-volatility-port-rejected): v1
+    failed all three grid combos because the naked-long port inherits
+    market beta during regime breaks (2023 rates shock pushed DD past
+    -30%). The regime filter is expected to cut 2023 DD roughly in
+    half — enough to potentially bring bottom_n=20 within the -25% gate.
+  horizon_days: 21
+  status: candidate
+
+kind: xs_low_volatility
+
+universe:
+  tickers:
+    - AAPL
+    - ABBV
+    - ADBE
+    - AMD
+    - AMT
+    - AMZN
+    - APD
+    - ASML
+    - AVGO
+    - AXP
+    - BABA
+    - BAC
+    - BKNG
+    - BLK
+    - CAT
+    - CEG
+    - CMCSA
+    - COIN
+    - COP
+    - COST
+    - CRM
+    - CVX
+    - DIS
+    - DUK
+    - EQIX
+    - ETN
+    - FCX
+    - FDX
+    - GE
+    - GOOGL
+    - GS
+    - HD
+    - HON
+    - HUBB
+    - ISRG
+    - JNJ
+    - JPM
+    - KLAC
+    - KO
+    - LIN
+    - LLY
+    - LMT
+    - LULU
+    - MA
+    - MCD
+    - META
+    - MO
+    - MRK
+    - MRVL
+    - MS
+    - MSFT
+    - MU
+    - NBIS
+    - NEE
+    - NFLX
+    - NKE
+    - NUE
+    - NVDA
+    - ORCL
+    - OXY
+    - PDD
+    - PEP
+    - PG
+    - PLD
+    - PLTR
+    - QCOM
+    - QQQ
+    - RBLX
+    - SBUX
+    - SCHW
+    - SLB
+    - SO
+    - T
+    - TLN
+    - TMO
+    - TMUS
+    - TSLA
+    - UNH
+    - UPS
+    - V
+    - VRT
+    - VRTX
+    - VST
+    - WCC
+    - WMT
+    - XLK
+    - XOM
+  benchmark: SPY
+
+period:
+  start: "2020-01-01"
+  end: "2025-12-31"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: 60               # trailing 60-day realised-vol window
+  bottom_n: [10, 15, 20]          # GRID
+  rebalance_period_days: 21       # monthly
+  max_hold_days: 21               # = rebalance period
+  atr_period: 20
+  atr_stop_multiple: 2.5
+  risk_per_trade: 0.01
+
+  # v2 regime filter — SPY 200d SMA gate at signal emission.
+  # Set to 0 to disable (back-compat for v1 behavior).
+  regime_filter_period: 200
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
