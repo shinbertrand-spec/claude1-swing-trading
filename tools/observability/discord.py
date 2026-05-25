@@ -124,7 +124,13 @@ def post_to_channel(
     req = urllib.request.Request(
         url,
         data=body,
-        headers={"Content-Type": "application/json; charset=utf-8"},
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            # Discord blocks the default urllib User-Agent via Cloudflare.
+            # Per https://discord.com/developers/docs/reference#user-agent
+            # any non-generic UA is fine.
+            "User-Agent": "Claude1-PaperAuto/1.0 (+https://github.com/shinbertrand-spec/claude1-swing-trading)",
+        },
         method="POST",
     )
     try:
