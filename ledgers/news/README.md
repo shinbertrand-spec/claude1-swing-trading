@@ -25,8 +25,11 @@ ledgers/news/
   _examples/
     quiet-hour.yml              # No material deltas, just hourly heartbeat
     catalyst-hour.yml           # Analyst action + gap + macro event firing
+    social-active-hour.yml      # Schema 1.1: social_signals[] firing on positions + top-mover
+  _state/
+    social_baseline.json        # Per-ticker rolling 24-hr StockTwits message-volume baseline (Phase 1.5)
   YYYY-MM-DD/
-    HH.yml                      # One file per hour (UTC HH, top of hour)
+    HH.yml                      # One file per hour (ET HH, top of hour)
     HH-summary.txt              # Telegram-ready summary (only when material_deltas non-empty)
   README.md                     # this file
 ```
@@ -54,7 +57,7 @@ be added by editing the scheduled-task triggers without changing any code.
 
 ## Subagent pipeline
 
-`news-research` is a single subagent invocation that runs four sequential
+`news-research` is a single subagent invocation that runs five sequential
 internal passes:
 
 1. **Scout** — gather news / price / analyst-action for tickers in
@@ -71,9 +74,19 @@ internal passes:
    is [finviz.com/screener.ashx](https://finviz.com/screener.ashx) (filter
    `ta_change_u5` for gainers ≥ 5%); also pull headline context from
    [biztoc.com](https://biztoc.com/) and [finviz.com/news](https://finviz.com/news).
-3. **Bear / skeptic** — for any item flagged `severity ≥ medium`, search
-   for disconfirming sources on different domains than the original.
-4. **Synth** — compose the hourly YAML snapshot + select items for the
+3. **Social** (Phase 1.5) — pull StockTwits sentiment for open positions +
+   top-movers flagged `potential_ep / news_driven / gap_up / gap_down`. Spam-
+   filter, count bullish vs bearish (using StockTwits' built-in user tags),
+   compute `volume_z` vs the trailing 24-hr baseline in
+   [`_state/social_baseline.json`](_state/social_baseline.json), classify per
+   the ladder (`climax_warning` / `bearish_pile_on` / `buzz_spike` / `cooling` /
+   `quiet`). Informational only — never gates a trade. Cross-link target:
+   `tools.climax_top_detect` in the EOD sell pipeline (see
+   [`../../.claude/commands/eod-journal.md`](../../.claude/commands/eod-journal.md)).
+4. **Bear / skeptic** — for any item flagged `severity ≥ medium`, plus any
+   `buzz_spike` top-mover from Pass 3, search for disconfirming sources on
+   different domains than the original.
+5. **Synth** — compose the hourly YAML snapshot + select items for the
    `material_deltas` array, which drives Telegram pushes.
 
 The orchestrator (`/news-hourly`) then diffs the new snapshot against the
@@ -138,7 +151,7 @@ drop into the message body. Empty array = no push.
 
 ---
 
-## Material-delta thresholds (Phase 1 baseline; tune after first day's data)
+## Material-delta thresholds (Phase 1 + 1.5 baseline; tune after first day's data)
 
 | `reason` | Trigger | Threshold |
 |---|---|---|
@@ -150,11 +163,15 @@ drop into the message body. Empty array = no push.
 | `fomc_release` | FOMC statement / minutes | Any |
 | `top_mover_new` | NEW gainer not in watchlist/positions | ≥ 10% gap on high volume |
 | `position_news` | Any news touching an open position | Any |
+| `social_climax_open_pos` (1.5) | `social_signals[]` entry on an open position with `classification: climax_warning` (bull_share ≥ 0.85 AND volume_z ≥ 2.0) | Any |
+| `social_bearish_open_pos` (1.5) | `social_signals[]` entry on an open position with `classification: bearish_pile_on` (bull_share ≤ 0.20 AND volume_z ≥ 2.0) | Any |
+| `social_buzz_top_mover` (1.5) | `social_signals[]` entry on a top-mover (`potential_ep`) with `classification: buzz_spike` (volume_z ≥ 3.0) | Any |
 
 "Watched" = present in `journal/watchlist.json` or `journal/positions.json`.
 Push criteria are deliberately conservative for Phase 1; we expect to
 loosen `sector_move` and tighten `top_mover_new` after observing one full
-day's noise floor.
+day's noise floor. The three `social_*` reasons are Phase 1.5 — thresholds
+will be re-tuned after the first week of StockTwits data lands.
 
 ---
 
@@ -175,6 +192,30 @@ ledger from today, it does NOT update that ledger's `catalyst` or
 If a news item should influence a candidate, it surfaces via the morning
 routine — Bertrand sees the Telegram push, re-runs `/morning-deep-dive`,
 trade-researcher refetches and rebuilds the ledger fresh.
+
+**One in-`ledgers/news/` exception:** Pass 3 (Social) mutates
+[`_state/social_baseline.json`](_state/social_baseline.json) incrementally
+(append current msg_count, trim to last 24, recompute mean/std). This is
+state owned by the news pipeline, not a per-trade artifact, so the no-cross-
+write rule doesn't apply.
+
+## Cross-link consumers (read-only)
+
+Two routines outside `news-research` read social_signals[] from the latest
+snapshot:
+
+- **`eod-journal`** (4:15 PM ET) — joins the social_signals[] block against
+  each open position's `climax_top_detect` / `violations_detect` output.
+  When a position has BOTH a `social_signals[]` entry classified
+  `climax_warning` AND `climax_top_detect` firing, OR a `bearish_pile_on`
+  classification, the Step 4 alert surfaces this as confluence — higher-
+  conviction sell-evaluation signal. See `Step 3a` in
+  [`../../.claude/commands/eod-journal.md`](../../.claude/commands/eod-journal.md).
+- **`portfolio-manager snapshot`** (read-only) may optionally surface
+  open-position social classifications in its heatmap. Phase 1.5 leaves
+  this as a queued enhancement; not wired yet.
+
+Neither modifies `social_signals[]` or any other news file.
 
 ---
 

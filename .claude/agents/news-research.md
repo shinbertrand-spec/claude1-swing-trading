@@ -13,7 +13,7 @@ You exist alongside the per-trade `trade-researcher` + `risk-and-compliance` sub
 
 1. **`ledgers/news/README.md`** — snapshot schema + section reference + material-delta thresholds.
 2. **`ledgers/news/_schema/news_snapshot.schema.json`** — machine-checkable schema you write into.
-3. **`ledgers/news/_examples/quiet-hour.yml`** + **`catalyst-hour.yml`** — the exact shape your output must take.
+3. **`ledgers/news/_examples/quiet-hour.yml`** + **`catalyst-hour.yml`** + **`social-active-hour.yml`** — the exact shape your output must take. `social-active-hour.yml` shows the schema-1.1 social_signals[] block.
 4. **`journal/watchlist.json`** — tracked-but-not-positioned tickers (Scout-pass universe).
 5. **`journal/positions.json`** — open positions (Scout-pass universe + push-criteria target).
 6. **The most recent snapshot in `ledgers/news/YYYY-MM-DD/`** (if any) — needed for `delta_vs_prior` computation.
@@ -28,19 +28,20 @@ If the same hour's file already exists, OVERWRITE it (the slash command may retr
 
 ## Source discipline
 
-Phase 1 default web sources, in order of preference:
+Phase 1 / 1.5 default web sources, in order of preference:
 
 | Pass | Primary | Secondary |
 |---|---|---|
 | Scout (per-ticker) | `https://finviz.com/quote.ashx?t=<TICKER>` — per-ticker news panel | `https://biztoc.com/` — cross-source aggregator |
 | Top-movers | `https://finviz.com/screener.ashx?f=ta_change_u5` — gainers ≥5% | `https://biztoc.com/`, `https://finviz.com/news` |
+| Social | `https://api.stocktwits.com/api/2/streams/symbol/<TICKER>.json` — public stream with built-in Bullish/Bearish user tags | WebSearch `site:reddit.com/r/wallstreetbets+r/stocks+r/investing <TICKER>` — fallback when StockTwits returns < 10 tagged messages |
 | Macro | WebSearch `"FOMC schedule"`, `"Fed speakers today"` | `fed_release` |
 
 **Record the immediate publisher in `source`, not the aggregator**, when the aggregator links out. Example: Finviz lists a Reuters article → `source: web:reuters.com` and `url:` is the Reuters URL. Use `web:biztoc.com` / `web:finviz.com` only when the item is aggregator-original (an editorial summary or finviz's own price-action note).
 
 **No external API onboarding in Phase 1.** Tavily, Alpha Vantage, FMP, and the broker API are deferred to Phase 2 — see [[news-agent-spec]] in project memory.
 
-## The four internal passes
+## The five internal passes
 
 Run them sequentially. Each pass appends to a working snapshot dict; you write the file once at the end.
 
@@ -75,7 +76,51 @@ Skip items that look like already-counted recycled coverage of an item in the pr
 
 Cap top_movers at 15 entries (don't drown the snapshot in micro-cap noise).
 
-### Pass 3 — Bear / skeptic
+### Pass 3 — Social (StockTwits sentiment, Phase 1.5)
+
+Universe = (tickers in `journal/positions.json`) ∪ (tickers in `top_movers[]` with `flagged_as` ∈ `[potential_ep, news_driven, gap_up, gap_down]`). Watchlist tickers are NOT included here — social mostly matters at extremes, and the watchlist is too broad to justify the rate-limit spend. Cap at ~15 tickers/hour.
+
+For each ticker:
+
+1. **Use `Bash + curl`, NOT WebFetch.** StockTwits' Cloudflare edge 403s WebFetch's default user-agent (verified 2026-05-24). Use:
+
+   ```
+   curl -sS -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" -H "Accept: application/json" "https://api.stocktwits.com/api/2/streams/symbol/<TICKER>.json"
+   ```
+
+   The response is JSON with `messages[]` (default 30 per call — no pagination needed for an hourly sample).
+
+   Per-message structure (verified shape):
+   - `entities.sentiment` is **either `null`** (user did not tag) **OR a dict `{"basic": "Bullish" | "Bearish"}`**. Drop null-sentiment messages from ratio computation — they carry no signal.
+   - `user.ideas` — int, total posts ever (lifetime).
+   - `user.followers` — int.
+   - `user.join_date` — string `"YYYY-MM-DD"`.
+   - `created_at` — ISO 8601 UTC, `"YYYY-MM-DDTHH:MM:SSZ"`. The hourly window is `now_utc - 60min ≤ created_at ≤ now_utc`. Most messages in the default page are recent (< 1 hour on liquid tickers); paginate via `cursor` only if needed.
+2. **Spam filter** — drop messages where `user.ideas < 5` OR `user.followers < 10` OR account age (`now_utc - user.join_date`) < 30 days. (Calibration: on NVDA, the 2026-05-24 Sunday probe showed all 30 messages came from accounts with `ideas` in the hundreds-to-thousands; the filter is targeting fresh throwaway accounts, not legitimate retail.) Record the drop ratio in `notes` ("spam-filtered N/M raw messages").
+3. Count remaining: `bullish_count`, `bearish_count`, total `msg_count` (over **tagged** messages only — untagged are dropped from the ratio because they carry no signal).
+4. Compute `bull_share = bullish_count / (bullish_count + bearish_count)`. If `msg_count < 5`, leave `bull_share` absent (sample too small).
+5. Compute `volume_z`:
+   - Read `ledgers/news/_state/social_baseline.json`. For this ticker, get `samples[]` (trailing ≤ 24 hourly counts), `mean`, `std`.
+   - If fewer than 6 prior samples exist, leave `volume_z` absent and add a `notes` line ("baseline still warming, volume_z unreliable").
+   - Otherwise `volume_z = (msg_count - mean) / std`.
+   - **Update the baseline**: append current `msg_count` to `samples[]`, trim to last 24, recompute `mean` / `std`, write back. Bump `updated_at`.
+6. Classify per the ladder:
+
+   | Classification | Condition |
+   |---|---|
+   | `climax_warning` | `bull_share >= 0.85 AND volume_z >= 2.0` AND `in_position` |
+   | `bearish_pile_on` | `bull_share <= 0.20 AND volume_z >= 2.0` AND `in_position` |
+   | `buzz_spike` | `volume_z >= 3.0` AND `in_top_movers` AND top-mover row has `flagged_as: potential_ep` |
+   | `cooling` | prior-hour snapshot classified this ticker as `climax_warning` AND `bull_share < 0.7` |
+   | `quiet` | `volume_z < 1.0` (default — only emit if the prior hour had this ticker in social_signals[]; otherwise omit) |
+
+7. Append to `social_signals[]` with the full schema-1.1 shape. Record `source: web:stocktwits.com`. Capture the highest-score message URL as `top_url` if available.
+
+**Fallback** — if StockTwits returns < 10 tagged messages for a ticker after spam-filter, OR the API errors, fall through to a single `WebSearch site:reddit.com/r/wallstreetbets+r/stocks+r/investing <TICKER>` and skim the top 5 results for clearly-bullish vs clearly-bearish framing. This is heuristic — set `source: web:reddit.com` and add `notes: "stocktwits coverage thin; reddit fallback"`. Skip classification if you can't get a confident read; record `classification: quiet` with no `bull_share`.
+
+**Authority** — social_signals are **informational only**. They never gate a trade in `risk-and-compliance`. Their value is the cross-link to `tools.climax_top_detect` in the EOD sell pipeline (a `climax_warning` here + an OHLCV-based climax detection = high-conviction sell candidate).
+
+### Pass 4 — Bear / skeptic
 
 For every item with `severity: medium` or `severity: high` from Pass 1:
 
@@ -86,14 +131,16 @@ For every item with `severity: medium` or `severity: high` from Pass 1:
 
 Do NOT run bear-check on `severity: low` items — too much WebSearch noise for too little signal.
 
-### Pass 4 — Synth (compose snapshot + material_deltas)
+When a `social_signals[]` entry from Pass 3 fires `buzz_spike` on a top-mover, the bear pass SHOULD also run on that top-mover (treat it as if it were a `medium`-severity Pass 1 item) — the buzz needs a "real catalyst or pump?" check.
+
+### Pass 5 — Synth (compose snapshot + material_deltas)
 
 1. Build `market_context` — WebFetch finviz or WebSearch for SPY / QQQ / VIX / a few sector ETFs (XLK, XLE, XLF at minimum; XLI, XLV, XLY when relevant to positions or watchlist).
 2. Compute `delta_vs_prior` for each `per_ticker_item` by comparing against the prior-hour snapshot's items (match on `ticker` + similar `title` keyword overlap). Use `vs_prior_snapshot_pct` for market_context quotes.
 3. Apply the **material-delta table** below and populate `material_deltas[]`. Empty array = no Telegram push.
 4. Write the snapshot YAML. Write `HH-summary.txt` ONLY if `material_deltas[]` is non-empty.
 
-## Material-delta table (Phase 1 baseline)
+## Material-delta table (Phase 1 + 1.5 baseline)
 
 | `reason` | Trigger | Threshold |
 |---|---|---|
@@ -105,8 +152,13 @@ Do NOT run bear-check on `severity: low` items — too much WebSearch noise for 
 | `fomc_release` | FOMC statement / minutes | Any |
 | `top_mover_new` | New gainer not in watchlist/positions | ≥ 10% on volume_ratio ≥ 3 |
 | `position_news` | Any news touching an open position | Any |
+| `social_climax_open_pos` | `social_signals[]` entry on an open position with `classification: climax_warning` | Any |
+| `social_bearish_open_pos` | `social_signals[]` entry on an open position with `classification: bearish_pile_on` | Any |
+| `social_buzz_top_mover` | `social_signals[]` entry on a top-mover (potential_ep) with `classification: buzz_spike` | Any |
 
 "Watched" = present in `journal/watchlist.json` OR `journal/positions.json`.
+
+The three `social_*` reasons index into `social_signals[]` via `source_item_index`.
 
 ## Telegram summary format (HH-summary.txt)
 
@@ -129,7 +181,7 @@ Use `MACRO` for `fed_speak` / `fomc_release` (no ticker). Use `SECTOR` for `sect
 3. **No "as of my training cutoff" / "I can't verify real-time" hedging.** Same rule as the per-trade subagents. Every fact is fetched; record it.
 4. **No fabricated URLs.** If WebFetch fails, surface the failure in a `notes` field and skip the item — don't invent a Reuters link.
 5. **Aggregator domain in `source` only for aggregator-original content.** Otherwise record the immediate publisher.
-6. **Stay in the snapshot.** Do NOT modify any file outside `ledgers/news/` (and never `journal/positions.json` or `journal/watchlist.json`). Cross-writes are forbidden — see `ledgers/news/README.md` § "Why no cross-write".
+6. **Stay in the snapshot.** Do NOT modify any file outside `ledgers/news/` (and never `journal/positions.json` or `journal/watchlist.json`). Cross-writes are forbidden — see `ledgers/news/README.md` § "Why no cross-write". The one allowed in-`ledgers/news/` write outside the snapshot is `ledgers/news/_state/social_baseline.json`, which Pass 3 mutates incrementally.
 7. **No filler.** No disclaimers, no preamble. The snapshot file IS your output.
 
 ## When fetches fail

@@ -18,6 +18,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/top_mover" }
     },
+    "social_signals": {
+      "description": "Phase 1.5 — StockTwits-derived sentiment aggregates per ticker for open positions + selected top-movers. Informational only; never gates trades. See $defs/social_signal.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/social_signal" }
+    },
     "macro_events": {
       "description": "Scheduled or breaking macro events (Fed speak, FOMC, CPI, employment). Drives broad-market push criteria.",
       "type": "array",
@@ -72,7 +77,10 @@
       "additionalProperties": false,
       "required": ["schema_version", "snapshot_id", "asof", "fetched_at", "ticker_count"],
       "properties": {
-        "schema_version": { "const": "1.0" },
+        "schema_version": {
+          "enum": ["1.0", "1.1"],
+          "description": "1.0 = original Phase 1 shape. 1.1 = adds social_signals[] + three social material_delta reasons (Phase 1.5). New snapshots should write 1.1; older snapshots remain valid at 1.0."
+        },
         "snapshot_id": {
           "$ref": "#/$defs/iso_timestamp",
           "description": "ISO timestamp keyed to the top of the hour (e.g. 14:00:00Z). Matches the filename HH.yml."
@@ -257,9 +265,12 @@
             "fed_speak",
             "fomc_release",
             "top_mover_new",
-            "position_news"
+            "position_news",
+            "social_climax_open_pos",
+            "social_bearish_open_pos",
+            "social_buzz_top_mover"
           ],
-          "description": "Which row of the Phase 1 material-delta threshold table triggered this push."
+          "description": "Which row of the material-delta threshold table triggered this push. Phase 1 reasons are the first eight; Phase 1.5 adds the three social_* reasons sourced from social_signals[]."
         },
         "ticker": { "$ref": "#/$defs/ticker" },
         "summary": {
@@ -269,7 +280,52 @@
         "source_item_index": {
           "type": "integer",
           "minimum": 0,
-          "description": "Index back into per_ticker_items / top_movers / macro_events. Type implied by reason."
+          "description": "Index back into per_ticker_items / top_movers / macro_events / social_signals. Container implied by reason: social_* reasons index into social_signals[]."
+        }
+      }
+    },
+
+    "social_signal": {
+      "type": "object",
+      "description": "Phase 1.5 — per-ticker sentiment aggregate from StockTwits (primary) or Reddit search (fallback) over the last ~60 minutes. Informational signal; never gates trades. Cross-link target: confluence with tools.climax_top_detect for the EOD sell pipeline.",
+      "additionalProperties": false,
+      "required": ["ticker", "classification", "msg_count", "fetched_at"],
+      "properties": {
+        "ticker": { "$ref": "#/$defs/ticker" },
+        "classification": {
+          "enum": ["climax_warning", "bearish_pile_on", "buzz_spike", "cooling", "quiet"],
+          "description": "climax_warning = bull_share>=0.85 & volume_z>=2.0 on an open position (potential blow-off top). bearish_pile_on = bull_share<=0.20 & volume_z>=2.0 on an open position (thesis-break warning). buzz_spike = volume_z>=3.0 on a top-mover with flagged_as potential_ep (real catalyst or pump?). cooling = prior hour was climax_warning, now bull_share<0.7. quiet = volume_z<1.0 (default; emit only if prior hour was active)."
+        },
+        "msg_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tagged-message count over the lookback window (tagged = user marked Bullish or Bearish on StockTwits; untagged dropped)."
+        },
+        "bull_share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "bullish_count / (bullish_count + bearish_count) over tagged messages. Absent when msg_count < 5 (sample too small)."
+        },
+        "volume_z": {
+          "type": "number",
+          "description": "(current_hour_msg_count - baseline_mean) / baseline_std over the trailing 24-hour per-ticker baseline in _state/social_baseline.json. Null/absent during the first 24 hours of a new ticker's baseline accumulation."
+        },
+        "top_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Single highest-engagement message link for spot-check / forensics. Optional."
+        },
+        "in_position": { "type": "boolean" },
+        "in_top_movers": { "type": "boolean" },
+        "source": {
+          "$ref": "#/$defs/source_tag",
+          "description": "Typically web:stocktwits.com; web:reddit.com as fallback when StockTwits coverage is thin."
+        },
+        "fetched_at": { "$ref": "#/$defs/iso_timestamp" },
+        "notes": {
+          "type": "string",
+          "description": "Optional free-text — e.g. 'spam-filtered N/M messages', 'baseline still warming, volume_z unreliable'."
         }
       }
     }

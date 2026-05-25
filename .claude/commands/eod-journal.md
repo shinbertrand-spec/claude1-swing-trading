@@ -98,9 +98,34 @@ Also run `tools.regime_check SPY` and capture the regime classification — this
    - Update `meta.updated_at` / `meta.updated_by = "eod-journal"`.
    - Write the result back to `ledgers/positions/<TICKER>.yml`.
 
+## Step 3a — Social confluence cross-link (Phase 1.5)
+
+After Step 3's per-position evaluation completes, but before surfacing alerts:
+
+1. Find the latest hourly news snapshot for today: `ledgers/news/YYYY-MM-DD/HH.yml` where `HH` is the most recent hour written (typically `16` at 4:15 PM ET — but tolerate gaps; pick the highest `HH` available).
+2. If the file is missing OR its `meta.schema_version` is `"1.0"` (pre-1.5), skip this step silently — note in journal that social confluence was not available.
+3. Otherwise, read its `social_signals[]` array. For each open position, look up the matching `social_signals[<i>].ticker == position.ticker` entry (may be absent — most positions won't have one in any given hour).
+4. Compute per-position confluence flags:
+   - `social_confluence_climax` = `climax_top_detect.patterns_firing > 0 AND social_signals[<i>].classification == "climax_warning"`
+   - `social_confluence_bearish` = `social_signals[<i>].classification == "bearish_pile_on"` (stands on its own — no detector pairing required; bearish social on an open long is a thesis-break warning regardless of price action)
+   - `social_signal_only` = `social_signals[<i>]` exists AND classification ∈ `[climax_warning, bearish_pile_on, cooling]` but no detector fired
+
+These flags are **informational amplifiers** for Step 4 surfacing. They do NOT modify `sell_decision.output.action` — the sell tool's decision stands as computed. They DO escalate user attention.
+
+5. Append the confluence flags to each position's `sell_eval_history` entry (the one just written in Step 3.3) as additional fields:
+
+   ```yaml
+   social_confluence_climax: <bool>
+   social_confluence_bearish: <bool>
+   social_signal_only: <bool>
+   social_snapshot_ref: ledgers/news/YYYY-MM-DD/HH.yml  # which snapshot we read
+   ```
+
+   These are additive metadata. The existing `action` / `confidence` / `new_stop` fields are untouched.
+
 ## Step 4 — Surface non-hold actions
 
-For each position whose `sell_decision.output.action != "hold"`, present a clear summary:
+For each position whose `sell_decision.output.action != "hold"` OR whose Step 3a produced `social_confluence_climax: true` / `social_confluence_bearish: true` (even if `action == "hold"`), present a clear summary:
 
 > **<TICKER> — sell-eval recommends `<action>` (`<confidence>` confidence)**
 > Climax-top patterns: <count> [<names>]
@@ -109,9 +134,12 @@ For each position whose `sell_decision.output.action != "hold"`, present a clear
 > Sell-into-strength triggered: <bool> (fraction <X>)
 > Contributing triggers: <list>
 > Recommended new stop: $<X.XX>
+> **Social confluence:** <one of: "climax (OHLCV + StockTwits)" | "bearish pile-on (StockTwits)" | "social-only — detectors quiet" | "none">
 > Ledger: `ledgers/positions/<TICKER>.yml`
 >
 > **Tomorrow morning, run `/morning-deep-dive <TICKER>` for full re-verification before acting.** This EOD evaluation is informational; no exit happens tonight.
+
+When `social_confluence_climax: true`, lead the summary with **"⚠ CLIMAX CONFLUENCE"** to signal high-conviction sell candidate. When `social_confluence_bearish: true` and detectors are quiet, lead with **"⚠ SOCIAL-ONLY BEARISH"** — the OHLCV doesn't say sell yet but retail sentiment is collapsing on this long.
 
 Mark these in today's journal under a new **Sell-eval alerts** section.
 
@@ -150,5 +178,6 @@ Append to `journal/weekly/YYYY-WW.md` (create the directory if it doesn't exist)
 - **If today was a no-trade day**, the entry can be brief but must still include market context, watchlist status, and per-position sell-eval results for any open positions.
 - **EOD sell-eval is informational only**; no exits happen tonight. Exits go through full `/morning-deep-dive` re-verification.
 - **Sell-discipline tools are v1-preliminary** — flagged as such in each ledger entry. Treat their recommendations as suggestive until the Minervini book v2 upgrade.
+- **Social confluence (Step 3a) is informational**; it does NOT modify `sell_decision.output.action`. The detector pipeline stays the system of record for the action; social only escalates user attention. If the news snapshot is missing or pre-1.5, skip silently and note in the journal.
 - **If a tool errors during per-position eval**, write the error to the position's ledger as a `reasoning_trace` step tagged `manual:tool_failure` and note in the journal — do not silently skip.
 - **Sensitive information** — see `CLAUDE.md` § Sensitive Information. Never echo positions to public channels without explicit user direction.

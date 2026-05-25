@@ -1,0 +1,122 @@
+# Social-active hour: schema 1.1 demo. Shows three social_signals[] entries
+# producing three new material_deltas[]:
+#   - NVDA (open position): climax_warning -> social_climax_open_pos
+#   - PLTR (top-mover, potential_ep): buzz_spike -> social_buzz_top_mover
+#   - TSLA (open position): bearish_pile_on -> social_bearish_open_pos
+# A fourth ticker (AAPL, open position) is in social_signals[] but classified
+# `cooling` (prior hour was climax_warning, now decaying) — informational, no push.
+meta:
+  schema_version: "1.1"
+  snapshot_id: 2026-05-24T13:00:00-04:00
+  asof: 2026-05-24T13:00:00-04:00
+  fetched_at: 2026-05-24T13:04:22-04:00
+  ticker_count: 5
+  prior_snapshot_id: 2026-05-24T12:00:00-04:00
+  session: regular
+  created_by: news-research
+
+market_context:
+  spy:
+    last: 604.80
+    change_pct: 0.002
+    vs_prior_snapshot_pct: 0.0008
+  qqq:
+    last: 524.10
+    change_pct: 0.004
+    vs_prior_snapshot_pct: 0.0011
+  vix:
+    last: 14.6
+    regime: calm
+    vs_prior_snapshot_pct: -0.012
+
+per_ticker_items:
+  - ticker: NVDA
+    type: price_action
+    source: web:finviz.com
+    title: NVDA +3.1% intraday, extending parabolic 5-day move
+    summary: Fifth consecutive up day; finviz shows volume 2.1x 20-day avg. Climax-top pattern coincides with extreme StockTwits sentiment (see social_signals[0]).
+    severity: medium
+    delta_vs_prior: escalated
+    in_position: true
+    in_watchlist: false
+    bear_check:
+      disconfirming_sources: []
+      fetched_at: 2026-05-24T13:03:50-04:00
+  - ticker: TSLA
+    type: news
+    source: web:reuters.com
+    title: TSLA Shanghai-recall headlines re-circulating; no new facts
+    url: https://www.reuters.com/business/autos-transportation/tesla-china-recall-update
+    summary: Recycled coverage of last week's recall; no new disclosures. StockTwits bearish-pile-on noted (social_signals[2]) — sentiment outpaces news flow.
+    severity: low
+    delta_vs_prior: unchanged
+    in_position: true
+    in_watchlist: false
+
+top_movers:
+  - ticker: PLTR
+    pct_change: 0.121
+    volume_ratio: 6.4
+    in_watchlist: false
+    in_position: false
+    flagged_as: potential_ep
+    source: web:finviz.com
+
+macro_events: []
+
+social_signals:
+  - ticker: NVDA
+    classification: climax_warning
+    msg_count: 142
+    bull_share: 0.91
+    volume_z: 3.4
+    top_url: https://stocktwits.com/symbol/NVDA/messages
+    in_position: true
+    in_top_movers: false
+    source: web:stocktwits.com
+    fetched_at: 2026-05-24T13:04:02-04:00
+    notes: spam-filtered 38/180 raw messages; bull_share computed over 142 tagged
+  - ticker: PLTR
+    classification: buzz_spike
+    msg_count: 88
+    bull_share: 0.78
+    volume_z: 4.1
+    top_url: https://stocktwits.com/symbol/PLTR/messages
+    in_position: false
+    in_top_movers: true
+    source: web:stocktwits.com
+    fetched_at: 2026-05-24T13:04:08-04:00
+    notes: paired with finviz top-mover flagged_as potential_ep — bear-check should look for confirming news
+  - ticker: TSLA
+    classification: bearish_pile_on
+    msg_count: 96
+    bull_share: 0.14
+    volume_z: 2.6
+    in_position: true
+    in_top_movers: false
+    source: web:stocktwits.com
+    fetched_at: 2026-05-24T13:04:14-04:00
+  - ticker: AAPL
+    classification: cooling
+    msg_count: 41
+    bull_share: 0.62
+    volume_z: 1.2
+    in_position: true
+    in_top_movers: false
+    source: web:stocktwits.com
+    fetched_at: 2026-05-24T13:04:18-04:00
+    notes: prior hour was climax_warning (bull_share 0.88); sentiment unwinding
+
+material_deltas:
+  - reason: social_climax_open_pos
+    ticker: NVDA
+    summary: NVDA StockTwits climax warning — bull_share 0.91, volume_z 3.4; confluence with 5-day parabolic move flagged in per_ticker_items[0].
+    source_item_index: 0
+  - reason: social_buzz_top_mover
+    ticker: PLTR
+    summary: PLTR social buzz spike — volume_z 4.1 alongside +12.1% / 6.4x volume top-mover flag; verify catalyst before treating as EP.
+    source_item_index: 1
+  - reason: social_bearish_open_pos
+    ticker: TSLA
+    summary: TSLA bearish pile-on — bull_share 0.14, volume_z 2.6; sentiment escalating ahead of news flow.
+    source_item_index: 2
