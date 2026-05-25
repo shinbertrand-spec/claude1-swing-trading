@@ -10,8 +10,16 @@ V1 ships:
 * :mod:`tools.thematic_portfolio.tier3.power_sector` — curated snapshot of
   hyperscalers + AI-power-exposed utilities + power-infra equipment makers
   + crypto-miner pivot plays. Pulls price / TTM EPS / P/E / market cap /
-  next-earnings-date via yfinance for ~16 tickers, writes a single JSON
-  the Loop 1 prompt can cite by ticker.
+  next-earnings-date via yfinance for ~20 tickers.
+* :mod:`tools.thematic_portfolio.tier3.ai_capex_announcements` — annual
+  capex trend (PaymentsToAcquirePropertyPlantAndEquipment, with raw-XBRL
+  fallback for issuers like AMZN that use PaymentsToAcquireProductiveAssets
+  post-2017) for the 5 named hyperscalers via edgartools.
+* :mod:`tools.thematic_portfolio.tier3.energy_futures` — last close + 30d
+  / 90d / YTD % change for ~11 energy-input symbols (Henry Hub natgas +
+  uranium ETFs + WTI crude + utility ETFs as the no-key power-price proxy)
+  via yfinance. Aggregate ``thesis_signal`` classifies the AI-power-cost
+  pull as supportive / mixed / weakening / no_data.
 
 Deferred to followup sessions:
 
@@ -19,11 +27,5 @@ Deferred to followup sessions:
   that bear on the SA LP put-complex thesis. Most useful data is behind
   trade-publication paywalls (TrendForce / DRAMeXchange); v2 will need
   a different source strategy.
-* ``ai_capex_announcements.py`` — earnings-call commentary mining for
-  hyperscaler AI capex guidance. Requires 10-Q MD&A text extraction
-  via edgartools + regex passes; tractable but heavier than power_sector v1.
-* ``energy_futures.py`` — natural gas / uranium / power forward curves.
-  No-key public-API source TBD (CME has API but requires auth; alternative
-  is parsing public futures-curve snapshots from EIA).
 """
 from __future__ import annotations
