@@ -41,11 +41,15 @@ For each candidate that passes Step 2:
 
 1. **Deep-dive via `trade-researcher`** — same as `/morning-deep-dive` Step 3. Writes the candidate ledger to `ledgers/candidates/YYYY-MM-DD/<TICKER>.yml`. Capture the ledger path.
 
-2. **5-gate via `risk-and-compliance` Mode 2** — same as `/morning-deep-dive` Step 4. Pass the candidate ledger path + a proposed trade dict (entry = pivot from ledger, stop = stop from ledger, target = 2× R from entry, shares = TBD).
+2. **Compliance via `risk-and-compliance` Mode 2** — same as `/morning-deep-dive` Step 4. Pass the candidate ledger path + a proposed trade dict (entry = pivot from ledger, stop = stop from ledger, target = 2× R from entry, shares = TBD).
 
-   **For sizing, the trade-researcher's proposed shares may not match what the paper account can support.** Provide a placeholder size of 1 for the 5-gate's hard-rule check; we re-size from `position_sizer` + account state below. The 5-gate's other checks (freshness, trace audit, stale phrases, adversarial review) are independent of size.
+   **For sizing, the trade-researcher's proposed shares may not match what the paper account can support.** Provide a placeholder size of 1 for the hard-rule check; we re-size from `position_sizer` + account state below. The other checks (freshness, trace audit, stale phrases, adversarial review) are independent of size.
 
-   If verdict is `BLOCK`: skip this candidate; surface in summary as `blocked: <reason>`.
+   **Phase 7 H1 SHADOW MODE (effective 2026-05-26 until further notice).** The risk-and-compliance agent now runs six gates (Gate 6 = `debate_synthesis` composing the H3 `SwingVerdict` enum). Per `swing-2026-05-25-paper-trade-handoff` §Step 4 D1 default = Option A (shadow): the paper-auto track is the first live use of Gate 6, with zero prior validation data. To avoid first-day-live untested-gate blocks, instruct risk-and-compliance as follows when invoking:
+
+   > "Run all six gates per your standard sequence. Write the Gate 6 debate output to `ledgers/debate/<TICKER>-<DATE>.yml` as designed. **For the FINAL verdict line returned to me, the auto-paper track is operating in H1 shadow mode: any SwingVerdict in {ENTRY_STRONG, ENTRY_NORMAL, WATCH_BUILD_THESIS, DEFER} maps to APPROVE for placement purposes; only REJECT (any mechanical gate 1-4 BLOCK, OR Gate 6 `already_fired` risk-trigger override) blocks. Surface the actual SwingVerdict in the report; the placement decision is the shadow-mode-mapped value.** Shadow mode lifts after 2-4 weeks once `ledgers/debate/` contains enough comparison data per H1 spec §A.4, or sooner if the retrospective A/B simulation clears the lift threshold."
+
+   If verdict is `BLOCK` (or shadow-mapped to REJECT): skip this candidate; surface in summary as `blocked: <reason>` (include the original SwingVerdict). On placement, surface a one-line "shadow gate 6: <SwingVerdict>" in the summary so Bertrand can compare verdicts side-by-side in `ledgers/debate/`.
 
 3. **Re-size via `tools.position_sizer`** using the paper account's current `available_funds`:
 

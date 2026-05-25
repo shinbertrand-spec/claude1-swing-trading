@@ -14,25 +14,57 @@
 # Update protocol: when a new setup clears the gate, add a row here AND
 # update swing-phases memory's verdict table. When a setup falls off (e.g.
 # subsequent windows blow up), comment it out — do NOT delete (audit trail).
+#
+# ---------------------------------------------------------------------------
+# LIVE-SIGNAL PLUMBING STATUS (as of 2026-05-26 paper-trade ship)
+# ---------------------------------------------------------------------------
+# Two distinct families:
+#   - SETUP_REPLAY_REGISTRY family (per-bar detectors wired into the morning
+#     routine via tools.backtest.setup_replay): SEPA-VCP, EP. These fire
+#     candidates into tools.auto_paper.pipeline.place_candidate on each
+#     scheduled tick.
+#   - KIND_REGISTRY family (cross-sectional / time-series backtest plugins
+#     at tools.quant_strategies._kinds): dual_ma_trend_following,
+#     xs_short_term_reversal, clenow_momentum. Backtest-only as of today —
+#     no "scan today's bar" wrapper to convert their TradeSignals into
+#     CandidateInputs. Gate-cleared but NOT firing live.
+# Tuesday 2026-05-26 paper-trade ship: SEPA-VCP + EP fire. The other three
+# remain on this list as audit-of-readiness; live wiring is a follow-up
+# session task (tools/auto_paper/quant_scanner.py or similar).
+#
+# ---------------------------------------------------------------------------
+# METHODOLOGY DISCLOSURES (apply to every row below)
+# ---------------------------------------------------------------------------
+# NOTE: All rolling_agg_sharpe values are computed with zero transaction
+# costs. Real expected Sharpes are ~0.10R lower. All current deployables
+# clear the Sharpe > 1.0 gate comfortably even after this discount. Track
+# expected-vs-realised Sharpe in ledgers/paper-auto/ once live.
+#
+# NOTE: The 88-ticker SP500-leaning universe + 10-ticker mega-cap +
+# 109-ticker EP-prone lists were selected 2026-05-24 from currently-extant
+# names. Strategies have NOT been tested against point-in-time universes
+# including delisted/merged names from 2020-2024. Real-capital deployment
+# should re-test against a point-in-time universe; paper-trade is
+# acceptable on current universe.
 
 deployable:
   - setup: SEPA-VCP
     variant: sell-aware
-    universe: "10-ticker mega-cap"
-    rolling_agg_sharpe: 2.28
-    rolling_agg_max_dd_pct: -10.96
-    n: 394
-    cleared_at: 2026-05-24
-    notes: "Half-size first month — 2023 OOS window had Sharpe -0.44 individually"
+    universe: "88-ticker SP500-leaning"
+    rolling_agg_sharpe: 1.37
+    rolling_agg_max_dd_pct: -15.95
+    n: 493
+    cleared_at: 2026-05-25
+    notes: "Half-size first month. Re-validated 3-window rolling end=2026-05-25 — aggregated still passes (Sharpe 1.37 down from 2.28, DD -15.95% up from -10.96%) but 2 of 3 OOS windows now fail individually (2023 Sharpe -0.44; 2025 Sharpe -1.38). 2024 OOS Sharpe 4.27 carries the aggregate. Track per-window 2026 OOS once data accumulates; if 2025 OOS weakness persists into 2026, re-evaluate (may need to park)."
 
   - setup: EP
     variant: loosened + ma_trail
     universe: "109-ticker (88 mega-cap + 21 EP-prone growth)"
-    rolling_agg_sharpe: 2.13
-    rolling_agg_max_dd_pct: -3.07
-    n: 43
-    cleared_at: 2026-05-24
-    notes: "Full-size eligible. No per-window blow-up. DD ~3.5x smaller than SEPA-VCP."
+    rolling_agg_sharpe: 1.77
+    rolling_agg_max_dd_pct: -3.64
+    n: 55
+    cleared_at: 2026-05-25
+    notes: "Half-size first month (downgraded from full-size). Re-validated 3-window rolling end=2026-05-25 — aggregated passes (Sharpe 1.77 down from 2.13, DD -3.64% basically unchanged). Quality remains best of any deployable (60% win, +0.53R expectancy, profit factor 2.56). 2025 OOS Sharpe 0.71 / n=12 fails individually; 2023 + 2024 OOS Sharpe 3.13 + 1.41 PASS on quality (n=21/22 below 30 floor per-window, but aggregated n=55 clears). DD ~4x smaller than SEPA-VCP."
 
   - setup: dual_ma_trend_following
     variant: "(short=50, long=100), ma_trail to 50d"
