@@ -49,7 +49,18 @@ param(
     [int]   $ReconcileDayOffset   = 0,
     [string]$EntryTaskName        = "ClaudeTradingAutoPaperEntry",
     [string]$MonitorTaskName      = "ClaudeTradingAutoPaperMonitor",
-    [string]$ReconcileTaskName    = "ClaudeTradingAutoPaperReconcile"
+    [string]$ReconcileTaskName    = "ClaudeTradingAutoPaperReconcile",
+    # --- Discord observability (opt-in) ---
+    # When -EnableDiscord is set, each task wraps its slash command in
+    # tools.observability.run_and_push, which captures stdout and POSTs it
+    # to the named Discord webhook (~/.claude/channels/discord/.env).
+    # Webhook lookup is best-effort: missing webhook URL -> task still runs,
+    # just skips the push. Lets you install the cron BEFORE finishing Discord
+    # channel setup.
+    [switch]$EnableDiscord,
+    [string]$EntryDiscordChannel     = "paper-auto-entry",
+    [string]$MonitorDiscordChannel   = "paper-auto-monitor",
+    [string]$ReconcileDiscordChannel = "paper-auto-reconcile"
 )
 
 # DayOffset: shifts the Mon-Fri trigger forward by N days. Use when your local
@@ -92,15 +103,48 @@ if (-not $claudeExe -or -not (Test-Path -LiteralPath $claudeExe)) {
 }
 Write-Output "Using claude.exe: $claudeExe"
 
+# Locate uv.exe when -EnableDiscord is set (required by tools.observability.run_and_push).
+$uvExe = $null
+if ($EnableDiscord) {
+    $onPath = Get-Command uv -ErrorAction SilentlyContinue
+    if ($onPath) {
+        $uvExe = $onPath.Source
+    } else {
+        $uvPatterns = @(
+            "$env:USERPROFILE\AppData\Local\Programs\uv\uv.exe",
+            "$env:USERPROFILE\.local\bin\uv.exe",
+            "$env:USERPROFILE\.cargo\bin\uv.exe"
+        )
+        foreach ($p in $uvPatterns) {
+            if (Test-Path -LiteralPath $p) { $uvExe = $p; break }
+        }
+    }
+    if (-not $uvExe) {
+        Write-Error "Could not locate uv.exe (needed when -EnableDiscord). Install uv or pass without -EnableDiscord."
+        exit 1
+    }
+    Write-Output "Using uv.exe:     $uvExe"
+}
+
 # ---------------- helpers ----------------------------------------------------
 
 function New-AutoPaperAction {
-    param([string]$SlashCommand)
+    param(
+        [string]$SlashCommand,
+        [string]$DiscordChannel = ""
+    )
 
-    $innerCommand = @"
+    if ($EnableDiscord -and $DiscordChannel) {
+        $innerCommand = @"
+Set-Location -LiteralPath '$ProjectRoot'
+& '$uvExe' run python -m tools.observability.run_and_push --claude-exe '$claudeExe' --slash-command '$SlashCommand' --discord-channel '$DiscordChannel' --project-root '$ProjectRoot'
+"@
+    } else {
+        $innerCommand = @"
 Set-Location -LiteralPath '$ProjectRoot'
 & '$claudeExe' --print --permission-mode bypassPermissions '$SlashCommand'
 "@
+    }
 
     return New-ScheduledTaskAction `
         -Execute "powershell.exe" `
@@ -142,12 +186,13 @@ function Register-AutoPaperTaskOnce {
         [string]$SlashCommand,
         [string]$LocalTime,
         [string]$Description,
-        [int]   $DayOffset = 0
+        [int]   $DayOffset = 0,
+        [string]$DiscordChannel = ""
     )
 
     $days = Get-WeekdayNamesShifted -Offset $DayOffset
 
-    $action = New-AutoPaperAction -SlashCommand $SlashCommand
+    $action = New-AutoPaperAction -SlashCommand $SlashCommand -DiscordChannel $DiscordChannel
     $trigger = New-ScheduledTaskTrigger `
         -Weekly `
         -DaysOfWeek $days `
@@ -185,7 +230,8 @@ function Register-AutoPaperTaskRepeating {
         [string]$EndLocalTime,
         [int]   $RepeatMinutes,
         [string]$Description,
-        [int]   $DayOffset = 0
+        [int]   $DayOffset = 0,
+        [string]$DiscordChannel = ""
     )
 
     $startDt = [DateTime]::Parse($StartLocalTime)
@@ -198,7 +244,7 @@ function Register-AutoPaperTaskRepeating {
 
     $days = Get-WeekdayNamesShifted -Offset $DayOffset
 
-    $action = New-AutoPaperAction -SlashCommand $SlashCommand
+    $action = New-AutoPaperAction -SlashCommand $SlashCommand -DiscordChannel $DiscordChannel
 
     $trigger = New-ScheduledTaskTrigger `
         -Weekly `
@@ -239,6 +285,7 @@ Register-AutoPaperTaskOnce `
     -SlashCommand "/auto-paper" `
     -LocalTime $EntryLocalTime `
     -DayOffset $EntryDayOffset `
+    -DiscordChannel $EntryDiscordChannel `
     -Description "Claude Code autonomous paper-trade entry: picks from morning-scan candidates, places via Tiger paper API"
 
 Register-AutoPaperTaskRepeating `
@@ -248,6 +295,7 @@ Register-AutoPaperTaskRepeating `
     -EndLocalTime $MonitorEndLocalTime `
     -RepeatMinutes $MonitorRepeatMinutes `
     -DayOffset $MonitorDayOffset `
+    -DiscordChannel $MonitorDiscordChannel `
     -Description "Claude Code paper-auto intraday monitor: per-bar sell-decision composer auto-exit for starter-state positions"
 
 Register-AutoPaperTaskOnce `
@@ -255,6 +303,7 @@ Register-AutoPaperTaskOnce `
     -SlashCommand "/auto-paper-reconcile" `
     -LocalTime $ReconcileLocalTime `
     -DayOffset $ReconcileDayOffset `
+    -DiscordChannel $ReconcileDiscordChannel `
     -Description "Claude Code paper-auto EOD reconcile: pulls filled orders, updates submitted-state ledgers to starter/closed, auto-places broker-side stop on starter transition"
 
 Write-Output ""
