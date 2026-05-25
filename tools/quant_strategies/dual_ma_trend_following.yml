@@ -1,0 +1,138 @@
+# Dual-MA Trend Following — paperswithbacktest catalog comparison
+# Source: Faber 2007 / classical dual-MA crossover, productised at
+#         paperswithbacktest with in-sample Sharpe ~0.569 (daily).
+# Direct head-to-head comparison vs Clenow v1 on same universe + period.
+
+meta:
+  name: dual_ma_trend_following
+  version: "1.0"
+  source: "Faber 2007 / classical dual-MA (paperswithbacktest catalog, in-sample Sharpe 0.569 daily)"
+  description: |
+    Per-ticker dual-MA crossover. SMA(short) crosses above SMA(long) =
+    bullish entry signal. Trail to long-MA via `trail: ma_trail` mode
+    (more faithful than fixed stop to the dual-MA philosophy). Direct
+    benchmark vs Clenow v1's exponential-regression-score ranking on
+    same universe + period — measures whether Clenow's sophistication
+    earns its keep.
+  horizon_days: 60
+  status: candidate
+
+kind: dual_ma_trend_following
+
+universe:
+  tickers:
+    - AAPL
+    - ABBV
+    - ADBE
+    - AMD
+    - AMT
+    - AMZN
+    - APD
+    - ASML
+    - AVGO
+    - AXP
+    - BABA
+    - BAC
+    - BKNG
+    - BLK
+    - CAT
+    - CEG
+    - CMCSA
+    - COIN
+    - COP
+    - COST
+    - CRM
+    - CVX
+    - DIS
+    - DUK
+    - EQIX
+    - ETN
+    - FCX
+    - FDX
+    - GE
+    - GOOGL
+    - GS
+    - HD
+    - HON
+    - HUBB
+    - ISRG
+    - JNJ
+    - JPM
+    - KLAC
+    - KO
+    - LIN
+    - LLY
+    - LMT
+    - LULU
+    - MA
+    - MCD
+    - META
+    - MO
+    - MRK
+    - MRVL
+    - MS
+    - MSFT
+    - MU
+    - NBIS
+    - NEE
+    - NFLX
+    - NKE
+    - NUE
+    - NVDA
+    - ORCL
+    - OXY
+    - PDD
+    - PEP
+    - PG
+    - PLD
+    - PLTR
+    - QCOM
+    - QQQ
+    - RBLX
+    - SBUX
+    - SCHW
+    - SLB
+    - SO
+    - T
+    - TLN
+    - TMO
+    - TMUS
+    - TSLA
+    - UNH
+    - UPS
+    - V
+    - VRT
+    - VRTX
+    - VST
+    - WCC
+    - WMT
+    - XLK
+    - XOM
+  benchmark: SPY
+
+period:
+  start: "2020-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  short_period: [20, 50]          # GRID — short MA
+  long_period: [100, 200]         # GRID — long MA (grid chosen to ensure short < long across all combos)
+  atr_period: 20
+  atr_stop_multiple: 3.0          # same as Clenow v1
+  max_hold_days: 60               # multi-week — matches Clenow horizon
+  risk_per_trade: 0.01
+
+execution:
+  trail: ma_trail                 # trail stop to long-MA — faithful to dual-MA philosophy
+  trail_ma_period: 50
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30

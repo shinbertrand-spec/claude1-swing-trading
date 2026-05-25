@@ -34,6 +34,33 @@ deployable:
     cleared_at: 2026-05-24
     notes: "Full-size eligible. No per-window blow-up. DD ~3.5x smaller than SEPA-VCP."
 
+  - setup: dual_ma_trend_following
+    variant: "(short=50, long=100), ma_trail to 50d"
+    universe: "88-ticker SP500-leaning"
+    rolling_agg_sharpe: 2.56
+    rolling_agg_max_dd_pct: -24.86
+    n: 350
+    cleared_at: 2026-05-25
+    notes: "Full-size eligible. Re-promoted from (20,100) to (50,100) on 2026-05-25 evening after 3-window rolling extension to 2026-05-25 invalidated (20,100) [DD -33.74% in 2025]. (50,100) passes all 3 OOS windows individually — 2023 Sharpe 2.94 / 2024 Sharpe 2.52 / 2025 Sharpe 1.93. Paperswithbacktest-derived (Faber 2007 / classical dual-MA crossover)."
+
+  - setup: xs_short_term_reversal
+    variant: "bottom_n=5, weekly rebalance"
+    universe: "88-ticker SP500-leaning"
+    rolling_agg_sharpe: 1.64
+    rolling_agg_max_dd_pct: -14.48
+    n: 754
+    cleared_at: 2026-05-25
+    notes: "Half-size first month — 2023 OOS Sharpe 1.20 is just above 1.0 floor. 2024 OOS Sharpe 1.93 / 2025 OOS Sharpe 1.77 — both robust. All 3 individual years pass under 3-window rolling extension. Only bottom_n=5 cleared; bottom_n=10/15 fail on DD breach. Paperswithbacktest-derived (Lehmann 1990 / Jegadeesh 1990)."
+
+  - setup: clenow_momentum
+    variant: "momentum_lookback=90d, top_k=10, weekly rebalance"
+    universe: "88-ticker SP500-leaning"
+    rolling_agg_sharpe: 2.02
+    rolling_agg_max_dd_pct: -22.57
+    n: 1360
+    cleared_at: 2026-05-25
+    notes: "Half-size first month — DD -22.57% closest to threshold of any deployable. 2023 OOS Sharpe 2.64 / 2024 OOS Sharpe 2.70 PASS / 2025 OOS Sharpe 0.59 FAILS individually (DD OK). Aggregated passes; 2025 weakness mirrors SEPA-VCP's 2023 single-window pattern → half-size first month justified, not just precautionary. Only top_k=10 cleared; top_k=20 fails on DD across all 3 lookbacks. Source: Clenow, Stocks on the Move (2015)."
+
 # Retired / parked (kept for audit):
 # parked:
 #   - setup: Resistance-Breakout

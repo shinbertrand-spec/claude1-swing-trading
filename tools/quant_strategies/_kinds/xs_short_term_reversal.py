@@ -1,40 +1,21 @@
-"""Cross-sectional low-volatility factor strategy.
+"""Cross-sectional short-term reversal strategy.
 
-Per Blitz & van Vliet 2007 / paperswithbacktest catalog "Low Volatility
-Factor Effect in Stocks" (in-sample Sharpe ~0.717 monthly).
+Per Lehmann 1990 / Jegadeesh 1990 / paperswithbacktest catalog
+"Short Term Reversal Effect in Stocks" (in-sample Sharpe ~0.816 weekly).
 
-Long-only adaptation:
+Long-only adaptation for Claude1's swing framework:
 
-* Rebalance monthly (21 trading days).
-* Rank universe by trailing ``lookback_days``-day **realized
-  volatility** (annualised std of daily log returns).
-* Long the bottom-N (lowest-vol names).
-* Hold ``max_hold_days`` bars.
-* ATR-based stop.
+* Rebalance weekly (5 trading days).
+* Rank universe by trailing ``lookback_days``-day return.
+* Long the bottom ``bottom_n`` tickers (biggest 1-week losers — bet on
+  mean-reversion bounce).
+* Hold ``max_hold_days`` bars (typically same as rebalance period).
+* ATR-based stop (typically tight — MR strategies want quick exits).
 
-## v2 — SPY 200d MA regime filter
-
-The v1 release (commit ec4d5af area) failed the rolling-walk-forward
-deployment gate across all three grid combos (bottom_n in {10, 15, 20})
-because the naked-long port inherits market beta during regime breaks
-— see ``[[swing-xs-low-volatility-port-rejected]]``. The 2023 OOS
-window (rates shock) blew DD past −30%.
-
-v2 adds the same regime filter Clenow uses: only enter when the
-benchmark (SPY) closes above its ``regime_filter_period``-day SMA
-(default 200). When the regime is off, the strategy sits in cash for
-that rebalance. The vault note's estimate: ~half the 2023 DD if the
-strategy sits out the rate-shock months.
-
-The filter is precomputed per rebalance date in ``precompute()`` and
-applied at signal emission in ``replay()`` — same shape as
-``clenow_momentum.py`` so the two strategies stay symmetric.
-
-Hypothesis: the low-vol anomaly is the most-replicated equity-factor
-finding outside of momentum. On Claude1's mega-cap-tilted 88-ticker
-universe (heavy on FAANG-class large-caps), low-vol effects may be
-muted vs the broader equity baskets the original papers used. The
-deployment-gate verdict is the empirical test.
+Long-only is structurally weaker than the paper's long-short form; the
+expected OOS Sharpe will be materially below the published 0.816. The
+test is whether the *long leg alone* clears Claude1's deployment gate
+on the SP500-leaning 88-ticker universe.
 """
 from __future__ import annotations
 
@@ -46,80 +27,48 @@ import pandas as pd
 from ...backtest.setup_replay import TradeSignal
 
 
-KIND = "xs_low_volatility"
+KIND = "xs_short_term_reversal"
 
 
 class CrossSectionalState(NamedTuple):
-    """Cross-sectional bottom-N (lowest-vol) state per rebalance date.
+    """Cross-sectional bottom-N ranking state per rebalance date.
 
-    ``benchmark_regime_ok`` maps each date in the benchmark's index to
-    whether the benchmark closed above its SMA on that date. Empty when
-    the regime filter is disabled (``regime_filter_period <= 0``).
+    ``bottom_n_by_date`` maps each rebalance date to the set of tickers
+    that ranked in the bottom-N (lowest trailing returns) on that date.
     """
     bottom_n_by_date: dict[pd.Timestamp, set[str]]
     rebalance_dates: list[pd.Timestamp]
-    benchmark_regime_ok: dict[pd.Timestamp, bool]
 
 
-def _realized_volatility(closes: pd.Series, lookback: int) -> float:
-    """Annualised realized vol = std(log_returns) * sqrt(252).
-
-    Returns NaN if insufficient data or all-equal closes.
-    """
+def _trailing_return(closes: pd.Series, lookback: int) -> float:
+    """Simple trailing return over ``lookback`` bars. NaN if insufficient."""
     if len(closes) < lookback + 1:
         return float("nan")
     window = closes.iloc[-(lookback + 1):].to_numpy()
     if np.any(window <= 0) or np.any(np.isnan(window)):
         return float("nan")
-    log_returns = np.diff(np.log(window))
-    if len(log_returns) < 2:
-        return float("nan")
-    std = float(np.std(log_returns, ddof=1))
-    if std == 0.0:
-        return float("nan")
-    return std * np.sqrt(252.0)
+    return float(window[-1] / window[0] - 1.0)
 
 
 def precompute(
     universe_dfs: dict[str, pd.DataFrame],
     params: dict,
 ) -> CrossSectionalState:
-    """Build bottom-N (lowest-vol) ranking state per rebalance date,
-    plus the SPY > SMA regime-pass dict (v2)."""
+    """Build bottom-N ranking state for each rebalance date."""
     benchmark = params["benchmark"]
     lookback = int(params["lookback_days"])
     bottom_n = int(params["bottom_n"])
     rebalance_period = int(params["rebalance_period_days"])
-    regime_period = int(params.get("regime_filter_period", 200))
 
     if benchmark not in universe_dfs:
         raise ValueError(
             f"benchmark {benchmark!r} not in universe_dfs; add it to the spec's universe.tickers"
         )
 
-    bench_df = universe_dfs[benchmark]
-    bench_close = bench_df["Close"]
-
-    # Regime filter precompute. When disabled (regime_period <= 0), leave
-    # the dict empty and replay treats absent keys as regime-ok.
-    benchmark_regime_ok: dict[pd.Timestamp, bool] = {}
-    if regime_period > 0:
-        bench_sma = bench_close.rolling(
-            window=regime_period, min_periods=regime_period,
-        ).mean()
-        benchmark_regime_ok = {
-            d: bool(bench_close.loc[d] > bench_sma.loc[d])
-            for d in bench_close.index
-            if not pd.isna(bench_sma.loc[d])
-        }
-
-    bench_dates = list(bench_close.index)
+    # Use benchmark's dates as the calendar (any common-traded date).
+    bench_dates = list(universe_dfs[benchmark].index)
     if len(bench_dates) < lookback + 2:
-        return CrossSectionalState({}, [], benchmark_regime_ok)
-    # Keep v1's rebalance cadence (start at lookback+1) so v1 vs v2 stays
-    # apples-to-apples. The regime filter blocks early dates naturally:
-    # before regime_period bars elapse, bench_sma is NaN, so the date is
-    # absent from benchmark_regime_ok and replay() treats it as regime-off.
+        return CrossSectionalState({}, [])
     start_idx = lookback + 1
     rebalance_dates = [bench_dates[i] for i in range(start_idx, len(bench_dates), rebalance_period)]
 
@@ -132,14 +81,14 @@ def precompute(
             if d not in tdf.index:
                 continue
             closes_through = tdf["Close"].loc[:d]
-            vol = _realized_volatility(closes_through, lookback)
-            if np.isfinite(vol):
-                scores.append((vol, t))
-        # Sort ASCENDING — bottom-N = lowest vol.
+            r = _trailing_return(closes_through, lookback)
+            if np.isfinite(r):
+                scores.append((r, t))
+        # Sort ASCENDING — bottom-N = biggest losers.
         scores.sort()
         bottom_n_by_date[d] = {t for _, t in scores[:bottom_n]}
 
-    return CrossSectionalState(bottom_n_by_date, rebalance_dates, benchmark_regime_ok)
+    return CrossSectionalState(bottom_n_by_date, rebalance_dates)
 
 
 def replay(
@@ -153,7 +102,7 @@ def replay(
         return []
 
     atr_period = int(params.get("atr_period", 20))
-    atr_stop_multiple = float(params.get("atr_stop_multiple", 2.5))
+    atr_stop_multiple = float(params.get("atr_stop_multiple", 2.0))
     rebalance_period = int(params["rebalance_period_days"])
     max_hold_days = int(params.get("max_hold_days", rebalance_period))
     target_r_multiple = params.get("target_r_multiple")
@@ -163,17 +112,10 @@ def replay(
     if "Open" not in df.columns or "Close" not in df.columns:
         raise ValueError(f"{ticker}: df missing Open/Close columns")
 
-    # When the regime-pass dict is empty (filter disabled in v1-compat
-    # config), every date is considered regime-ok. When non-empty, only
-    # dates with regime_ok=True can produce signals.
-    regime_filter_active = bool(state.benchmark_regime_ok)
-
     signals: list[TradeSignal] = []
     df_index = list(df.index)
     for rebal_date in state.rebalance_dates:
         if ticker not in state.bottom_n_by_date.get(rebal_date, set()):
-            continue
-        if regime_filter_active and not state.benchmark_regime_ok.get(rebal_date, False):
             continue
         if rebal_date not in df.index:
             continue
@@ -215,10 +157,7 @@ def replay(
                 target_price=target_price,
                 max_hold_days=max_hold_days,
                 atr_at_signal=atr_value,
-                notes={
-                    "rebalance_date": str(rebal_date.date()),
-                    "regime_ok": True if regime_filter_active else None,
-                },
+                notes={"rebalance_date": str(rebal_date.date())},
             )
         )
     return signals

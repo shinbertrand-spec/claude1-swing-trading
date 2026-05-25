@@ -114,11 +114,13 @@ universe:
 
 period:
   start: "2020-01-01"
-  end: "2025-12-31"
+  end: "2026-05-25"
 
 walk_forward:
-  mode: single        # or "rolling"
-  is_fraction: 0.70   # single mode only
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
 
 params:
   # Cross-sectional ranking.

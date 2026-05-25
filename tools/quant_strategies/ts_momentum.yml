@@ -1,0 +1,140 @@
+# Time-Series Momentum — paperswithbacktest catalog comparison
+# Source: Moskowitz-Ooi-Pedersen 2012, productised at paperswithbacktest
+#         with in-sample Sharpe ~0.576 (long-short, monthly).
+# Long-only adaptation; published Sharpe will be materially reduced.
+
+meta:
+  name: ts_momentum
+  version: "1.0"
+  source: "Moskowitz-Ooi-Pedersen 2012 (paperswithbacktest catalog, in-sample Sharpe 0.576)"
+  description: |
+    Per-ticker absolute-return-sign signal. Every monthly rebalance,
+    check trailing N-day return. If positive, enter long at next bar
+    open with ATR-based fixed stop, hold up to one rebalance period.
+    Regime-defensive cousin to Clenow: sits out when ticker's own
+    trailing return is negative, vs Clenow which always holds top-K
+    regardless of own-return sign. Grid sweep 126d / 252d lookback
+    spans 6mo / 12mo published variants.
+  horizon_days: 21
+  status: candidate
+
+kind: ts_momentum
+
+universe:
+  # Same 88-ticker SP500-leaning universe + SPY benchmark used by the
+  # other quant-strategist candidates for like-for-like comparison.
+  tickers:
+    - AAPL
+    - ABBV
+    - ADBE
+    - AMD
+    - AMT
+    - AMZN
+    - APD
+    - ASML
+    - AVGO
+    - AXP
+    - BABA
+    - BAC
+    - BKNG
+    - BLK
+    - CAT
+    - CEG
+    - CMCSA
+    - COIN
+    - COP
+    - COST
+    - CRM
+    - CVX
+    - DIS
+    - DUK
+    - EQIX
+    - ETN
+    - FCX
+    - FDX
+    - GE
+    - GOOGL
+    - GS
+    - HD
+    - HON
+    - HUBB
+    - ISRG
+    - JNJ
+    - JPM
+    - KLAC
+    - KO
+    - LIN
+    - LLY
+    - LMT
+    - LULU
+    - MA
+    - MCD
+    - META
+    - MO
+    - MRK
+    - MRVL
+    - MS
+    - MSFT
+    - MU
+    - NBIS
+    - NEE
+    - NFLX
+    - NKE
+    - NUE
+    - NVDA
+    - ORCL
+    - OXY
+    - PDD
+    - PEP
+    - PG
+    - PLD
+    - PLTR
+    - QCOM
+    - QQQ
+    - RBLX
+    - SBUX
+    - SCHW
+    - SLB
+    - SO
+    - T
+    - TLN
+    - TMO
+    - TMUS
+    - TSLA
+    - UNH
+    - UPS
+    - V
+    - VRT
+    - VRTX
+    - VST
+    - WCC
+    - WMT
+    - XLK
+    - XOM
+  benchmark: SPY
+
+period:
+  start: "2020-01-01"
+  end: "2025-12-31"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: [126, 252]            # GRID — 6mo, 12mo published variants
+  rebalance_period_days: 21            # monthly rebalance
+  max_hold_days: 21                    # = rebalance period
+  atr_period: 20
+  atr_stop_multiple: 3.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30

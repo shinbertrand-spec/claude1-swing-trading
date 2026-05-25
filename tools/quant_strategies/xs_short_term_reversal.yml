@@ -1,0 +1,139 @@
+# Short Term Reversal in Stocks — paperswithbacktest catalog comparison
+# Source: Lehmann 1990 / Jegadeesh 1990, productised at paperswithbacktest
+#         with in-sample Sharpe ~0.816 (long-short, weekly).
+# Long-only adaptation; published Sharpe will be materially reduced.
+# Hypothesis test for `[[cross-sectional-mean-reversion]]` v1.1 candidacy.
+
+meta:
+  name: xs_short_term_reversal
+  version: "1.0"
+  source: "Lehmann 1990 / Jegadeesh 1990 (paperswithbacktest catalog, in-sample Sharpe 0.816 long-short weekly)"
+  description: |
+    Cross-sectional 5-day return reversal. Each rebalance date, rank
+    universe by trailing 5-day return; long the bottom-N (biggest
+    1-week losers — bet on bounce). Hold 5 days; weekly rebalance.
+    Long-only adaptation of the long-short paper.
+  horizon_days: 5
+  status: candidate
+
+kind: xs_short_term_reversal
+
+universe:
+  # Same 88-ticker SP500-leaning universe + SPY benchmark used by Clenow v1
+  # for fair head-to-head numerical comparison.
+  tickers:
+    - AAPL
+    - ABBV
+    - ADBE
+    - AMD
+    - AMT
+    - AMZN
+    - APD
+    - ASML
+    - AVGO
+    - AXP
+    - BABA
+    - BAC
+    - BKNG
+    - BLK
+    - CAT
+    - CEG
+    - CMCSA
+    - COIN
+    - COP
+    - COST
+    - CRM
+    - CVX
+    - DIS
+    - DUK
+    - EQIX
+    - ETN
+    - FCX
+    - FDX
+    - GE
+    - GOOGL
+    - GS
+    - HD
+    - HON
+    - HUBB
+    - ISRG
+    - JNJ
+    - JPM
+    - KLAC
+    - KO
+    - LIN
+    - LLY
+    - LMT
+    - LULU
+    - MA
+    - MCD
+    - META
+    - MO
+    - MRK
+    - MRVL
+    - MS
+    - MSFT
+    - MU
+    - NBIS
+    - NEE
+    - NFLX
+    - NKE
+    - NUE
+    - NVDA
+    - ORCL
+    - OXY
+    - PDD
+    - PEP
+    - PG
+    - PLD
+    - PLTR
+    - QCOM
+    - QQQ
+    - RBLX
+    - SBUX
+    - SCHW
+    - SLB
+    - SO
+    - T
+    - TLN
+    - TMO
+    - TMUS
+    - TSLA
+    - UNH
+    - UPS
+    - V
+    - VRT
+    - VRTX
+    - VST
+    - WCC
+    - WMT
+    - XLK
+    - XOM
+  benchmark: SPY
+
+period:
+  start: "2020-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: 5                # weekly reversal window
+  bottom_n: [5, 10, 15]           # GRID — bottom-decile candidates
+  rebalance_period_days: 5        # weekly
+  max_hold_days: 5                # = rebalance period
+  atr_period: 20
+  atr_stop_multiple: 2.0          # tight stop for MR
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
