@@ -15,6 +15,7 @@ dependencies = [
     # in v1. See tools/broker/tiger.py.
     "tigeropen>=3.3",
     "edgartools>=5.31.5",
+    "mcp>=1.27.1",
 ]
 
 [dependency-groups]

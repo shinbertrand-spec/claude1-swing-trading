@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "edgartools": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "c:/Users/User/Desktop/Claude1",
+        "python",
+        "-m",
+        "edgar.ai.mcp.server"
+      ],
+      "env": {
+        "EDGAR_IDENTITY": "Bertrand Shin shinbertrand@gmail.com"
+      }
+    }
+  }
+}
