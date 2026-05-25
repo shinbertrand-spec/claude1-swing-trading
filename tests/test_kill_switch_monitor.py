@@ -298,6 +298,78 @@ def test_no_dry_run_tier3_places_real_orders_end_to_end(tmp_path):
     assert len(place_calls) == 2
 
 
+def test_cycle_pushes_telegram_alert_on_tier_fire(tmp_path):
+    """Non-hold decision -> alert_fn invoked with a tier-fire message."""
+    index_path = tmp_path / "idx.json"
+    state_dir = tmp_path / "_state"
+    _write_thematic_index(index_path, ["NVDA"])
+    state.set_kill_event(
+        signal_type="thesis_abandonment",
+        matched_phrase="we exited",
+        state_dir=state_dir,
+    )
+    tiger = _client(positions=[
+        {"symbol": "NVDA", "quantity": 100, "market_value": 80_000.0},
+    ])
+    tiger._qc.set_quote("NVDA", bid=800.0)
+
+    sent: list[str] = []
+    monitor.cycle(
+        tiger=tiger, state_dir=state_dir, index_path=index_path,
+        cycle_number=1, dry_run=False,
+        alert_fn=lambda m: sent.append(m),
+    )
+    assert len(sent) == 1
+    assert "TIER 3" in sent[0]
+    assert "URGENT" in sent[0]
+    assert "Aschenbrenner" in sent[0]
+    assert "NVDA" in sent[0]
+
+
+def test_cycle_alert_failures_do_not_crash(tmp_path):
+    index_path = tmp_path / "idx.json"
+    state_dir = tmp_path / "_state"
+    _write_thematic_index(index_path, ["NVDA"])
+    state.set_kill_event(
+        signal_type="thesis_abandonment",
+        matched_phrase="we exited",
+        state_dir=state_dir,
+    )
+    tiger = _client(positions=[
+        {"symbol": "NVDA", "quantity": 100, "market_value": 80_000.0},
+    ])
+    tiger._qc.set_quote("NVDA", bid=800.0)
+
+    def boom(_msg):
+        raise RuntimeError("ALERT_FAIL")
+
+    r = monitor.cycle(
+        tiger=tiger, state_dir=state_dir, index_path=index_path,
+        cycle_number=1, dry_run=False, alert_fn=boom,
+    )
+    # Cycle still completes; event log + heartbeat written.
+    assert r.ok is True
+    assert r.decision.tier == 3
+    events = state.read_events(state_dir=state_dir)
+    assert len(events) == 1
+
+
+def test_cycle_does_not_alert_on_hold(tmp_path):
+    index_path = tmp_path / "idx.json"
+    state_dir = tmp_path / "_state"
+    _write_thematic_index(index_path, ["NVDA"])
+    tiger = _client(positions=[
+        {"symbol": "NVDA", "quantity": 100, "market_value": 250_000.0},
+    ])
+    sent: list[str] = []
+    monitor.cycle(
+        tiger=tiger, state_dir=state_dir, index_path=index_path,
+        cycle_number=1, dry_run=False,
+        alert_fn=lambda m: sent.append(m),
+    )
+    assert sent == []
+
+
 def test_no_dry_run_tier1_partial_sell_floor_rounded(tmp_path):
     """Tier-1 sell_fraction = 0.125; 100 shares -> floor(12.5) = 12 shares."""
     index_path = tmp_path / "idx.json"

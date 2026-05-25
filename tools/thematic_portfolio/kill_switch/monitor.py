@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ...broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
-from . import exits, ladder, positions, state
+from . import exits, ladder, positions, state, telegram_alert
 from .clock import session_state
 
 
@@ -97,6 +97,7 @@ def cycle(
     index_path: Optional[Path] = None,
     cycle_number: int = 0,
     dry_run: bool = True,
+    alert_fn: Any = None,
 ) -> CycleResult:
     """Run one monitoring cycle.
 
@@ -224,6 +225,38 @@ def cycle(
         ),
         state_dir=state_dir,
     )
+
+    # 10. Best-effort Telegram alert on non-hold actions + unprotected state.
+    #     Alert failures NEVER crash Process B — they become the watchdog's
+    #     concern (if alerts go silent that's itself an observability gap).
+    send = alert_fn or telegram_alert.send_alert
+    if decision.action != "hold":
+        try:
+            send(telegram_alert.format_tier_fire(
+                tier=decision.tier,
+                action=decision.action,
+                drawdown_pct=decision.drawdown_pct,
+                current_allocation_pct=decision.current_allocation_pct,
+                sell_fraction=decision.sell_fraction,
+                thematic_symbols=thematic.thematic_symbols,
+                aschenbrenner_override=decision.aschenbrenner_override,
+                cycle_id=cycle_id,
+                dry_run=dry_run,
+            ))
+        except Exception:  # noqa: BLE001
+            pass
+    unprotected = [
+        r for r in placed_orders
+        if r.get("action") == "unprotected_after_place_fail"
+    ]
+    if unprotected:
+        try:
+            send(telegram_alert.format_unprotected(
+                symbols=[r["symbol"] for r in unprotected],
+                cycle_id=cycle_id,
+            ))
+        except Exception:  # noqa: BLE001
+            pass
 
     return CycleResult(
         cycle_id=cycle_id,
