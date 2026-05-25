@@ -66,6 +66,23 @@ RATE_LIMIT_WINDOW_HOURS = 24 * 7
 PRESS_TOUR_BURST_THRESHOLD = 3
 PRESS_TOUR_WINDOW_HOURS = 24
 
+# Signal types that trip the Aschenbrenner-kill-event flag read by Process B
+# (the kill-switch monitor). Per [[swing-thematic-portfolio-kill-switch-architecture]]
+# § Aschenbrenner-specific kill events. Detected either by the deterministic
+# regex scan (_scan_mandatory_escalation) OR by the LLM classifier surfacing
+# the same signal_type in its mandatory_escalation_signals output.
+#
+# IMPORTANT: setting the flag triggers a Tier 3 full-unwind. False-positive
+# cost is preferred over false-negative cost per the design — Bertrand can
+# always clear the flag via state.clear_kill_event after manual review.
+KILL_EVENT_SIGNAL_TYPES = frozenset({
+    "thesis_abandonment",  # "we've exited", "no longer hold"
+    "sa_lp_event",         # "SA LP closure", "fund unwinding"
+    "sa_lp_closure",       # explicit closure synonym the LLM might use
+    "regulatory_action",   # SEC enforcement, fine, suspension
+    "principal_incident",  # Aschenbrenner death / incapacitation / criminal investigation
+})
+
 # Tier-1 source-pattern catalog. Per substantive-artifact-definition § Tier 1.
 TIER1_ESSAY_VENUES = (
     "forourposterity.com",
@@ -595,6 +612,22 @@ def apply_rate_limit(
     )
 
 
+def extract_kill_event_signal(
+    signals: list[dict[str, str]],
+) -> dict[str, str] | None:
+    """Return the first signal whose ``signal_type`` is in
+    :data:`KILL_EVENT_SIGNAL_TYPES`, or None if none match.
+
+    Used by :func:`classify_pipeline` to decide whether to set the
+    Aschenbrenner-kill-event flag that Process B (the kill-switch monitor)
+    polls each cycle.
+    """
+    for sig in signals:
+        if sig.get("signal_type") in KILL_EVENT_SIGNAL_TYPES:
+            return sig
+    return None
+
+
 def record_firing(
     firing_log_path: Path,
     fired_at: str,
@@ -632,6 +665,7 @@ def classify_pipeline(
     llm_verdict: dict[str, Any] | None = None,
     persist: bool = False,
     loop1_firing_id: str | None = None,
+    kill_switch_state_dir: Path | None = None,
 ) -> TraceEntry:
     """End-to-end pipeline.
 
@@ -641,6 +675,11 @@ def classify_pipeline(
        :func:`finalize_from_llm_verdict` it.
     3. Run :func:`apply_rate_limit` against the firing log.
     4. If ``persist=True`` AND the firing happens, :func:`record_firing`.
+    5. If ``persist=True`` AND the classification's mandatory_escalation_signals
+       contain a kill-event signal type (see :data:`KILL_EVENT_SIGNAL_TYPES`),
+       set the Aschenbrenner-kill-event flag read by Process B. The flag set
+       happens regardless of rate-limit suppression — kill-events override
+       cost-control.
 
     Returns a TraceEntry whose output is the merged decision dict.
 
@@ -674,6 +713,32 @@ def classify_pipeline(
             loop1_firing_id=loop1_firing_id,
         )
 
+    kill_event_flag_set = None
+    if persist:
+        kill_signal = extract_kill_event_signal(
+            result.mandatory_escalation_signals
+        )
+        if kill_signal is not None:
+            from .kill_switch import state as kill_switch_state
+
+            flag = kill_switch_state.set_kill_event(
+                signal_type=kill_signal.get("signal_type", "unknown"),
+                matched_phrase=kill_signal.get("matched_phrase", ""),
+                source_artifact_url=artifact.url,
+                notes=(
+                    f"Auto-set from artifact_classifier; source={artifact.source}, "
+                    f"loop1_firing_id={loop1_firing_id or 'n/a'}"
+                ),
+                state_dir=kill_switch_state_dir,
+                now_iso=artifact.fetched_at,
+            )
+            kill_event_flag_set = {
+                "fired": flag.fired,
+                "fired_at": flag.fired_at,
+                "signal_type": flag.signal_type,
+                "matched_phrase": flag.matched_phrase,
+            }
+
     return TraceEntry(
         tool=TOOL,
         inputs={
@@ -687,11 +752,15 @@ def classify_pipeline(
             "llm_verdict_provided": llm_verdict is not None,
             "persist": persist,
             "loop1_firing_id": loop1_firing_id,
+            "kill_switch_state_dir": (
+                str(kill_switch_state_dir) if kill_switch_state_dir else None
+            ),
         },
         output={
             "classification": result.to_dict(),
             "rate_limit_decision": asdict(decision),
             "n_firings_in_log_after": len(firing_log.get("firings", [])),
+            "kill_event_flag_set": kill_event_flag_set,
         },
     )
 

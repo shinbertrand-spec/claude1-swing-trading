@@ -28,6 +28,14 @@ ledgers/candidates/
 # live capital). Track separation per CLAUDE.md § Broker bridge → § Paper-auto.
 ledgers/paper-auto/
 
+# Thematic-portfolio runtime state — kill-switch peak / events / heartbeat /
+# kill-event flag. Per [[swing-thematic-portfolio-kill-switch-architecture]]
+# Process B writes these every cycle; not source-of-truth, regenerable.
+ledgers/thematic/kill_switch/_state/
+
+# Thematic-portfolio Loop 1 firing log (artifact classifier rate-limit state).
+ledgers/thematic/loop1/_state/
+
 # News snapshots — runtime data, regenerable from the bot. Schema + examples tracked.
 ledgers/news/[0-9]*-[0-9]*-[0-9]*/
 
