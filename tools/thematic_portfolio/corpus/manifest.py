@@ -43,9 +43,18 @@ TOOL = "tools/thematic_portfolio/corpus/manifest.py"
 
 # Canonical corpus subdirectory layout. Loop 1 prompt's input contract
 # names these slots; missing/empty subdirs surface as null in the snapshot.
+#
+# Note on the ``aschenbrenner_x`` slot: per the v2 x_ingest design
+# (Bertieboo/wiki/notes/swing-thematic-portfolio-x-ingest-decision.md),
+# x_ingest writes to ``ledgers/thematic/corpus/x/<YYYY-MM-DD>/<post_id>.yml``
+# and the dir holds posts from ALL Tier 1 / Tier 2 / Tier 3 monitored
+# handles (not just @leopoldasch). The slot name is preserved for
+# backward compat with the existing Loop 1 prompt; the LLM reads
+# ``post.author_username`` + ``post.author_tier`` from each YAML to
+# filter / weight as needed.
 CORPUS_SLOTS: dict[str, str] = {
     "aschenbrenner_essays": "aschenbrenner/essays",
-    "aschenbrenner_x": "aschenbrenner/x",
+    "aschenbrenner_x": "x",
     "aschenbrenner_podcasts": "aschenbrenner/podcasts",
     "shulman": "shulman",
     "trammell": "trammell",
@@ -55,9 +64,11 @@ CORPUS_SLOTS: dict[str, str] = {
 
 # File globs per slot. Single glob per slot is sufficient for v1; richer
 # multi-glob slots can land in v2 if file conventions diversify.
+# ``aschenbrenner_x`` uses a recursive ``**/*.yml`` because x_ingest nests
+# per-post artifacts under YYYY-MM-DD date directories.
 SLOT_GLOBS: dict[str, str] = {
     "aschenbrenner_essays": "*.md",
-    "aschenbrenner_x": "*.json",
+    "aschenbrenner_x": "**/*.yml",
     "aschenbrenner_podcasts": "*.md",
     "shulman": "*.md",
     "trammell": "*.md",

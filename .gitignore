@@ -46,6 +46,13 @@ ledgers/thematic/13f/
 # canonical record is the Loop 1 output JSON that cites these by ticker.
 ledgers/thematic/tier3/
 
+# Thematic-portfolio X-timeline corpus — regenerable from twitterapi.io
+# via tools.thematic_portfolio.corpus.x_ingest. Per-post YAMLs +
+# last-seen state file (analogous to the 13F + tier3 conventions —
+# raw auto-fetches not tracked; canonical record is the Loop 1
+# output JSON that cites them).
+ledgers/thematic/corpus/x/
+
 # Thematic-portfolio dry-run bundle scratch + per-position critic input
 # bundles + per-firing input bundle. All regenerable: _dryrun/ from
 # build_live_bundle, __critic_inputs/ from the Loop 1 output JSON,

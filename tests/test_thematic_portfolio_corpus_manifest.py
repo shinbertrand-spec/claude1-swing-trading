@@ -18,7 +18,12 @@ from tools.thematic_portfolio.corpus.manifest import (
 
 
 def _seed_corpus(root: Path, files: dict[str, list[str]]) -> dict[str, list[Path]]:
-    """Build a corpus directory tree. files = {slot: [filename, ...]}."""
+    """Build a corpus directory tree. files = {slot: [filename, ...]}.
+
+    ``filename`` may contain forward slashes to nest under subdirectories
+    (used for the v2 ``aschenbrenner_x`` slot which nests posts under
+    YYYY-MM-DD date dirs).
+    """
     created: dict[str, list[Path]] = {}
     for slot, names in files.items():
         if slot not in CORPUS_SLOTS:
@@ -28,8 +33,11 @@ def _seed_corpus(root: Path, files: dict[str, list[str]]) -> dict[str, list[Path
         created[slot] = []
         for name in names:
             p = slot_dir / name
+            p.parent.mkdir(parents=True, exist_ok=True)
             if name.endswith(".json"):
                 p.write_text(json.dumps({"id": name}), encoding="utf-8")
+            elif name.endswith(".yml") or name.endswith(".yaml"):
+                p.write_text(f"id: {Path(name).stem}\n", encoding="utf-8")
             else:
                 p.write_text(f"# {name}\n", encoding="utf-8")
             created[slot].append(p)
@@ -59,12 +67,14 @@ def test_corpus_root_is_file_raises(tmp_path: Path):
 def test_populated_corpus_lists_per_slot_globs(tmp_path: Path):
     _seed_corpus(tmp_path, {
         "aschenbrenner_essays": ["chapter1.md", "chapter2.md"],
-        "aschenbrenner_x": ["2026-05-20.json"],
+        # v2 layout: x posts live under x/<YYYY-MM-DD>/<post_id>.yml
+        # (multi-author — Tier 1/2/3 handles all land here)
+        "aschenbrenner_x": ["2026-05-20/1234567890.yml"],
         "shulman": ["80k-hours.md"],
     })
     out = compose(corpus_root=tmp_path).output
     assert out["paths"]["aschenbrenner_essays"] == "aschenbrenner/essays/*.md"
-    assert out["paths"]["aschenbrenner_x"] == "aschenbrenner/x/*.json"
+    assert out["paths"]["aschenbrenner_x"] == "x/**/*.yml"
     assert out["paths"]["shulman"] == "shulman/*.md"
     # Unpopulated slots remain null.
     assert out["paths"]["trammell"] is None
