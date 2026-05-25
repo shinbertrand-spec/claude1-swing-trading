@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from tools.broker.tiger import BrokerOrderError, TigerClient
+from tools.broker.tiger import TigerClient
 from tools.thematic_portfolio.kill_switch import monitor, state
 from tools.thematic_portfolio.kill_switch.clock import SessionState
 
@@ -40,6 +39,9 @@ class FakeTradeClient:
         self._net_liq = net_liquidation
         self._positions = positions or []
         self._raise_on_positions = raise_on_positions
+        self.calls: list[tuple] = []
+        self.open_orders_to_return: list[Any] = []
+        self._next_order_id = 60_000
 
     def get_assets(self, *, account, segment=False):
         summary = SimpleNamespace(
@@ -67,9 +69,46 @@ class FakeTradeClient:
             ))
         return out
 
+    def get_open_orders(self, *, account, **_):
+        return list(self.open_orders_to_return)
+
+    def get_contract(self, *, symbol, **_):
+        return SimpleNamespace(symbol=symbol, sec_type="STK", currency="USD")
+
+    def place_order(self, order):
+        oid = self._next_order_id
+        self._next_order_id += 1
+        order.id = oid
+        self.calls.append((
+            "place_order", order.action, order.quantity,
+            order.contract.symbol, getattr(order, "limit_price", None),
+        ))
+        return oid
+
+    def cancel_order(self, *, account, id, **_):
+        self.calls.append(("cancel_order", account, id))
+        return id
+
+
+class FakeQuoteClient:
+    def __init__(self):
+        self.briefs_by_symbol: dict[str, SimpleNamespace] = {}
+
+    def get_briefs(self, *, symbols, include_ask_bid=False, **_):
+        return [self.briefs_by_symbol[s] for s in symbols if s in self.briefs_by_symbol]
+
+    def set_quote(self, symbol, bid):
+        self.briefs_by_symbol[symbol] = SimpleNamespace(
+            symbol=symbol, bid_price=bid, ask_price=bid + 0.05,
+            latest_price=bid, bid_size=100, ask_size=100,
+            halted=False, delay=0,
+        )
+
 
 def _client(**kw):
-    return TigerClient(_trade_client=FakeTradeClient(**kw))
+    tc = FakeTradeClient(**kw)
+    qc = FakeQuoteClient()
+    return TigerClient(_trade_client=tc, _quote_client=qc)
 
 
 def _write_thematic_index(path: Path, tickers: list[str]):
@@ -198,23 +237,7 @@ def test_aschenbrenner_kill_event_flag_fires_tier3_unwind(tmp_path):
 # --- dry-run gate ---------------------------------------------------------
 
 
-def test_no_dry_run_raises_on_non_hold(tmp_path):
-    index_path = tmp_path / "idx.json"
-    state_dir = tmp_path / "_state"
-    _write_thematic_index(index_path, ["NVDA"])
-    # Seed a peak so we get a drawdown
-    state.update_peak(250_000.0, state_dir=state_dir)
-    tiger = _client(positions=[
-        {"symbol": "NVDA", "quantity": 1000, "market_value": 125_000.0},
-    ])
-    with pytest.raises(NotImplementedError, match="Session 2"):
-        monitor.cycle(
-            tiger=tiger, state_dir=state_dir, index_path=index_path,
-            cycle_number=1, dry_run=False,
-        )
-
-
-def test_no_dry_run_with_hold_decision_does_not_raise(tmp_path):
+def test_no_dry_run_with_hold_decision_does_not_place_orders(tmp_path):
     # Hold decisions should be safe to invoke under no-dry-run.
     index_path = tmp_path / "idx.json"
     state_dir = tmp_path / "_state"
@@ -227,9 +250,87 @@ def test_no_dry_run_with_hold_decision_does_not_raise(tmp_path):
         cycle_number=1, dry_run=False,
     )
     assert r.decision.action == "hold"
-    # No error, event still appended
     events = state.read_events(state_dir=state_dir)
     assert events[0]["dry_run"] is False
+    assert events[0]["orders_placed"] == []
+
+
+def test_no_dry_run_tier3_places_real_orders_end_to_end(tmp_path):
+    """End-to-end wiring: kill-event flag set, cycle runs without dry-run,
+    exits.execute_kill_switch_sells fires, event log captures placed orders."""
+    index_path = tmp_path / "idx.json"
+    state_dir = tmp_path / "_state"
+    _write_thematic_index(index_path, ["NVDA", "BE"])
+
+    state.set_kill_event(
+        signal_type="thesis_abandonment",
+        matched_phrase="we exited",
+        state_dir=state_dir,
+    )
+
+    tiger = _client(positions=[
+        {"symbol": "NVDA", "quantity": 100, "market_value": 80_000.0},
+        {"symbol": "BE",   "quantity": 500, "market_value": 20_000.0},
+    ])
+    tiger._qc.set_quote("NVDA", bid=800.0)
+    tiger._qc.set_quote("BE", bid=40.0)
+
+    r = monitor.cycle(
+        tiger=tiger, state_dir=state_dir, index_path=index_path,
+        cycle_number=1, dry_run=False,
+    )
+    assert r.decision.action == "unwind"
+    assert r.decision.tier == 3
+
+    events = state.read_events(state_dir=state_dir)
+    placed = events[0]["orders_placed"]
+    # Both NVDA + BE placed
+    assert len(placed) == 2
+    by_sym = {p["symbol"]: p for p in placed}
+    assert by_sym["NVDA"]["action"] == "placed"
+    assert by_sym["NVDA"]["shares_to_sell"] == 100
+    assert by_sym["NVDA"]["limit_price"] == round(800.0 * 0.999, 2)
+    assert by_sym["BE"]["action"] == "placed"
+    assert by_sym["BE"]["shares_to_sell"] == 500
+
+    # The broker actually saw the place_order calls
+    place_calls = [c for c in tiger._tc.calls if c[0] == "place_order"]
+    assert len(place_calls) == 2
+
+
+def test_no_dry_run_tier1_partial_sell_floor_rounded(tmp_path):
+    """Tier-1 sell_fraction = 0.125; 100 shares -> floor(12.5) = 12 shares."""
+    index_path = tmp_path / "idx.json"
+    state_dir = tmp_path / "_state"
+    _write_thematic_index(index_path, ["NVDA"])
+
+    # Cycle 1: at peak, no DD
+    tiger_peak = _client(positions=[
+        {"symbol": "NVDA", "quantity": 100, "market_value": 250_000.0},
+    ])
+    tiger_peak._qc.set_quote("NVDA", bid=2500.0)
+    monitor.cycle(
+        tiger=tiger_peak, state_dir=state_dir, index_path=index_path,
+        cycle_number=1, dry_run=False,
+    )
+
+    # Cycle 2: -20% DD = tier 1, allocation 20% > 17.5%, sell_fraction = 0.125
+    tiger_dd = _client(positions=[
+        {"symbol": "NVDA", "quantity": 100, "market_value": 200_000.0},
+    ])
+    tiger_dd._qc.set_quote("NVDA", bid=2000.0)
+    r2 = monitor.cycle(
+        tiger=tiger_dd, state_dir=state_dir, index_path=index_path,
+        cycle_number=2, dry_run=False,
+    )
+    assert r2.decision.tier == 1
+    assert r2.decision.sell_fraction == pytest.approx(0.125, abs=1e-6)
+
+    events = state.read_events(state_dir=state_dir)
+    placed = events[1]["orders_placed"]
+    assert len(placed) == 1
+    assert placed[0]["shares_to_sell"] == 12  # floor(100 * 0.125)
+    assert placed[0]["action"] == "placed"
 
 
 # --- error paths ---------------------------------------------------------

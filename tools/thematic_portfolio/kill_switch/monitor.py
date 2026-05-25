@@ -1,12 +1,6 @@
 """Process B monitor loop — the kill-switch ``while True`` runner.
 
-**Session 1 scope: dry-run ONLY.** This module composes the single-cycle
-pipeline (read Tiger positions -> identify thematic subset -> update peak ->
-read kill-event flag -> run ladder compute -> append event log -> write
-heartbeat) but does NOT place orders. Session 2 wires the order-placement
-arm.
-
-The pipeline:
+Composes the single-cycle pipeline:
 
 1. :func:`cycle` performs one monitoring cycle:
    a. Read Tiger account_summary (for total_account_value).
@@ -15,10 +9,12 @@ The pipeline:
    d. Update rolling peak (state.update_peak).
    e. Load Aschenbrenner-kill-event flag (state.load_kill_event).
    f. Run ladder.compute() -> KillSwitchDecision.
-   g. Append CycleEvent to events.jsonl.
-   h. Update heartbeat.json.
-   i. If decision.action != "hold" AND not dry_run -> place orders
-      (Session 2 — currently raises NotImplementedError).
+   g. If decision.action != "hold" AND not dry_run -> place sells via
+      :func:`exits.execute_kill_switch_sells` (cancel-then-place per
+      thematic position, proportional sell_fraction, UNPROTECTED-state
+      recovery on partial failure).
+   h. Append CycleEvent to events.jsonl (includes placed_orders).
+   i. Update heartbeat.json.
 
 2. :func:`run_forever` calls :func:`cycle` in a loop, sleeping per the
    clock module's RTH-aware cadence. Catches and logs cycle errors but
@@ -29,9 +25,9 @@ CLI::
     uv run python -m tools.thematic_portfolio.kill_switch.monitor [--dry-run]
         [--once] [--state-dir <path>] [--index-path <path>]
 
-``--dry-run`` is the **default** in this session. ``--no-dry-run`` is
-explicitly rejected with a NotImplementedError reminder pointing at
-Session 2.
+``--dry-run`` is the **default**. ``--no-dry-run`` enables live order
+placement against the paper Tiger account. v1 is hard-refused against
+live by :class:`TigerClient` (allow_live=False).
 
 ``--once`` runs a single cycle and exits (used by tests + ad-hoc
 inspection).
@@ -48,7 +44,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ...broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
-from . import ladder, positions, state
+from . import exits, ladder, positions, state
 from .clock import session_state
 
 
@@ -110,9 +106,9 @@ def cycle(
         index_path: override the thematic-index path (used in tests).
         cycle_number: monotonically-increasing cycle number for the
             heartbeat. Caller manages.
-        dry_run: when True (DEFAULT in Session 1), the cycle runs the
-            full pipeline EXCEPT order placement. When False, currently
-            raises NotImplementedError pointing at Session 2.
+        dry_run: when True (DEFAULT), the cycle runs the full pipeline
+            EXCEPT order placement. When False, non-hold decisions place
+            real (paper) sell orders via :mod:`.exits`.
     """
     cycle_id = _new_cycle_id()
 
@@ -165,18 +161,33 @@ def cycle(
     placed_orders: list[dict[str, Any]] = []
     cycle_warnings = list(thematic.warnings) + list(decision.warnings)
 
-    # 7. Order placement gate (Session 2 territory).
-    if decision.action != "hold" and not dry_run:
-        raise NotImplementedError(
-            f"Cycle {cycle_id} decision.action={decision.action!r} but "
-            "live order placement is Session 2. Pass --dry-run for Session 1."
-        )
-    if decision.action != "hold" and dry_run:
-        cycle_warnings.append(
-            f"DRY-RUN: would have placed sell orders for "
-            f"{len(thematic.thematic_symbols)} thematic position(s) at "
-            f"sell_fraction={decision.sell_fraction:.2%} (tier {decision.tier})."
-        )
+    # 7. Order placement.
+    if decision.action != "hold":
+        if dry_run:
+            cycle_warnings.append(
+                f"DRY-RUN: would have placed sell orders for "
+                f"{len(thematic.thematic_symbols)} thematic position(s) at "
+                f"sell_fraction={decision.sell_fraction:.2%} (tier {decision.tier})."
+            )
+        else:
+            exit_result = exits.execute_kill_switch_sells(
+                tiger=tiger,
+                thematic_positions=thematic.thematic_positions,
+                decision=decision,
+                cycle_id=cycle_id,
+            )
+            placed_orders = [r.to_dict() for r in exit_result.per_symbol_results]
+            if exit_result.n_symbols_errored > 0:
+                cycle_warnings.append(
+                    f"Exit execution: {exit_result.n_orders_placed} placed, "
+                    f"{exit_result.n_symbols_skipped} skipped, "
+                    f"{exit_result.n_symbols_errored} errored."
+                )
+            if exit_result.unprotected_symbols:
+                cycle_warnings.append(
+                    "UNPROTECTED after place-fail (will retry next cycle): "
+                    + ", ".join(exit_result.unprotected_symbols)
+                )
 
     # 8. Append event log.
     event = state.CycleEvent(
@@ -292,15 +303,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         dest="dry_run",
         action="store_true",
         default=True,
-        help="Skip order placement (Session 1 default).",
+        help="Skip order placement (default).",
     )
     p.add_argument(
         "--no-dry-run",
         dest="dry_run",
         action="store_false",
         help=(
-            "Session 2 only: enable live order placement. Currently raises "
-            "NotImplementedError on any non-hold decision."
+            "Enable live order placement against the paper Tiger account. "
+            "TigerClient refuses to construct against a live account in v1."
         ),
     )
     p.add_argument(

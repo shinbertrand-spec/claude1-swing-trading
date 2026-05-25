@@ -150,6 +150,7 @@ class TigerClient:
         props_dir: Optional[str] = None,
         allow_live: bool = False,
         _trade_client: Any = None,  # injected for tests
+        _quote_client: Any = None,  # injected for tests
     ) -> None:
         if props_dir is None:
             props_dir = os.environ.get("TIGER_PROPS_DIR", CREDENTIALS_DIR_DEFAULT)
@@ -158,6 +159,7 @@ class TigerClient:
             # Test path: caller supplied a pre-built (mocked) trade client +
             # a config-like object via the .config attribute on it.
             self._tc = _trade_client
+            self._qc = _quote_client
             self._config_info = getattr(_trade_client, "config_info", {
                 "tiger_id_masked": "****",
                 "account_masked": "****",
@@ -179,6 +181,7 @@ class TigerClient:
         try:
             from tigeropen.tiger_open_config import TigerOpenClientConfig
             from tigeropen.trade.trade_client import TradeClient
+            from tigeropen.quote.quote_client import QuoteClient
         except ImportError as exc:
             raise BrokerConfigError(
                 "tigeropen SDK not installed; cannot build TigerClient."
@@ -187,6 +190,7 @@ class TigerClient:
         cfg = TigerOpenClientConfig(props_path=props_dir)
         self._account = cfg.account
         self._tc = TradeClient(cfg)
+        self._qc = QuoteClient(cfg)
 
     @property
     def config_info(self) -> dict[str, Any]:
@@ -275,6 +279,60 @@ class TigerClient:
                 "n_orders": len(orders),
                 "orders": orders,
             },
+        )
+
+    def get_quote(self, symbol: str) -> TraceEntry:
+        """Return current bid/ask/last for a US equity symbol.
+
+        Uses tigeropen's ``QuoteClient.get_briefs(include_ask_bid=True)``
+        which returns a list of ``QuoteBrief`` objects with bid_price,
+        ask_price, latest_price, bid_size, ask_size, halted, delay fields.
+
+        Used by the thematic-portfolio kill-switch (Process B) to compute
+        a limit-sell price = bid * 0.999 on emergency exits. Tight quote
+        coupling is the safer architectural choice than yfinance: the
+        broker we're selling INTO is the broker we should be reading
+        quotes from.
+
+        Raises:
+            BrokerOrderError: when the quote call fails or no brief is
+                returned for the symbol (halted / delisted / wrong sec_type).
+        """
+        if self._qc is None:
+            raise BrokerOrderError(
+                "QuoteClient not initialised; cannot fetch quote."
+            )
+        try:
+            briefs = self._qc.get_briefs(
+                symbols=[symbol], include_ask_bid=True,
+            )
+        except Exception as exc:
+            raise BrokerOrderError(f"get_briefs({symbol}) failed: {exc}") from exc
+
+        if not briefs:
+            raise BrokerOrderError(
+                f"No quote returned for {symbol} (halted / delisted / wrong sec_type?)"
+            )
+
+        b = briefs[0]
+        out = {
+            "symbol": getattr(b, "symbol", symbol),
+            "bid_price": float(getattr(b, "bid_price", 0.0) or 0.0),
+            "ask_price": float(getattr(b, "ask_price", 0.0) or 0.0),
+            "latest_price": float(getattr(b, "latest_price", 0.0) or 0.0),
+            "bid_size": int(getattr(b, "bid_size", 0) or 0),
+            "ask_size": int(getattr(b, "ask_size", 0) or 0),
+            "halted": bool(getattr(b, "halted", False) or False),
+            "delay": int(getattr(b, "delay", 0) or 0),
+        }
+        return TraceEntry(
+            tool=TOOL,
+            inputs={
+                "call": "get_quote",
+                "symbol": symbol,
+                "account_masked": self._config_info["account_masked"],
+            },
+            output=out,
         )
 
     # ----------------------------------------------------------------- writes

@@ -125,12 +125,34 @@ class FakeTradeClient:
         return getattr(self, "filled_orders_to_return", [])
 
 
+class _FakeBrief(SimpleNamespace):
+    pass
+
+
+class FakeQuoteClient:
+    """Drop-in for tigeropen QuoteClient.get_briefs."""
+
+    def __init__(self):
+        self.calls: list[tuple] = []
+        self.briefs_by_symbol: dict[str, _FakeBrief] = {}
+        self.raise_on_call = False
+
+    def get_briefs(self, *, symbols, include_ask_bid=False, **_):
+        self.calls.append(("get_briefs", tuple(symbols), include_ask_bid))
+        if self.raise_on_call:
+            raise RuntimeError("QUOTE_API_ERROR")
+        return [
+            self.briefs_by_symbol[s] for s in symbols
+            if s in self.briefs_by_symbol
+        ]
+
+
 # ---------------------------------------------------------------- fixtures
 
 @pytest.fixture
 def paper_client() -> TigerClient:
     fake = FakeTradeClient(is_paper=True)
-    return TigerClient(_trade_client=fake)
+    return TigerClient(_trade_client=fake, _quote_client=FakeQuoteClient())
 
 
 # ---------------------------------------------------------------- tests
@@ -178,14 +200,23 @@ def test_construct_live_with_allow_live(monkeypatch, tmp_path):
         lambda **kw: _LiveCfg(),
     )
 
-    # Stub the TradeClient class so construct doesn't actually try to call live.
+    # Stub the TradeClient + QuoteClient classes so construct doesn't actually
+    # try to call live.
     class _StubTC:
         def __init__(self, cfg):
+            self.cfg = cfg
+
+    class _StubQC:
+        def __init__(self, cfg, logger=None):
             self.cfg = cfg
 
     monkeypatch.setattr(
         "tigeropen.trade.trade_client.TradeClient",
         _StubTC,
+    )
+    monkeypatch.setattr(
+        "tigeropen.quote.quote_client.QuoteClient",
+        _StubQC,
     )
     c = TigerClient(props_dir=str(tmp_path), allow_live=True)
     assert c.config_info["is_paper"] is False
@@ -430,3 +461,57 @@ def test_open_orders_shape(paper_client):
     assert o["quantity"] == 10
     assert o["limit_price"] == 850.0
     assert o["status"] == "Submitted"
+
+
+# ---------------------------------------------------------------- get_quote
+
+
+def test_get_quote_returns_bid_ask_last(paper_client):
+    paper_client._qc.briefs_by_symbol["NVDA"] = _FakeBrief(
+        symbol="NVDA", bid_price=850.10, ask_price=850.50,
+        latest_price=850.30, bid_size=100, ask_size=200,
+        halted=False, delay=0,
+    )
+    entry = paper_client.get_quote("NVDA")
+    out = entry.output
+    assert out["symbol"] == "NVDA"
+    assert out["bid_price"] == 850.10
+    assert out["ask_price"] == 850.50
+    assert out["latest_price"] == 850.30
+    assert out["bid_size"] == 100
+    assert out["ask_size"] == 200
+    assert out["halted"] is False
+    assert entry.inputs["call"] == "get_quote"
+    assert entry.inputs["account_masked"] == "...4321"
+
+
+def test_get_quote_passes_include_ask_bid_true(paper_client):
+    paper_client._qc.briefs_by_symbol["AAPL"] = _FakeBrief(
+        symbol="AAPL", bid_price=190.0, ask_price=190.1,
+        latest_price=190.05, bid_size=10, ask_size=20,
+        halted=False, delay=0,
+    )
+    paper_client.get_quote("AAPL")
+    call = paper_client._qc.calls[0]
+    assert call[0] == "get_briefs"
+    assert call[1] == ("AAPL",)
+    assert call[2] is True  # include_ask_bid
+
+
+def test_get_quote_raises_on_empty_briefs(paper_client):
+    # symbol not in briefs_by_symbol -> empty list -> error
+    with pytest.raises(BrokerOrderError, match="No quote returned"):
+        paper_client.get_quote("ZZZZ")
+
+
+def test_get_quote_wraps_sdk_error(paper_client):
+    paper_client._qc.raise_on_call = True
+    with pytest.raises(BrokerOrderError, match="QUOTE_API_ERROR"):
+        paper_client.get_quote("NVDA")
+
+
+def test_get_quote_raises_when_quote_client_none():
+    fake = FakeTradeClient(is_paper=True)
+    client = TigerClient(_trade_client=fake, _quote_client=None)
+    with pytest.raises(BrokerOrderError, match="QuoteClient not initialised"):
+        client.get_quote("NVDA")
