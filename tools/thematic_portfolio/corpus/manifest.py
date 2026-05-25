@@ -1,6 +1,6 @@
 """Corpus snapshot composer — builds the input bundle the Loop 1 prompt consumes.
 
-The :doc:`Loop 1 prompt </_draft/thematic-portfolio>` expects an input bundle
+The :doc:`Loop 1 prompt </thematic-portfolio>` expects an input bundle
 shaped like::
 
     corpus_snapshot:

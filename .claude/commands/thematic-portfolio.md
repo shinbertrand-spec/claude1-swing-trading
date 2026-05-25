@@ -316,13 +316,13 @@ governs total allocation — do NOT exceed the current phase cap.
 
 ## Notes on subagent location
 
-The subagent prompts currently live under `.claude/agents/_draft/`:
+The subagent prompts live under `.claude/agents/`:
 
-- `_draft/thematic-portfolio.md`
-- `_draft/thematic-artifact-classifier.md`
-- `_draft/thematic-critics/{marcus, mechanize-epoch, lecun, friedman-extended, thorstad, patel, rasgon}.md`
+- `thematic-portfolio.md`
+- `thematic-artifact-classifier.md`
+- `thematic-critics/{marcus, mechanize-epoch, lecun, friedman-extended, thorstad, patel, rasgon}.md`
 
-Claude Code subagent discovery is recursive over `.claude/agents/`, so the names in each file's frontmatter (`thematic-portfolio`, `thematic-artifact-classifier`, `thematic-critic-marcus`, etc.) are the strings to pass to `subagent_type:`. If a future commit promotes them out of `_draft/`, the names are unchanged.
+Promoted out of `_draft/` 2026-05-25 once all dependencies shipped and the Tier 3 layer completed (commit-pair 4b8e8c1... or whichever this commit becomes). Subagent discovery is recursive over `.claude/agents/`, so the names in each file's frontmatter (`thematic-portfolio`, `thematic-artifact-classifier`, `thematic-critic-marcus`, etc.) remain the strings to pass to `subagent_type:` — unchanged by the move.
 
 ## Cost target
 

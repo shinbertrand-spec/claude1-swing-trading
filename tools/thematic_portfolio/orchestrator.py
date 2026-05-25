@@ -11,7 +11,7 @@ helpers it leans on:
    over already-loaded data; no I/O.
 
 2. :func:`aggregate_critic_outputs` — applies the panel-aggregation rules
-   from `.claude/agents/_draft/thematic-critics/_template.md` § "Aggregation
+   from `.claude/agents/thematic-critics/_template.md` § "Aggregation
    rules": single structural_risk OR minus_50 forces hold_pending_review;
    ≥2 critics at minus_20+ trigger weighted reduction; otherwise preserve
    the Loop 1 target.

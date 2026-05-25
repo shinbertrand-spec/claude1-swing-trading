@@ -9,7 +9,7 @@ V1 ships:
 
 * :mod:`tools.thematic_portfolio.corpus.manifest` — builds the
   ``corpus_snapshot`` dict the Loop 1 prompt consumes (see
-  ``.claude/agents/_draft/thematic-portfolio.md`` § Input contract).
+  ``.claude/agents/thematic-portfolio.md`` § Input contract).
   Walks ``ledgers/thematic/corpus/`` for artifact subdirectories,
   composes the snapshot + recent-artifacts list since the prior
   Loop 1 firing.

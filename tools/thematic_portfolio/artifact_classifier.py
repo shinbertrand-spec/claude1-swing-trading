@@ -10,7 +10,7 @@ Architecture: deterministic pre-filter in this module handles ~70% of cases
 author + length). Only the **ambiguous boundary** cases (Aschenbrenner /
 Shulman / Trammell X posts that meet the length bar but require content
 judgment) flow through to the LLM call described in
-[`thematic-artifact-classifier.md`](../../.claude/agents/_draft/thematic-artifact-classifier.md).
+[`thematic-artifact-classifier.md`](../../.claude/agents/thematic-artifact-classifier.md).
 
 This module does NOT make the LLM call itself — the orchestrator (Weeks 5-8
 ``/thematic-portfolio`` slash command) invokes the classifier subagent

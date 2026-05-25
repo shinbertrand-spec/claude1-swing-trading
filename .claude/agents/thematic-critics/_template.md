@@ -1,6 +1,6 @@
 # Adversarial-critic prompts — template + invocation contract
 
-This directory holds the 7 adversarial-critic persona prompts that downstream consumers of `thematic-portfolio` Loop 1 output dispatch. **All prompts are DRAFT (2026-05-25).** They will move out of `_draft/` when the `/thematic-portfolio` slash command + critic-dispatch orchestrator ship (Weeks 3-4 of the gate-3 build).
+This directory holds the 7 adversarial-critic persona prompts that downstream consumers of `thematic-portfolio` Loop 1 output dispatch. Promoted out of `.claude/agents/_draft/` to `.claude/agents/thematic-critics/` on 2026-05-25 once the `/thematic-portfolio` slash command + Tier 3 signal layer shipped end-to-end.
 
 ## Critic panel
 
