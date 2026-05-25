@@ -128,12 +128,13 @@ Lives in [`thematic_portfolio/`](thematic_portfolio/). Sibling axis to the swing
 | [`thematic_portfolio/ensemble_overlap.py`](thematic_portfolio/ensemble_overlap.py) | M1 Jaccard (≥0.85 pass) + M3 rank-based ensemble triangulation (≥0.5 consensus health) + per-position critic-trigger context per session-2 #5 pseudocode | Loop 1 Pass 4 + Loop 2 calibration |
 | [`thematic_portfolio/corpus/thirteen_f.py`](thematic_portfolio/corpus/thirteen_f.py) | edgartools-wrapped 13F-HR fetcher; normalizes infotable to long-book / put-complex / call-book JSON files (long-book output is directly loadable by the sizer) | Loop 1 input bundle prep + Loop 2 calibration |
 | [`thematic_portfolio/corpus/manifest.py`](thematic_portfolio/corpus/manifest.py) | corpus_snapshot composer — walks `ledgers/thematic/corpus/` and packages per-slot paths + recent-artifacts list since prior Loop 1 firing | Loop 1 input bundle prep |
+| [`thematic_portfolio/artifact_classifier.py`](thematic_portfolio/artifact_classifier.py) | Substantive-artifact pre-filter (Tier 1 auto-trigger + Tier 3 hard-excludes) + LLM-verdict finalizer + 3/wk rate limit + mandatory-escalation override + firing-log state I/O. Paired with the `thematic-artifact-classifier` Haiku subagent for ambiguous Tier 2/2.5 boundary cases. | `/thematic-portfolio` orchestrator — decides whether incoming artifacts fire Loop 1 |
 
 Per session-2 design change #6: specific position-fund pairs in design notes are illustrative-only — these tools accept live 13F data per cycle, no constant encodes a specific pair. Per #4: ensemble triangulation is rank-based, NOT notional (Light Street $0.50B vs Coatue $29.06B would drown otherwise).
 
 M2 (critic-outcome alignment over rolling 4q) deferred — requires 4 quarters of accumulated Loop 1 critic decision history; lands in Weeks 5-8 paper-trade phase.
 
-Not yet built: X-timeline fetcher (twitterapi.io, blocked on Bertrand account creation), podcast RSS + Whisper transcription, press feed RSS parsers, substantive-artifact classifier (Haiku 4.5 prompt), Tier 3 real-world signal compilers, put-overlay tracker, kill-switch Process B monitor, `/thematic-portfolio` slash command orchestrator.
+Not yet built: X-timeline fetcher (twitterapi.io, blocked on Bertrand account creation), podcast RSS + Whisper transcription, press feed RSS parsers, Tier 3 real-world signal compilers, put-overlay tracker, kill-switch Process B monitor, `/thematic-portfolio` slash command orchestrator.
 
 ## I/O contract
 
