@@ -474,12 +474,26 @@ trade-lifecycle loop. Run on demand to compare live results against the
 backtest's predicted edge (SEPA-VCP+sell-aware target Sharpe 2.28;
 EP loosened target 2.13).
 
-**v1 simplifications (deferred):**
+**Session 5 enhancements (shipped 2026-05-25):**
+- **Live trailing-stop ratchet** (`tools.auto_paper.stop_ratchet`) — runs
+  after `evaluate_exits()` in `/auto-paper-monitor`. Per CLAUDE.md §
+  Risk Management: gain ≥ 5% → stop migrates to break-even; gain ≥ 10%
+  → stop migrates to +5%. Cancel-then-place mechanic with
+  unprotected-state recovery: if `place_stop_loss` fails after a
+  successful cancel, the ledger clears `stop_order_id` + records the
+  unprotected state in `notes`; next ratchet/reconcile pass retries.
+- **PE-expansion wired to EDGAR** (`tools.fundamentals.edgar_eps` +
+  `pe_expansion_check.compute_from_ticker`) — TTM EPS pulled via
+  edgartools (cached 24h on disk), baseline P/E vs current P/E from
+  the position's entry_price. Result lands in `sell_eval_history.pe_doubled_late_stage`.
+  Non-fatal: ADRs, negative-EPS names, network failures fall back to
+  `pe_expanded: False`. Note that the doctrine's "P/E doubled" trigger
+  is composer-additive only — adds `tighten_stop` to proposed actions
+  (which the ratchet now actually executes).
+
+**v1 simplifications (still deferred):**
 - Partial sells (`sell_50` / `sell_75`) from the composer close the whole
   position. Pyramid leg management is a future enhancement.
-- No live trailing-stop ratchet (broker stop sits at original `stop_price`).
-- PE-expansion sell criterion is False (no fundamentals source yet; queued
-  via the `edgartools` dep).
 - OCA stop+target groups deferred; STP SELL only.
 
 ## Sensitive Information

@@ -26,10 +26,8 @@ v1 simplifications (documented for the next session to revisit):
 * Bid price used for the limit-sell offset comes from the last bar's
   ``Close`` (we have no live L1 in this module — the limit lands close
   to last and the broker fills against the current book).
-* PE-expansion warning forced to False (no fundamentals source in
-  paper-auto yet; queued via edgartools dep).
 
-Session 3 scope.
+Session 3 scope; PE-expansion wiring added 2026-05-25.
 """
 from __future__ import annotations
 
@@ -45,6 +43,7 @@ from ..base_stage_detect import compute_from_ohlcv as base_stage_compute
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..climax_top_detect import compute_from_ohlcv as climax_compute
 from ..data import fetch_ohlcv
+from ..pe_expansion_check import compute_from_ticker as pe_expansion_from_ticker
 from ..sell_decision import compute as sell_decision_compute
 from ..sell_into_strength import compute as sis_compute
 from ..violations_detect import compute_from_ohlcv as violations_compute
@@ -78,6 +77,7 @@ class ExitResult:
     violations_firing: Optional[int] = None
     base_stage: Optional[int] = None
     sell_into_strength_triggered: Optional[bool] = None
+    pe_doubled_late_stage: Optional[bool] = None
     confidence: Optional[str] = None
     contributing_triggers: Optional[list[str]] = None
     reason: Optional[str] = None
@@ -153,6 +153,7 @@ def _append_sell_eval(
     action: str,
     confidence: str,
     new_stop: float | None,
+    pe_warning: bool = False,
 ) -> None:
     """Append a sell_eval_history entry to the in-memory ledger doc."""
     eval_entry: dict[str, Any] = {
@@ -162,6 +163,7 @@ def _append_sell_eval(
         "violations_firing": int(violations_count),
         "base_stage": int(base_stage),
         "sell_into_strength_triggered": bool(sis_triggered),
+        "pe_doubled_late_stage": bool(pe_warning),
         "action": action,
         "confidence": confidence,
         "v1_preliminary_flag": True,
@@ -220,11 +222,19 @@ def _evaluate_one(
     *,
     pos: dict[str, Any],
     fetch_ohlcv_fn,
+    pe_expansion_fn=None,
 ) -> tuple[str, dict[str, Any]]:
     """Return ``(action, evaluation_dict)`` for a single paper-auto position.
 
     Pure compute — no broker calls, no file writes. The caller decides
     whether to act on the action.
+
+    Args:
+        pe_expansion_fn: test seam — callable taking
+            ``(ticker=, entry_price=, current_price=)`` returning a
+            :class:`TraceEntry`. Default: :func:`pe_expansion_from_ticker`
+            (live EDGAR). Pass ``lambda **kw: SimpleNamespace(output={})``
+            in unit tests to skip the EDGAR roundtrip.
     """
     ticker = pos["ticker"]
     doc = _read_ledger(ticker)
@@ -297,6 +307,22 @@ def _evaluate_one(
     except (ValueError, KeyError):
         pass
 
+    # --- Detector 5: P/E expansion (EDGAR-backed) ----------------------
+    # Non-fatal: any failure (unknown ticker, ADR, negative EPS, network)
+    # falls back to False. Position evaluation continues.
+    pe_fn = pe_expansion_fn if pe_expansion_fn is not None else pe_expansion_from_ticker
+    pe_warning = False
+    try:
+        last_close = float(df["Close"].iloc[-1])
+        pe_entry = pe_fn(
+            ticker=ticker,
+            entry_price=starter_price,
+            current_price=last_close,
+        )
+        pe_warning = bool(pe_entry.output.get("pe_expanded", False))
+    except Exception:  # noqa: BLE001 — adapter throws broadly; failure is non-fatal
+        pe_warning = False
+
     # --- Compose -------------------------------------------------------
     try:
         decision = sell_decision_compute(
@@ -308,7 +334,7 @@ def _evaluate_one(
             sell_into_strength_triggered=sis_triggered,
             sell_into_strength_fraction=sis_fraction,
             setup_grade=setup_grade,
-            pe_expansion_warning=False,    # OHLCV-only; fundamentals deferred
+            pe_expansion_warning=pe_warning,
         )
     except ValueError as exc:
         return "error", {"reason": f"sell_decision failed: {exc}"}
@@ -322,6 +348,7 @@ def _evaluate_one(
         "violations_count": violations_count,
         "base_stage": base_stage_val,
         "sis_triggered": sis_triggered,
+        "pe_warning": pe_warning,
         "setup_grade": setup_grade,
     }
 
@@ -331,6 +358,7 @@ def evaluate_exits(
     client: TigerClient | None = None,
     dry_run: bool = False,
     fetch_ohlcv_fn=fetch_ohlcv,
+    pe_expansion_fn=None,
 ) -> list[ExitResult]:
     """Evaluate per-bar sell-decision for every starter-state paper-auto position.
 
@@ -370,7 +398,11 @@ def evaluate_exits(
     results: list[ExitResult] = []
     for pos in starters:
         ticker = pos["ticker"]
-        action, ctx = _evaluate_one(pos=pos, fetch_ohlcv_fn=fetch_ohlcv_fn)
+        action, ctx = _evaluate_one(
+            pos=pos,
+            fetch_ohlcv_fn=fetch_ohlcv_fn,
+            pe_expansion_fn=pe_expansion_fn,
+        )
 
         if action == "error":
             results.append(ExitResult(
@@ -386,6 +418,7 @@ def evaluate_exits(
         violations_count = ctx["violations_count"]
         base_stage_val = ctx["base_stage"]
         sis_triggered = ctx["sis_triggered"]
+        pe_warning = ctx.get("pe_warning", False)
         confidence = decision_out.get("confidence", "MEDIUM")
         contributing = list(decision_out.get("contributing_triggers", []))
 
@@ -402,6 +435,7 @@ def evaluate_exits(
                 action=action,
                 confidence=confidence,
                 new_stop=None,
+                pe_warning=pe_warning,
             )
             if not dry_run:
                 try:
@@ -419,6 +453,7 @@ def evaluate_exits(
                 violations_firing=violations_count,
                 base_stage=base_stage_val,
                 sell_into_strength_triggered=sis_triggered,
+                pe_doubled_late_stage=pe_warning,
                 confidence=confidence,
                 contributing_triggers=contributing,
                 reason=("dry_run — sell_eval recorded, no transaction"
@@ -453,6 +488,7 @@ def evaluate_exits(
                 action=action,
                 confidence=confidence,
                 new_stop=None,
+                pe_warning=pe_warning,
             )
             results.append(ExitResult(
                 ticker=ticker, action=action,
@@ -464,6 +500,7 @@ def evaluate_exits(
                 violations_firing=violations_count,
                 base_stage=base_stage_val,
                 sell_into_strength_triggered=sis_triggered,
+                pe_doubled_late_stage=pe_warning,
                 confidence=confidence,
                 contributing_triggers=contributing,
                 reason=(
@@ -522,6 +559,7 @@ def evaluate_exits(
             action=action,
             confidence=confidence,
             new_stop=None,
+            pe_warning=pe_warning,
         )
         _close_ledger(doc, exit_price=sell_limit, exit_reason=exit_reason)
         try:
@@ -556,6 +594,7 @@ def evaluate_exits(
             violations_firing=violations_count,
             base_stage=base_stage_val,
             sell_into_strength_triggered=sis_triggered,
+            pe_doubled_late_stage=pe_warning,
             confidence=confidence,
             contributing_triggers=contributing,
             reason=cancel_err,   # non-fatal cancel warning, if any

@@ -131,6 +131,14 @@ def paper_dirs(tmp_path, monkeypatch):
     return ledger_dir, positions_json
 
 
+@pytest.fixture(autouse=True)
+def _no_edgar(monkeypatch):
+    """Block live EDGAR calls in exits tests — return pe_expanded=False."""
+    def _no_pe(**_):
+        return SimpleNamespace(output={"pe_expanded": False})
+    monkeypatch.setattr(exits, "pe_expansion_from_ticker", _no_pe)
+
+
 def _seed_starter(
     paper_dirs,
     *,

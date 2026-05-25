@@ -48,6 +48,9 @@ uv.lock
 # Phase 5 backtest OHLCV cache (fetched data; reproducible from yfinance)
 tools/backtest/cache/
 
+# Phase 6 tool caches (EDGAR EPS lookups, etc — re-fetchable, 24h TTL)
+tools/cache/
+
 # Phase 5 backtest result reports (regenerable; large markdown files)
 backtest_results/
 
