@@ -11,6 +11,7 @@ import pytest
 from tools.thematic_portfolio.orchestrator import (
     AggregatedPositionDecision,
     FilingPaths,
+    KillSwitchUnavailableError,
     PortfolioState,
     aggregate_critic_outputs,
     apply_aggregation_to_positions,
@@ -18,6 +19,7 @@ from tools.thematic_portfolio.orchestrator import (
     compose_loop1_input_bundle,
     find_prior_loop1_output,
 )
+from tools.thematic_portfolio.kill_switch import watchdog as kill_switch_watchdog
 
 
 def _crit(critic: str, adj: str) -> dict:
@@ -343,6 +345,7 @@ def test_build_live_bundle_first_ever_firing(tmp_path: Path):
         corpus_root=tmp_path / "corpus",
         nav_provider=lambda: 1_000_000.0,
         compose_manifest_fn=_stub_manifest,
+        kill_switch_state_dir=tmp_path / "ks_state",
     )
 
     assert bundle["trigger"]["type"] == "monthly_base"
@@ -391,6 +394,7 @@ def test_build_live_bundle_reads_state_file(tmp_path: Path):
         corpus_root=tmp_path / "corpus",
         nav_provider=lambda: 1_250_000.0,
         compose_manifest_fn=_stub_manifest,
+        kill_switch_state_dir=tmp_path / "ks_state",
     )
 
     assert bundle["portfolio_state"]["thematic_allocation_pct"] == 15.0
@@ -420,6 +424,7 @@ def test_build_live_bundle_allocation_override(tmp_path: Path):
         allocation_pct_override=25.0,
         nav_provider=lambda: 1_000_000.0,
         compose_manifest_fn=_stub_manifest,
+        kill_switch_state_dir=tmp_path / "ks_state",
     )
 
     assert bundle["portfolio_state"]["thematic_allocation_pct"] == 25.0
@@ -455,10 +460,104 @@ def test_build_live_bundle_uses_prior_loop1_fired_at_as_since(tmp_path: Path):
         corpus_root=tmp_path / "corpus",
         nav_provider=lambda: 1_000_000.0,
         compose_manifest_fn=capture_manifest,
+        kill_switch_state_dir=tmp_path / "ks_state",
     )
 
     assert seen_since["value"] == "2026-04-01T13:30:00+00:00"
     assert bundle["prior_loop1_output"]["path"] == str(prior_path)
+
+
+# ---------------------------------------------------------------------------
+# Kill-switch handoff (build_live_bundle pre-flight check)
+# ---------------------------------------------------------------------------
+
+
+def _bundle_with_ks_state(tmp_path: Path, **overrides):
+    """Helper: invoke build_live_bundle with a tmp ks_state dir + sane defaults."""
+    kwargs = dict(
+        trigger_type="monthly_base",
+        fired_at="2026-05-25T07:49:25+00:00",
+        sa_lp_period="2026-03-31",
+        prior_sa_lp_period="2025-12-31",
+        loop1_dir=tmp_path / "loop1",
+        state_file=tmp_path / "doesnt-exist.json",
+        thirteen_f_root=tmp_path / "13f",
+        corpus_root=tmp_path / "corpus",
+        nav_provider=lambda: 1_000_000.0,
+        compose_manifest_fn=_stub_manifest,
+        kill_switch_state_dir=tmp_path / "ks_state",
+    )
+    kwargs.update(overrides)
+    return build_live_bundle(**kwargs)
+
+
+def test_build_live_bundle_blocks_when_kill_switch_unavailable(tmp_path: Path):
+    """The watchdog has set the unavailable flag -> build_live_bundle refuses."""
+    ks_state = tmp_path / "ks_state"
+    ks_state.mkdir()
+    flag = kill_switch_watchdog.UnavailableFlag(
+        unavailable=True,
+        since="2026-05-26T20:00:00+00:00",
+        reason="process_b_silent",
+        last_heartbeat_at="2026-05-26T19:30:00+00:00",
+        minutes_silent=30.0,
+    )
+    (ks_state / kill_switch_watchdog.KILL_SWITCH_UNAVAILABLE_FILENAME).write_text(
+        json.dumps(flag.to_dict()), encoding="utf-8",
+    )
+
+    with pytest.raises(KillSwitchUnavailableError) as exc_info:
+        _bundle_with_ks_state(tmp_path)
+
+    msg = str(exc_info.value)
+    assert "process_b_silent" in msg
+    assert "30" in msg  # minutes_silent surfaced
+    assert "2026-05-26T19:30:00" in msg  # last_heartbeat_at surfaced
+
+
+def test_build_live_bundle_proceeds_when_flag_absent(tmp_path: Path):
+    """No flag file at all -> bundle composes normally."""
+    # ks_state dir doesn't even exist
+    bundle = _bundle_with_ks_state(tmp_path)
+    assert bundle["trigger"]["type"] == "monthly_base"
+
+
+def test_build_live_bundle_proceeds_when_flag_explicitly_unavailable_false(tmp_path: Path):
+    """Flag file present but unavailable=False (e.g., post-recovery) -> proceed."""
+    ks_state = tmp_path / "ks_state"
+    ks_state.mkdir()
+    (ks_state / kill_switch_watchdog.KILL_SWITCH_UNAVAILABLE_FILENAME).write_text(
+        json.dumps({"unavailable": False, "schema_version": "1.0"}),
+        encoding="utf-8",
+    )
+    bundle = _bundle_with_ks_state(tmp_path)
+    assert bundle["trigger"]["type"] == "monthly_base"
+
+
+def test_build_live_bundle_fails_fast_before_nav_provider(tmp_path: Path):
+    """Kill-switch check fires BEFORE nav_provider / state.json / corpus reads —
+    so a flagged unavailable state doesn't depend on Tiger being up."""
+    ks_state = tmp_path / "ks_state"
+    ks_state.mkdir()
+    (ks_state / kill_switch_watchdog.KILL_SWITCH_UNAVAILABLE_FILENAME).write_text(
+        json.dumps({
+            "unavailable": True,
+            "since": "2026-05-26T20:00:00+00:00",
+            "reason": "heartbeat_missing",
+            "minutes_silent": None,
+            "last_heartbeat_at": None,
+            "schema_version": "1.0",
+        }),
+        encoding="utf-8",
+    )
+
+    def boom_nav():
+        raise RuntimeError("TIGER_DOWN")
+
+    with pytest.raises(KillSwitchUnavailableError):
+        _bundle_with_ks_state(tmp_path, nav_provider=boom_nav)
+    # If the check fired correctly, nav_provider was never called and
+    # the test sees the kill-switch error, not the Tiger error.
 
 
 # ---------------------------------------------------------------------------

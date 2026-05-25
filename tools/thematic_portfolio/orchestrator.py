@@ -48,6 +48,26 @@ VALID_ALLOCATIONS = (10.0, 15.0, 25.0)
 VALID_TRIGGER_TYPES = ("monthly_base", "substantive_artifact")
 
 
+class KillSwitchUnavailableError(RuntimeError):
+    """Raised when ``build_live_bundle`` is invoked while the kill-switch
+    watchdog has flagged Process B as silent.
+
+    Per [[swing-thematic-portfolio-kill-switch-architecture]] § Heartbeat
+    monitoring: when Process B is silent, default to "kill-switch is firing"
+    and disable A-side new orders until B is restored. Process A
+    (Loop 1 / the orchestrator) has ZERO authority to disable Process B
+    or bypass this check.
+
+    To recover:
+      1. Investigate why Process B's heartbeat is stale (check the cron,
+         the Tiger API, the state files).
+      2. Once B is healthy and the watchdog clears the flag automatically,
+         re-invoke `/thematic-portfolio`.
+      3. If the watchdog itself is misbehaving, fix the watchdog —
+         do NOT add a bypass flag here.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Input-bundle composer
 # ---------------------------------------------------------------------------
@@ -309,6 +329,7 @@ def build_live_bundle(
     allocation_pct_override: float | None = None,
     nav_provider=_default_tiger_nav_provider,
     compose_manifest_fn=None,
+    kill_switch_state_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Compose a Loop 1 input bundle from live on-disk artifacts + Tiger NAV.
 
@@ -318,7 +339,29 @@ def build_live_bundle(
 
     Dependency injection (``nav_provider`` and ``compose_manifest_fn``) keeps
     the function testable without a live Tiger client or real corpus files.
+
+    **Kill-switch pre-flight check (fail-fast):** before any other work,
+    consults ``is_kill_switch_unavailable()``. If the watchdog has flagged
+    Process B as silent, raises :class:`KillSwitchUnavailableError` —
+    Loop 1 must not fire while the kill-switch is dead.
     """
+    from .kill_switch.watchdog import (
+        is_kill_switch_unavailable,
+        load_unavailable_flag,
+    )
+
+    if is_kill_switch_unavailable(kill_switch_state_dir):
+        flag = load_unavailable_flag(kill_switch_state_dir)
+        raise KillSwitchUnavailableError(
+            f"Kill-switch watchdog has flagged Process B as unavailable "
+            f"(reason={flag.reason}, since={flag.since}, "
+            f"last_heartbeat_at={flag.last_heartbeat_at}, "
+            f"minutes_silent={flag.minutes_silent}). "
+            "Loop 1 refuses to fire until the watchdog clears the flag. "
+            "Check the kill-switch monitor cron + state files; "
+            "do NOT bypass this guard."
+        )
+
     if compose_manifest_fn is None:
         from .corpus.manifest import compose as _compose
         def compose_manifest_fn(corpus_root, since):  # type: ignore[misc]
