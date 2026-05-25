@@ -443,16 +443,16 @@ def test_fetch_and_save_multi_outlet_aggregates(tmp_path):
         title="Aschenbrenner profile",
         link="https://fortune.com/x",
     ))
-    rss_semafor = _rss(_item(
+    rss_ft = _rss(_item(
         title="Carl Shulman interview",
-        link="https://semafor.com/y",
+        link="https://ft.com/y",
     ))
     http = _fake_http({
         OUTLET_CATALOG["fortune"].rss_url: rss_fortune,
-        OUTLET_CATALOG["semafor"].rss_url: rss_semafor,
+        OUTLET_CATALOG["ft_companies"].rss_url: rss_ft,
     })
     entry = fetch_and_save(
-        outlets=["fortune", "semafor"],
+        outlets=["fortune", "ft_companies"],
         output_dir=tmp_path,
         http_get=http,
     )
@@ -461,7 +461,7 @@ def test_fetch_and_save_multi_outlet_aggregates(tmp_path):
     assert out["n_items_written"] == 2
     filenames = {Path(p).name for p in out["written_paths"]}
     assert any("fortune" in n for n in filenames)
-    assert any("semafor" in n for n in filenames)
+    assert any("ft_companies" in n for n in filenames)
 
 
 def test_fetch_and_save_one_outlet_error_does_not_abort_others(tmp_path):
@@ -470,21 +470,21 @@ def test_fetch_and_save_one_outlet_error_does_not_abort_others(tmp_path):
     def http(url, *, timeout=None):
         if url == OUTLET_CATALOG["fortune"].rss_url:
             raise URLError("network down")
-        if url == OUTLET_CATALOG["semafor"].rss_url:
+        if url == OUTLET_CATALOG["ft_companies"].rss_url:
             return _rss(_item(
                 title="Aschenbrenner update",
-                link="https://semafor.com/x",
+                link="https://ft.com/x",
             ))
         raise URLError("unexpected")
 
     entry = fetch_and_save(
-        outlets=["fortune", "semafor"],
+        outlets=["fortune", "ft_companies"],
         output_dir=tmp_path,
         http_get=http,
     )
     out = entry.output
     assert out["n_outlets_errored"] == 1
-    assert out["n_items_written"] == 1  # semafor succeeded
+    assert out["n_items_written"] == 1  # ft_companies succeeded
     assert any("fortune" in e["outlet"] for e in out["errors"])
     assert "http_fetch_failed" in out["errors"][0]["error"]
 
@@ -537,10 +537,10 @@ def test_fetch_and_save_intra_run_dedupe(tmp_path):
     rss = _rss(_item(title="Aschenbrenner piece", link=same_url))
     http = _fake_http({
         OUTLET_CATALOG["fortune"].rss_url: rss,
-        OUTLET_CATALOG["semafor"].rss_url: rss,
+        OUTLET_CATALOG["ft_companies"].rss_url: rss,
     })
     entry = fetch_and_save(
-        outlets=["fortune", "semafor"],
+        outlets=["fortune", "ft_companies"],
         output_dir=tmp_path,
         http_get=http,
     )
@@ -557,3 +557,82 @@ def test_fetch_and_save_returns_trace_entry(tmp_path):
     assert entry.inputs["outlets"] == ["fortune"]
     assert entry.inputs["output_dir"] == str(tmp_path)
     assert entry.fetched_at
+
+
+# --- Atom 1.0 parsing (added 2026-05-26 alongside Semafor->FT/HN URL swap) -
+
+
+_ATOM_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom test feed</title>
+  <link href="https://example.com/atom"/>
+  <entry>
+    <title>Aschenbrenner profile in tech press</title>
+    <link rel="alternate" href="https://example.com/aschenbrenner-profile"/>
+    <summary>Coverage of the Situational Awareness essay author.</summary>
+    <published>2026-05-20T14:30:00Z</published>
+  </entry>
+  <entry>
+    <title>Unrelated quantum breakthrough</title>
+    <link rel="alternate" href="https://example.com/quantum"/>
+    <summary>IBM announces 10000-qubit machine.</summary>
+    <published>2026-05-22T10:00:00Z</published>
+  </entry>
+</feed>
+"""
+
+
+def test_parse_rss_xml_handles_atom_feed():
+    outlet = OUTLET_CATALOG["fortune"]  # outlet config is incidental
+    items = parse_rss_xml(_ATOM_SAMPLE, outlet)
+    assert len(items) == 2
+    assert items[0].title.startswith("Aschenbrenner")
+    assert items[0].url == "https://example.com/aschenbrenner-profile"
+    assert items[0].description.startswith("Coverage of the")
+    assert items[0].pub_date_iso == "2026-05-20T14:30:00+00:00"
+
+
+def test_parse_rss_xml_atom_entry_without_explicit_rel_picks_first_link():
+    """Atom <link> without rel attribute should be treated as 'alternate'."""
+    atom = """<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Aschenbrenner news</title>
+    <link href="https://example.com/no-rel"/>
+    <summary>x</summary>
+    <published>2026-05-25T10:00:00Z</published>
+  </entry>
+</feed>
+"""
+    items = parse_rss_xml(atom, OUTLET_CATALOG["fortune"])
+    assert len(items) == 1
+    assert items[0].url == "https://example.com/no-rel"
+
+
+def test_parse_rss_xml_atom_falls_back_to_content_when_summary_missing():
+    atom = """<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Aschenbrenner news</title>
+    <link rel="alternate" href="https://example.com/x"/>
+    <content>Long-form body here</content>
+    <published>2026-05-25T10:00:00Z</published>
+  </entry>
+</feed>
+"""
+    items = parse_rss_xml(atom, OUTLET_CATALOG["fortune"])
+    assert items[0].description == "Long-form body here"
+
+
+# --- Default outlet catalog matches the verified-2026-05-26 set ------------
+
+
+def test_outlet_catalog_default_set():
+    """The default outlet catalog must contain ONLY outlets with verified
+    public RSS endpoints — defaults that 404 in production silently degrade
+    coverage. Locking this set keeps the regression in source control."""
+    assert set(OUTLET_CATALOG.keys()) == {"fortune", "ft_companies", "hacker_news"}
+    # Semafor previously shipped as a default but has no public RSS as of
+    # 2026-05-26; the swap is intentional. Re-add only after a verified
+    # 200 response from a public Semafor feed URL.
+    assert "semafor" not in OUTLET_CATALOG

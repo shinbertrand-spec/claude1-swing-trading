@@ -81,8 +81,17 @@ class OutletConfig:
     slug_prefix: str     # included in output filename — "fortune", "semafor"
 
 
-# Catalog of supported outlets. Extend as more public-RSS Tier-1 outlets
-# come online (semafor + fortune are both public RSS 2.0).
+# Catalog of supported outlets. Each entry MUST be a publicly-accessible
+# RSS or Atom feed (no auth flow). Verified 2026-05-26:
+#   - Fortune (200, RSS 2.0, ~10 most-recent business articles per fetch)
+#   - FT Companies (200, RSS 2.0, ~25 most-recent companies coverage;
+#     paywalled body but headlines + RSS summaries are accessible — useful
+#     for capturing SA LP / hedge-fund mentions in the FT companies stream)
+#   - Hacker News front-page RSS (200, RSS 2.0; SA LP / Aschenbrenner
+#     essays + 13F coverage occasionally surface in top stories)
+# Deferred: Semafor (no public RSS — all probed URLs 404 incl. /feed,
+# /rss, /feed.xml, /technology/rss), WSJ (auth), Bloomberg (no public
+# RSS), Reuters (Cloudflare-blocked on default UA).
 OUTLET_CATALOG: dict[str, OutletConfig] = {
     "fortune": OutletConfig(
         key="fortune",
@@ -90,11 +99,17 @@ OUTLET_CATALOG: dict[str, OutletConfig] = {
         rss_url="https://fortune.com/feed/",
         slug_prefix="fortune",
     ),
-    "semafor": OutletConfig(
-        key="semafor",
-        label="Semafor",
-        rss_url="https://www.semafor.com/feed.xml",
-        slug_prefix="semafor",
+    "ft_companies": OutletConfig(
+        key="ft_companies",
+        label="FT Companies",
+        rss_url="https://www.ft.com/companies?format=rss",
+        slug_prefix="ft",
+    ),
+    "hacker_news": OutletConfig(
+        key="hacker_news",
+        label="Hacker News",
+        rss_url="https://news.ycombinator.com/rss",
+        slug_prefix="hn",
     ),
 }
 
@@ -172,41 +187,50 @@ def _matched_keywords(text: str) -> list[str]:
 
 
 def _parse_pubdate(s: Optional[str]) -> Optional[str]:
-    """Parse an RFC 2822 / RFC 822 pubDate string into ISO-8601 UTC.
+    """Parse an RFC 2822 / RFC 822 (RSS) or ISO 8601 (Atom) date string into
+    ISO-8601 UTC.
 
     Returns None if the string is missing or unparseable.
     """
     if not s or not s.strip():
         return None
+    raw = s.strip()
+    # Try RFC 2822 first (RSS standard).
     try:
-        dt = parsedate_to_datetime(s.strip())
+        dt = parsedate_to_datetime(raw)
+        if dt is not None:
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
     except (TypeError, ValueError, IndexError):
+        pass
+    # Try ISO 8601 (Atom standard). datetime.fromisoformat in 3.11+ accepts
+    # most variants but NOT the trailing 'Z' — normalise it.
+    try:
+        normalized = raw.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+    except ValueError:
         return None
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
 
 
-def parse_rss_xml(xml_text: str, outlet: OutletConfig) -> list[PressItem]:
-    """Parse an RSS 2.0 feed body into PressItem objects (unfiltered).
+# Atom 1.0 namespace. RSS 2.0 has no namespace by default.
+_ATOM_NS = "http://www.w3.org/2005/Atom"
+_ATOM_PREFIX = f"{{{_ATOM_NS}}}"
 
-    Caller applies :func:`is_relevant` to filter.
-    """
-    root = ET.fromstring(xml_text)
-    # RSS 2.0: <rss><channel><item>...</item></channel></rss>
-    # Atom not supported in v1.
-    channel = root.find("channel")
-    if channel is None:
-        return []
 
+def _parse_rss_2_items(channel: ET.Element, outlet: OutletConfig) -> list[PressItem]:
+    """Parse RSS 2.0 ``<channel><item>...`` children into PressItems."""
     items: list[PressItem] = []
     for item_el in channel.findall("item"):
         title = (item_el.findtext("title") or "").strip()
         description = (item_el.findtext("description") or "").strip()
         link = (item_el.findtext("link") or "").strip()
-        pub_raw = item_el.findtext("pubDate")
+        pub_raw = item_el.findtext("pubDate") or item_el.findtext(
+            "{http://purl.org/dc/elements/1.1/}date"
+        )
         items.append(PressItem(
             title=title,
             description=description,
@@ -216,6 +240,66 @@ def parse_rss_xml(xml_text: str, outlet: OutletConfig) -> list[PressItem]:
             outlet_label=outlet.label,
         ))
     return items
+
+
+def _parse_atom_entries(root: ET.Element, outlet: OutletConfig) -> list[PressItem]:
+    """Parse Atom 1.0 ``<feed><entry>...`` children into PressItems."""
+    items: list[PressItem] = []
+    for entry in root.findall(f"{_ATOM_PREFIX}entry"):
+        title = (
+            (entry.findtext(f"{_ATOM_PREFIX}title") or "").strip()
+        )
+        # Atom <link> uses href; multiple links allowed — prefer rel="alternate"
+        # or the first link without an explicit rel.
+        link = ""
+        for link_el in entry.findall(f"{_ATOM_PREFIX}link"):
+            rel = link_el.get("rel", "alternate")
+            href = link_el.get("href", "")
+            if href and rel in ("alternate", ""):
+                link = href
+                break
+        # Body: prefer <summary>, fall back to <content>.
+        description = (
+            (entry.findtext(f"{_ATOM_PREFIX}summary") or "").strip()
+            or (entry.findtext(f"{_ATOM_PREFIX}content") or "").strip()
+        )
+        pub_raw = (
+            entry.findtext(f"{_ATOM_PREFIX}published")
+            or entry.findtext(f"{_ATOM_PREFIX}updated")
+        )
+        items.append(PressItem(
+            title=title,
+            description=description,
+            url=link,
+            pub_date_iso=_parse_pubdate(pub_raw),
+            outlet_key=outlet.key,
+            outlet_label=outlet.label,
+        ))
+    return items
+
+
+def parse_rss_xml(xml_text: str, outlet: OutletConfig) -> list[PressItem]:
+    """Parse an RSS 2.0 OR Atom 1.0 feed body into PressItem objects (unfiltered).
+
+    Detects the format by the root element:
+    * ``<rss><channel><item>...`` → RSS 2.0
+    * ``<feed xmlns="...Atom"><entry>...`` → Atom 1.0
+
+    Caller applies :func:`is_relevant` to filter.
+    """
+    root = ET.fromstring(xml_text)
+    # Atom: root tag carries the namespace prefix.
+    if root.tag == f"{_ATOM_PREFIX}feed":
+        return _parse_atom_entries(root, outlet)
+    # RSS 2.0.
+    channel = root.find("channel")
+    if channel is not None:
+        return _parse_rss_2_items(channel, outlet)
+    # Fallback — try both. Some feeds wrap RSS in unusual root elements.
+    items = _parse_atom_entries(root, outlet)
+    if items:
+        return items
+    return []
 
 
 def is_relevant(item: PressItem) -> bool:
