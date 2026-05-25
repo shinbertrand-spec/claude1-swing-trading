@@ -1,0 +1,55 @@
+# Example debate ledger — Strong-bull synthesis (ENTRY_STRONG)
+#
+# This is an illustrative file, not real market data. The point is to
+# demonstrate the schema shape for a debate where the bull case is strong
+# (A+ grade + all 5 prior gates pass) and the bear can only construct a
+# weak invalidation thesis. Per H1 spec §6 the floor for ENTRY_STRONG is:
+# bull_strength >= 8 AND bear_strength <= 3.
+#
+# Path convention: ledgers/debate/<TICKER>-<DATE>.yml
+#                  ledgers/debate/CEG-2026-05-25.yml
+#
+# Schema: ../_schema/debate.schema.json
+
+schema_version: "1.0"
+ticker: CEG
+date: "2026-05-25"
+candidate_ledger_path: ledgers/candidates/2026-05-25/CEG.yml
+
+bull_case:
+  report_path: ledgers/candidates/2026-05-25/CEG.md
+  thesis_one_sentence: "Stage-2 SEPA-VCP on accelerating EPS YoY with regime tailwind and A+ grade."
+  confluence_grade: "A+"
+  trace_refs: [3, 7, 12, 18, 24]
+
+bear_case:
+  report_path: ledgers/candidates/2026-05-25/CEG-bear.md
+  verdict: INVALIDATION_WEAK
+  risk_triggers:
+    - condition: "Close below $245 (the VCP contraction low from stop_sizer trace)"
+      trace_refs: [21]
+      already_fired: false
+    - condition: "EPS YoY drops below 0.10 on next print"
+      trace_refs: [5]
+      already_fired: false
+    - condition: "Sector ETF (XLU) loses 50-day MA on volume > 1.5x average"
+      trace_refs: [22]
+      already_fired: false
+  bull_counterpoints:
+    - bull_claim_quoted: "Sector qualifies for long (5/7 sector-template)"
+      counter_evidence: "Score is comfortable 5/7; not borderline. No false-positive risk."
+      trace_refs: [22]
+  trace_refs: [21, 22]
+
+debate_mode: single_shot
+
+synthesis:
+  facilitator: risk-and-compliance
+  verdict: ENTRY_STRONG
+  rationale_one_paragraph: "Bull case is A+ grade with all confluence-checklist items tool-cited and all 5 prior gates passing. Bear's invalidation thesis is structurally weak — the only mechanical triggers cited are far-out conditions (VCP-low stop, EPS deceleration next quarter, sector loss). Per H1 spec §6 floor-is-high path: A+ bull + Gates 1-5 PASS + bear INVALIDATION_WEAK → ENTRY_STRONG."
+  bull_strength_score: 9
+  bear_strength_score: 2
+  decisive_evidence_trace_refs: [3, 7, 18, 24]
+  failure_mode: null
+  computed_at: "2026-05-25T14:15:00-04:00"
+  tool: tools/debate_synthesis.py

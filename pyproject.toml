@@ -16,6 +16,10 @@ dependencies = [
     "tigeropen>=3.3",
     "edgartools>=5.31.5",
     "mcp>=1.27.1",
+    # Phase 7 (multi-agent debate, H1): typed debate-state models in
+    # tools.contract. Already pulled in transitively by mcp/edgartools, but
+    # declared explicitly because tools.debate_synthesis imports it directly.
+    "pydantic>=2.0",
 ]
 
 [dependency-groups]

@@ -87,6 +87,14 @@ All four Phase 2 slices shipped: SEPA-VCP (2.a) + EP (2.b) + pyramiding + sell d
 
 Addresses Type 4 from `[[llm-financial-hallucination]]` — the only doctrine requirement not covered by the per-trade 5-gate sequence. Bias is structural and persists across trades; per-trade gates can't see systematic skew. The audit walks `ledgers/candidates/YYYY-MM-DD/<TICKER>.yml` over a date window, buckets candidates by sector (via `regime.sector_etf` → GICS) and market cap (from `fundamentals.market_cap_usd`), and flags buckets that deviate >= 2σ from the [`data/universe_baseline.yml`](data/universe_baseline.yml) expected proportions. Informational — never blocks trades.
 
+### Phase 7 — Multi-agent debate (H1, Gate 6)
+
+| Tool | Returns | Used by |
+|---|---|---|
+| [`debate_synthesis.py`](debate_synthesis.py) | Composed bull/bear `DebateState` (pydantic) → H3 `SwingVerdict` enum (ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT); writes `ledgers/debate/<TICKER>-<DATE>.yml`; returns `TraceEntry` | `risk-and-compliance` Gate 6 — final synthesis step after Gates 1-5 |
+
+Per H1 spec §6 (`wiki/notes/swing-cherrypick-h1-design-spec.md`). Decision-table override paths: any `already_fired` risk trigger → REJECT regardless of bull strength; INVALIDATION_WEAK bear + A+/A bull grade + all 5 prior gates pass → ENTRY_STRONG floor. Pure decision function `verdict_from_strengths(bull, bear, ...)` is exposed for tests + facilitator override; the heuristic scorers `default_bull_strength` / `default_bear_strength` provide transparent defaults from grade + bear verdict. Pydantic models live in [`contract.py`](contract.py): `SwingVerdict` (stub — H3 owns canonical), `BearVerdict`, `DebateMode`, `BullCase`, `BearCase`, `RiskTrigger`, `BullCounterpoint`, `SynthesisResult`, `DebateState`.
+
 ### Phase 5 — Walk-forward backtest harness
 
 Lives in [`backtest/`](backtest/) — see [`backtest/README.md`](backtest/README.md). Gates setup deployment to live capital on **OOS Sharpe > 1.0 AND |OOS DD| < 25% AND OOS n ≥ 30**.

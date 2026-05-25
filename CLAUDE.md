@@ -193,7 +193,7 @@ arithmetic — YoY growth, ATR, trend template, regime check, VCP detection,
 stop sizing, position sizing — runs through these tools, never through agent
 prose. Source of truth: [`tools/README.md`](tools/README.md).
 
-**Phases 2 + 3 + 4 + 5.a + 5.b + 5.c complete** (2026-05-18). **Red-team regression harness** added 2026-05-23: 27 adversarial tests over the 5-gate sequence (`tests/test_red_team_gates.py`). **Phase 6 bias audit** added 2026-05-23: periodic universe-side discovery-skew audit per Type 4 of `[[llm-financial-hallucination]]` (`tools/bias_audit.py` + `/bias-audit` slash command). 45 modules + 376 tests in `tools/` and `tests/`:
+**Phases 2 + 3 + 4 + 5.a + 5.b + 5.c complete** (2026-05-18). **Red-team regression harness** added 2026-05-23: 27 adversarial tests over the 5-gate sequence (`tests/test_red_team_gates.py`). **Phase 6 bias audit** added 2026-05-23: periodic universe-side discovery-skew audit per Type 4 of `[[llm-financial-hallucination]]` (`tools/bias_audit.py` + `/bias-audit` slash command). **Phase 7 multi-agent debate (H1)** added 2026-05-25: `trade-skeptic` adversarial subagent + Gate 6 bull/bear synthesis (`tools/debate_synthesis.py`) emitting the H3 `SwingVerdict` enum (ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT); per-decision debate state at `ledgers/debate/<TICKER>-<DATE>.yml`. Phase 7 spec lives at `wiki/notes/swing-cherrypick-h1-design-spec.md` (vault). 46 modules + 376 tests in `tools/` and `tests/`:
 
 - **2.a SEPA-VCP pathway:** `compute_yoy`, `atr_compute`, `trend_template`, `regime_check`, `vcp_detect`, `stop_sizer`, `position_sizer`
 - **2.b EP pathway:** `prior_rally_pct`, `magna_score`, `ep_grade`, `earnings_calendar`, `ep_detect`, `day7_milestone_check`
@@ -203,14 +203,16 @@ prose. Source of truth: [`tools/README.md`](tools/README.md).
 - **Phase 3 staleness enforcement:** `freshness`, `stale_phrase_detector`, `ledger_freshness_audit`
 - **Phase 4 reasoning-trace verification:** `trace_validate`, `trace_rerun`, `claim_extract`, `trace_audit`
 - **Phase 6 bias audit (Type 4):** `bias_audit` — periodic universe-side discovery-skew audit (sector + market-cap distribution vs S&P 500 baseline). Monthly via `/bias-audit` slash command, or on-demand. Surfaces flagged buckets at |z| >= 2.0 over min sample of 30 candidates. Informational — never blocks trades.
+- **Phase 7 multi-agent debate (H1):** `debate_synthesis` — Gate 6 bull/bear synthesis. Composes the bull case from the candidate ledger (`setup_classification.grade` + `confluence_checklist.trace_refs`) and the bear case from the `trade-skeptic` Markdown's terminal ```json fragment. Resolves the H1-spec §6 decision table into an H3 `SwingVerdict` (ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT). Writes `ledgers/debate/<TICKER>-<DATE>.yml`. Two override paths: any `already_fired` risk trigger → REJECT; INVALIDATION_WEAK bear + A+/A bull grade + all 5 prior gates pass → ENTRY_STRONG floor. WATCH_BUILD_THESIS with `failure_mode: balanced_evidence_no_clear_stance` is NOT an entry.
 - **Phase 5.a walk-forward backtest (SEPA-VCP):** `backtest/data_cache`, `backtest/setup_replay`, `backtest/simulator`, `backtest/metrics`, `backtest/walk_forward`, `backtest/runner`
 - **Phase 5.b backtest extensions (4 more setups + 3 trail modes + rolling walk-forward):** `backtest/ep_replay`, `backtest/pullback_replay`, `backtest/rsi_div_replay`, `backtest/resistance_break_replay`, `backtest/trailing_stop`
 - **Phase 5.c backtest extensions (pyramiding + sell-aware exits):** `backtest/pyramid_simulator` (STARTER + Momentum-Burst ADD-ON #1 + Day-7 ADD-ON #2 with combined-BE stop migration + grade/regime gates), `backtest/sell_aware` (per-bar `sell_decision` composer over OHLCV-derivable detectors; new `--pyramid` and `--sell-aware` flags in runner)
 
-**Contract for `risk-and-compliance` pre-APPROVE (Phases 3 + 4):** before returning APPROVE, the subagent MUST run all three:
-1. `tools.ledger_freshness_audit.compute_from_path(<ledger>)` — any `overall: stale` → BLOCK
-2. `tools.trace_audit.compute_from_path(<ledger>, <researcher_report_path>)` — any `verdict.overall == "BLOCK"` → BLOCK
-3. `tools.stale_phrase_detector.assert_no_stale_phrases(<researcher_report_text>)` — any BLOCK match → BLOCK
+**Contract for `risk-and-compliance` pre-verdict (Phases 3 + 4 + 7):** before emitting a `SwingVerdict`, the subagent MUST run all four:
+1. `tools.ledger_freshness_audit.compute_from_path(<ledger>)` — any `overall: stale` → REJECT
+2. `tools.trace_audit.compute_from_path(<ledger>, <researcher_report_path>)` — any `verdict.overall == "BLOCK"` → REJECT
+3. `tools.stale_phrase_detector` on BOTH bull AND bear reports — any BLOCK match → REJECT
+4. `tools.debate_synthesis.compute_from_path(<ledger>, --bull <bull.md> --bear <bear.md>)` — composes the `SwingVerdict` (Phase 7, H1)
 
 `trace_audit` composes `trace_validate` (structural completeness + targeting), `trace_rerun` (pure-tool re-runs + OHLCV-tool shape checks), and `claim_extract` (prose↔ledger cross-reference, WARN-level).
 
@@ -286,11 +288,11 @@ this project should be aware of:
   ledger-slottable entry.
 - Library usage: `from tools.<name> import compute, compute_from_ticker`.
 
-Run the test suite before any tool change: `uv run pytest` (376 tests, ~1.5 s).
+Run the test suite before any tool change: `uv run pytest` (957 tests, ~15 s — count grows as new phases ship).
 
 ## Subagent Workflow
 
-Five specialized subagents handle the heavy lifting. All use the fact-ledger
+Six specialized subagents handle the heavy lifting. All use the fact-ledger
 + tools + audit infrastructure shipped in Phases 1-4 (where applicable).
 
 1. **`trade-researcher`** — given a ticker or theme, runs the relevant
@@ -300,19 +302,35 @@ Five specialized subagents handle the heavy lifting. All use the fact-ledger
    and returns a Markdown report whose every numerical claim mirrors a
    ledger field or trace step. Never recommends trades.
 
-2. **`risk-and-compliance`** — given a ledger path + proposed trade + portfolio
-   state, runs the five-gate verification sequence:
+2. **`trade-skeptic`** (shipped 2026-05-25, H1 of Phase 7) — adversarial
+   counterpart to `trade-researcher`. Reads the same candidate ledger,
+   uses the same deterministic tools, constructs the **invalidation
+   thesis** (conditions under which the long fails), and appends bear-side
+   `trace_refs` to that ledger. Emits `ledgers/candidates/YYYY-MM-DD/<TICKER>-bear.md`
+   with a structured JSON fragment the facilitator parses into the
+   debate-ledger `bear_case` block. Does NOT recommend shorts — the
+   question is "should we NOT take this long?" The H1 spec lives at
+   `wiki/notes/swing-cherrypick-h1-design-spec.md` (vault).
+
+3. **`risk-and-compliance`** — given a candidate ledger path + bull report
+   path + bear report path + proposed trade + portfolio state, runs the
+   **six-gate** verification sequence:
    1. `tools.ledger_freshness_audit` (Phase 3) — stale section → BLOCK
    2. `tools.trace_audit` (Phase 4) — empty trace_refs / divergent re-run → BLOCK
-   3. `tools.stale_phrase_detector` (Phase 3) on researcher prose → BLOCK
+   3. `tools.stale_phrase_detector` (Phase 3) on bull AND bear reports → BLOCK
    4. Hard-rule compliance via independent `tools.position_sizer` re-run
    5. Adversarial review (catalyst quality, correlation, thesis-horizon mismatch)
       against independent sources
+   6. **`tools.debate_synthesis` (Phase 7, H1)** — composes bull/bear cases into
+      the H3 `SwingVerdict` enum (ENTRY_STRONG / ENTRY_NORMAL /
+      WATCH_BUILD_THESIS / DEFER / REJECT); writes
+      `ledgers/debate/<TICKER>-<DATE>.yml`
 
-   Returns APPROVE / APPROVE-WITH-CONDITIONS / BLOCK. Adversarial by design;
-   mechanical gates run first.
+   Returns a `SwingVerdict` enum value. Adversarial by design;
+   mechanical gates run first. Legacy APPROVE / APPROVE-WITH-CONDITIONS / BLOCK
+   trio retired by H3.
 
-3. **`news-research`** (shipped 2026-05-23) — hourly news / price / analyst-action
+4. **`news-research`** (shipped 2026-05-23) — hourly news / price / analyst-action
    gatherer. Fires once per hour during US market hours via `/news-hourly`
    (Windows Task Scheduler). Four internal passes: Scout (per-ticker for
    watchlist + open positions, via finviz quote panels) → Top-movers (finviz
@@ -322,7 +340,7 @@ Five specialized subagents handle the heavy lifting. All use the fact-ledger
    pushes Telegram summary only when `material_deltas` non-empty. Does not
    modify fact ledgers — news is a parallel artifact, not per-trade-lifecycle.
 
-4. **`portfolio-manager`** (shipped 2026-05-23; sync mode added 2026-05-24) —
+5. **`portfolio-manager`** (shipped 2026-05-23; sync mode added 2026-05-24) —
    portfolio-wide assessment + retroactive onboarding + broker reconciliation.
    Three modes:
    - **`snapshot`** (read-only): reads `journal/positions.json` + per-position
@@ -348,7 +366,7 @@ Five specialized subagents handle the heavy lifting. All use the fact-ledger
    paste, or fall through to positions.json. `/p_s_sync` has no inline-positions
    input — the broker side is the live Tiger API.
 
-5. **`quant-strategist`** (shipped 2026-05-24, v1 = Clenow momentum) — sibling
+6. **`quant-strategist`** (shipped 2026-05-24, v1 = Clenow momentum) — sibling
    to `trade-researcher` for quantitative strategies. Architecture:
    `[[auto-research-loop]]` pattern over the Phase 5.a-c backtest harness.
    Strategy YAML at `tools/quant_strategies/*.yml` is the editable input;
@@ -358,10 +376,13 @@ Five specialized subagents handle the heavy lifting. All use the fact-ledger
    weekly rebalance, top-K rank by 90-day exponential regression slope × R²).
    Cross-sectional mean-reversion (Alvarez/Chan) queued as v1.1.
 
-`trade-researcher` and `portfolio-manager` write ledger YAML files (`Write`/`Edit`).
-`risk-and-compliance`, `news-research`, and `quant-strategist` write to their
-own artifacts only (verdict / news snapshot / backtest report respectively);
-none modify the per-trade fact ledgers. The main agent (the orchestrator that
+`trade-researcher`, `trade-skeptic`, and `portfolio-manager` write ledger YAML
+files (`Write`/`Edit`). `trade-skeptic` appends bear-side trace entries to the
+existing candidate ledger and writes its bear Markdown report alongside the bull
+report; it does NOT create a new candidate ledger. `risk-and-compliance`,
+`news-research`, and `quant-strategist` write to their own artifacts only
+(verdict + debate ledger / news snapshot / backtest report respectively); none
+overwrite the per-trade fact ledgers. The main agent (the orchestrator that
 invoked them) decides what to incorporate into the journal.
 
 ### Broker bridge — Tiger paper-trading (shipped 2026-05-24)

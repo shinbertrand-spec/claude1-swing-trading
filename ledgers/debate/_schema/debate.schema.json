@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude1.local/schemas/debate.schema.json",
+  "title": "Bull/bear debate ledger (Phase 7, H1)",
+  "description": "Per-decision debate state produced by the trade-researcher (bull) + trade-skeptic (bear) + risk-and-compliance Gate 6 (facilitator) triple. One file per <TICKER>-<DATE> at ledgers/debate/<TICKER>-<DATE>.yml. The candidate fact ledger at ledgers/candidates/YYYY-MM-DD/<TICKER>.yml is the per-trade source of truth; this debate ledger is a parallel artifact that references it via candidate_ledger_path and shares its reasoning_trace via trace_refs[].",
+  "type": "object",
+  "required": ["schema_version", "ticker", "date", "candidate_ledger_path", "bull_case", "bear_case", "debate_mode", "synthesis"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "description": "Debate-ledger schema version. Bump on structural change; existing ledgers stay on the version they were written under."
+    },
+    "ticker": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9.\\-]{0,9}$",
+      "description": "Uppercase ticker symbol. Matches the candidate ledger's meta.ticker."
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO-8601 date of the debate (the day the decision was synthesised). Used in the filename: <TICKER>-<DATE>.yml."
+    },
+    "candidate_ledger_path": {
+      "type": "string",
+      "description": "Relative path to the candidate fact ledger this debate references. e.g. ledgers/candidates/2026-05-25/CEG.yml. trace_refs[] integers index into that ledger's reasoning_trace."
+    },
+    "bull_case": { "$ref": "#/$defs/bull_case" },
+    "bear_case": { "$ref": "#/$defs/bear_case" },
+    "debate_mode": {
+      "enum": ["single_shot", "multi_turn"],
+      "description": "Debate orchestration mode. v1 commits to single_shot per H1 spec §5; the enum exists so a v2 can flip without a breaking change. multi_turn is NOT implemented in v1."
+    },
+    "synthesis": { "$ref": "#/$defs/synthesis" }
+  },
+
+  "$defs": {
+    "iso_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp with timezone."
+    },
+
+    "bull_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_path", "thesis_one_sentence", "trace_refs"],
+      "properties": {
+        "report_path": {
+          "type": "string",
+          "description": "Path to the trade-researcher Markdown report. e.g. ledgers/candidates/2026-05-25/CEG.md."
+        },
+        "thesis_one_sentence": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-sentence steelman of the long thesis."
+        },
+        "confluence_grade": {
+          "type": ["string", "null"],
+          "description": "Grade from setup_classification.grade (A+/A/B/C). null when no setup_classification is populated."
+        },
+        "trace_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "Integer IDs in the candidate ledger's reasoning_trace that support the bull thesis."
+        }
+      }
+    },
+
+    "bear_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_path", "verdict", "risk_triggers", "bull_counterpoints", "trace_refs"],
+      "properties": {
+        "report_path": {
+          "type": "string",
+          "description": "Path to the trade-skeptic Markdown report. e.g. ledgers/candidates/2026-05-25/CEG-bear.md."
+        },
+        "verdict": {
+          "enum": ["INVALIDATION_STRONG", "INVALIDATION_PARTIAL", "INVALIDATION_WEAK"],
+          "description": "Bear's own conviction strength. Distinct from synthesis.verdict (which is the H3 SwingVerdict the facilitator emits)."
+        },
+        "risk_triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/risk_trigger" },
+          "description": "3-7 mechanically-testable invalidation conditions per H1 spec §4."
+        },
+        "bull_counterpoints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/bull_counterpoint" },
+          "description": "Direct engagements with specific bull-report claims."
+        },
+        "trace_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "Top-level supporting trace IDs (in the candidate ledger's reasoning_trace) the bear case cites."
+        }
+      }
+    },
+
+    "risk_trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition", "trace_refs"],
+      "properties": {
+        "condition": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A condition testable from OHLCV / fundamentals / tool outputs. 'I have a bad feeling' is not a risk trigger."
+        },
+        "trace_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "already_fired": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this condition is already met at debate time. true → Gate 6 emits REJECT regardless of bull_strength per the edge-case rule in H1 spec §6."
+        }
+      }
+    },
+
+    "bull_counterpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bull_claim_quoted", "counter_evidence", "trace_refs"],
+      "properties": {
+        "bull_claim_quoted": { "type": "string", "minLength": 1 },
+        "counter_evidence": { "type": "string", "minLength": 1 },
+        "trace_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+
+    "synthesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["facilitator", "verdict", "rationale_one_paragraph", "bull_strength_score", "bear_strength_score", "decisive_evidence_trace_refs", "computed_at", "tool"],
+      "properties": {
+        "facilitator": {
+          "type": "string",
+          "description": "Subagent that composed the synthesis. Typically 'risk-and-compliance'."
+        },
+        "verdict": {
+          "enum": ["ENTRY_STRONG", "ENTRY_NORMAL", "WATCH_BUILD_THESIS", "DEFER", "REJECT"],
+          "description": "H3 SwingVerdict enum. Replaces the legacy APPROVE / APPROVE-WITH-CONDITIONS / BLOCK trio."
+        },
+        "rationale_one_paragraph": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bull_strength_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "bear_strength_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "decisive_evidence_trace_refs": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "Subset of the union of bull_case.trace_refs and bear_case.trace_refs that the facilitator considers decisive."
+        },
+        "failure_mode": {
+          "type": ["string", "null"],
+          "description": "Set when the facilitator could not reach a clear stance. e.g. 'balanced_evidence_no_clear_stance' for WATCH_BUILD_THESIS via the balanced-band rule."
+        },
+        "computed_at": { "$ref": "#/$defs/iso_timestamp" },
+        "tool": {
+          "type": "string",
+          "description": "Tool that wrote this synthesis. Typically 'tools/debate_synthesis.py'."
+        }
+      }
+    }
+  }
+}

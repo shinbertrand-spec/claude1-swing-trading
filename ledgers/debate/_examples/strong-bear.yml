@@ -1,0 +1,58 @@
+# Example debate ledger — Strong-bear synthesis (REJECT)
+#
+# This is an illustrative file, not real market data. The point is to
+# demonstrate the schema shape for a debate where the bull case is weak
+# and the bear constructs a strong invalidation thesis, including a
+# risk trigger that has ALREADY FIRED. Per H1 spec §6 edge case: any
+# risk_triggers[*].already_fired == true → REJECT regardless of
+# bull_strength.
+#
+# Path convention: ledgers/debate/<TICKER>-<DATE>.yml
+#
+# Schema: ../_schema/debate.schema.json
+
+schema_version: "1.0"
+ticker: XYZ
+date: "2026-05-25"
+candidate_ledger_path: ledgers/candidates/2026-05-25/XYZ.yml
+
+bull_case:
+  report_path: ledgers/candidates/2026-05-25/XYZ.md
+  thesis_one_sentence: "Stage-2 attempt on a mid-cap that just printed an EPS beat, narrow VCP."
+  confluence_grade: "C"
+  trace_refs: [4, 9]
+
+bear_case:
+  report_path: ledgers/candidates/2026-05-25/XYZ-bear.md
+  verdict: INVALIDATION_STRONG
+  risk_triggers:
+    - condition: "Price is already below the stop_sizer-suggested floor at $42.10"
+      trace_refs: [11]
+      already_fired: true
+    - condition: "Sector ETF is below 200-day MA — Stage 4 regime per sector_template"
+      trace_refs: [13]
+      already_fired: true
+    - condition: "Recent secondary offering 38 days ago — within the 60-day dilution disqualifier window"
+      trace_refs: [14]
+      already_fired: true
+  bull_counterpoints:
+    - bull_claim_quoted: "Stage-2 attempt on a mid-cap that just printed an EPS beat"
+      counter_evidence: "trend_template only 3/8 — Stage-2 criteria not actually met; the EPS beat occurred during a confirmed Stage-4 sector regime."
+      trace_refs: [10, 13]
+    - bull_claim_quoted: "Narrow VCP"
+      counter_evidence: "vcp_detect failed — final contraction is 18% wide vs the < 10% requirement; pattern is structurally broken."
+      trace_refs: [12]
+  trace_refs: [10, 11, 12, 13, 14]
+
+debate_mode: single_shot
+
+synthesis:
+  facilitator: risk-and-compliance
+  verdict: REJECT
+  rationale_one_paragraph: "Bull case grades C with two confluence items at most. Bear surfaces three already-fired risk triggers (price already below proposed stop, sector in Stage 4, recent dilution inside the 60-day disqualifier window). Per H1 spec §6 edge case: any already_fired risk trigger → REJECT regardless of bull strength. The vcp_detect failure independently invalidates the setup classification."
+  bull_strength_score: 2
+  bear_strength_score: 9
+  decisive_evidence_trace_refs: [11, 12, 13, 14]
+  failure_mode: null
+  computed_at: "2026-05-25T14:20:00-04:00"
+  tool: tools/debate_synthesis.py

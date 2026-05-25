@@ -73,7 +73,7 @@ Inputs the caller provides:
 
 ## Verification — the mandatory sequence
 
-**Run these three gates IN ORDER before anything else.** Any FAIL → BLOCK. Do not skip a gate to save tokens. Do not summarise pass-status without showing the gate output.
+**Run six gates IN ORDER.** Gates 1-3 are mechanical pre-checks; any FAIL → REJECT. Gate 4 is hard-rule compliance; FAIL → REJECT. Gate 5 is adversarial review (your judgment over the tools). Gate 6 is bull/bear debate synthesis (Phase 7, H1) — composes the H3 SwingVerdict enum. Do not skip a gate to save tokens. Do not summarise pass-status without showing the gate output.
 
 ### Gate 1 — Ledger freshness audit (Requirement 4)
 
@@ -100,15 +100,16 @@ uv run python -m tools.trace_audit <ledger path> [--report <report path>]
 
 `warn_reasons` (uncited steps, prose claims without ledger match, **all-UNKNOWN confluence checklists**) → APPROVE-WITH-CONDITIONS at most; surface every warning. The `all_unknown_confluence` warning (added 2026-05-23) means the agent is making a load-bearing classification with zero evidence — request resolution or downgrade.
 
-### Gate 3 — Stale-phrase scan on the researcher report (Requirement 4)
+### Gate 3 — Stale-phrase scan on BOTH reports (Requirement 4)
 
-If a report path is provided:
+Post-H1: run the scan on the bull (trade-researcher) report AND the bear (trade-skeptic) report. A BLOCK on either is a Gate 3 BLOCK.
 
 ```
-uv run python -m tools.stale_phrase_detector <report path>
+uv run python -m tools.stale_phrase_detector <bull report path>
+uv run python -m tools.stale_phrase_detector <bear report path>
 ```
 
-`output.should_block: true` → BLOCK with the specific pattern + line number. These phrases (e.g. "as of late 2024", "I don't have access to real-time") imply the researcher leaned on pre-training data rather than the live ledger; per doctrine that's unfaithful per se.
+`output.should_block: true` on either → BLOCK with the specific pattern + line number + which report tripped it. These phrases (e.g. "as of late 2024", "I don't have access to real-time") imply the researcher leaned on pre-training data rather than the live ledger; per doctrine that's unfaithful per se. Bear reports are subject to the same discipline as bull reports — the skeptic is not exempt.
 
 ### Gate 4 — Hard-rule compliance (CLAUDE.md)
 
@@ -154,6 +155,80 @@ Only after Gates 1-4 pass mechanically, your judgment adds value where:
 
 Use WebSearch for adversarial fact-checks against **different domains** than the researcher cited (record those as your own `manual:web:*` provenance in your verdict).
 
+### Gate 6 — Bull/bear synthesis (Requirement 5, H1)
+
+Only after Gates 1-5 pass. Inputs:
+- Bull report path (the trade-researcher Markdown)
+- Bear report path (the trade-skeptic Markdown, with the structured JSON fragment at end)
+- The candidate ledger path
+
+Run:
+
+    uv run python -m tools.debate_synthesis <candidate.yml> --bull <bull.md> --bear <bear.md>
+
+The tool:
+1. Parses the bear's terminal JSON fragment into the `bear_case` block.
+2. Extracts the bull's grade + confluence checklist from the candidate ledger
+   into the `bull_case` block.
+3. Composes the debate-ledger object per `ledgers/debate/_schema/debate.schema.json`.
+4. Computes `synthesis.verdict` via the decision table below.
+5. Writes `ledgers/debate/<TICKER>-<DATE>.yml`.
+6. Returns the TraceEntry; you append it to the candidate ledger AND cite the
+   debate-ledger path in your verdict output.
+
+#### Decision table — bull_strength × bear_strength → H3 SwingVerdict
+
+The facilitator scores bull_strength 0-10 and bear_strength 0-10 against
+the 5-gate output, the candidate ledger's confluence checklist, and the
+bear's risk-trigger conditions. Map:
+
+| Bull | Bear | Verdict             |
+|------|------|---------------------|
+| ≥8   | ≤3   | ENTRY_STRONG        |
+| ≥6   | ≤5   | ENTRY_NORMAL        |
+| 4-7  | 4-7  | WATCH_BUILD_THESIS  |   ← reserve for genuinely balanced
+| ≤5   | ≥6   | DEFER               |
+| ≤3   | ≥8   | REJECT              |
+
+Edge cases:
+- Bear's risk_triggers include a condition that has ALREADY FIRED (e.g. price
+  already below the stated stop): → REJECT regardless of bull_strength
+- Bear `verdict: INVALIDATION_WEAK` AND bull A+/A grade AND all Gates 1-5
+  pass: → ENTRY_STRONG candidate (still scored, but the floor is high)
+- All 5 prior gates would have APPROVED but Gate 6 produces WATCH_BUILD_THESIS:
+  do NOT enter. The middle bucket is reserve-for-balanced, not "approve with
+  reservations" — that's what APPROVE-WITH-CONDITIONS pre-H3 was, and H3
+  intentionally retired that bucket. Per the TradingAgents research_manager.py
+  discipline: "reserve Hold for situations where the evidence on both sides is
+  genuinely balanced."
+
+#### Failure mode — facilitator can't reach a clear stance
+
+If bull_strength and bear_strength differ by ≤ 2 AND are both in the 4-7
+band, emit `WATCH_BUILD_THESIS` with:
+- `failure_mode: balanced_evidence_no_clear_stance`
+- `synthesis.rationale_one_paragraph`: explicit note that the debate did not
+  produce a decisive case either way; the candidate goes to watchlist for
+  re-evaluation if either the bull case strengthens or a risk-trigger fires
+
+WATCH_BUILD_THESIS is NOT an entry. It is a deferred re-look on the next
+trading day with fresh data.
+
+#### Gate 6 output appended to the verdict
+
+Add a § "Gate 6 — bull/bear synthesis" block to the verification-mode output:
+
+    Gate 6 (debate_synthesis):
+      bull_strength: 7
+      bear_strength: 4
+      verdict: ENTRY_NORMAL
+      debate_ledger: ledgers/debate/CEG-2026-05-25.yml
+      rationale: <one paragraph>
+
+The final §4 "Verdict" line is now an H3 SwingVerdict enum value, not the
+legacy APPROVE / APPROVE-WITH-CONDITIONS / BLOCK. H3 owns this migration; H1
+emits the new enum.
+
 ## Verification-mode output — in exactly this order
 
 ### 1. Mechanical gate results
@@ -161,8 +236,9 @@ Use WebSearch for adversarial fact-checks against **different domains** than the
 ```
 Gate 1 (ledger_freshness_audit): <PASS|FAIL> — <one-line reason>
 Gate 2 (trace_audit):            <PASS|FAIL> — <one-line reason>
-Gate 3 (stale_phrase_detector):  <PASS|FAIL|SKIPPED> — <one-line reason>
+Gate 3 (stale_phrase_detector):  <PASS|FAIL|SKIPPED> — <one-line reason> (on BOTH bull and bear reports)
 Gate 4 (hard-rule compliance):   <PASS|FAIL|EDGE_CASE> per rule
+Gate 6 (debate_synthesis):       <SwingVerdict> — <one-line reason>
 ```
 
 Show the math for any FAIL or EDGE_CASE; don't equivocate. A 9% stop "feels reasonable" but FAILS the 8% rule.
@@ -190,11 +266,17 @@ Restate the researcher's risks; judge severity (low/medium/high); add any concer
 
 ### 4. Verdict
 
+Post-H1 (Phase 7), the verdict is the H3 :class:`SwingVerdict` enum emitted by Gate 6 — the legacy APPROVE / APPROVE-WITH-CONDITIONS / BLOCK trio is retired.
+
 One of:
 
-* **APPROVE** — all five gates pass, no high-severity concerns
-* **APPROVE-WITH-CONDITIONS** — all BLOCK gates pass; one or more WARNINGS or low/medium-severity concerns the caller must address (numbered list)
-* **BLOCK** — at least one mechanical gate FAILed OR at least one fact is ❌ contradicted OR at least one high-severity concern
+* **ENTRY_STRONG** — Gate 6 emits ENTRY_STRONG (or the A+/INVALIDATION_WEAK floor override fires). All prior gates pass; bull dominates.
+* **ENTRY_NORMAL** — Gate 6 emits ENTRY_NORMAL. Bull case is solid; bear case is partial.
+* **WATCH_BUILD_THESIS** — Gate 6 emits WATCH_BUILD_THESIS. Genuinely balanced; **do NOT enter**. Re-evaluate next trading day with fresh data.
+* **DEFER** — Gate 6 emits DEFER. Bear dominates; don't enter today but the candidate is not structurally broken.
+* **REJECT** — at least one mechanical gate (1-4) FAILed OR Gate 6 emits REJECT (already-fired risk trigger OR strong-bear dominance) OR at least one fact is ❌ contradicted.
+
+If Gates 1-5 BLOCK before Gate 6 runs, surface REJECT with the failing-gate citation; Gate 6 is skipped.
 
 One-sentence reason.
 

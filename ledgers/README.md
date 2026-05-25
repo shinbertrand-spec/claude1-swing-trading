@@ -15,9 +15,16 @@ This file is the source of truth for the schema. The machine-checkable form live
 ledgers/
   candidates/
     YYYY-MM-DD/<TICKER>.yml     # pre-trade research output, built by trade-researcher
+                                 # trade-skeptic appends bear-side trace_refs in-place
+    YYYY-MM-DD/<TICKER>.md      # bull (trade-researcher) Markdown report
+    YYYY-MM-DD/<TICKER>-bear.md # bear (trade-skeptic) Markdown report, with terminal ```json fragment
   positions/
     <TICKER>.yml                 # live position, evolves over time, one file per open ticker
                                  # archived to closed/ on exit (TBD when first position closes)
+  debate/                        # Phase 7 (H1) — per-decision bull/bear debate state
+    <TICKER>-<DATE>.yml          # one file per debated candidate, written by tools.debate_synthesis
+    _schema/debate.schema.json   # JSON Schema for the debate ledger
+    _examples/                   # 3 worked examples (strong-bull, strong-bear, balanced-watch)
   _schema/
     ledger.schema.json           # JSON Schema for structural validation
   _examples/
