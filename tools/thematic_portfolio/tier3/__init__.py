@@ -20,12 +20,14 @@ V1 ships:
   uranium ETFs + WTI crude + utility ETFs as the no-key power-price proxy)
   via yfinance. Aggregate ``thesis_signal`` classifies the AI-power-cost
   pull as supportive / mixed / weakening / no_data.
+* :mod:`tools.thematic_portfolio.tier3.semiconductor_inventory` — two-source
+  v2 (v1 was rejected — TrendForce / DRAMeXchange paywalled): momentum
+  (yfinance) on 6 semis names + ETFs, combined with inventory days +
+  QoQ inventory change (edgartools 10-Q) for the US-listed subset
+  (NVDA / AMD / MU). Aggregate ``thesis_signal`` classifies chip supply
+  as chip_supply_tight / chip_supply_loose / mixed / no_data — bears on
+  the SA LP put-complex thesis from the supply side.
 
-Deferred to followup sessions:
-
-* ``semiconductor_inventory.py`` — DRAM / HBM / lead-time pricing signals
-  that bear on the SA LP put-complex thesis. Most useful data is behind
-  trade-publication paywalls (TrendForce / DRAMeXchange); v2 will need
-  a different source strategy.
+All four Tier 3 slots now shipped.
 """
 from __future__ import annotations
