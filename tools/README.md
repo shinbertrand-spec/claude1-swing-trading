@@ -130,12 +130,13 @@ Lives in [`thematic_portfolio/`](thematic_portfolio/). Sibling axis to the swing
 | [`thematic_portfolio/corpus/manifest.py`](thematic_portfolio/corpus/manifest.py) | corpus_snapshot composer — walks `ledgers/thematic/corpus/` and packages per-slot paths + recent-artifacts list since prior Loop 1 firing | Loop 1 input bundle prep |
 | [`thematic_portfolio/artifact_classifier.py`](thematic_portfolio/artifact_classifier.py) | Substantive-artifact pre-filter (Tier 1 auto-trigger + Tier 3 hard-excludes) + LLM-verdict finalizer + 3/wk rate limit + mandatory-escalation override + firing-log state I/O. Paired with the `thematic-artifact-classifier` Haiku subagent for ambiguous Tier 2/2.5 boundary cases. | `/thematic-portfolio` orchestrator — decides whether incoming artifacts fire Loop 1 |
 | [`thematic_portfolio/orchestrator.py`](thematic_portfolio/orchestrator.py) | Loop 1 input-bundle composer + critic-panel aggregator. `compose_loop1_input_bundle()` builds the dict the Loop 1 prompt's "Input contract" expects; `aggregate_critic_outputs()` applies panel rules (structural_risk OR minus_50 → hold; ≥2 minus_20 → weighted reduction; else preserve); `apply_aggregation_to_positions()` walks both. | `/thematic-portfolio` slash command — composition + post-critic aggregation |
+| [`thematic_portfolio/put_overlay.py`](thematic_portfolio/put_overlay.py) | Loop 3 short-overlay recommendation. Computes SA LP barbell ratio (put_complex_notional / long_book_value), caps cash-raise at 50% reduction; NVDA-only 1-2% portfolio-insurance leg with hard refusals on SMH puts (Week 1c spread quality) + SA LP put-complex replication (institutional-only). Light Street chip-exposure cross-reference signal. | Loop 1's `short_overlay_bias_flag` block when `fired: true` |
 
 Per session-2 design change #6: specific position-fund pairs in design notes are illustrative-only — these tools accept live 13F data per cycle, no constant encodes a specific pair. Per #4: ensemble triangulation is rank-based, NOT notional (Light Street $0.50B vs Coatue $29.06B would drown otherwise).
 
 M2 (critic-outcome alignment over rolling 4q) deferred — requires 4 quarters of accumulated Loop 1 critic decision history; lands in Weeks 5-8 paper-trade phase.
 
-Not yet built: X-timeline fetcher (twitterapi.io, blocked on Bertrand account creation), podcast RSS + Whisper transcription, press feed RSS parsers, Tier 3 real-world signal compilers, put-overlay tracker, kill-switch Process B monitor.
+Not yet built: X-timeline fetcher (twitterapi.io, blocked on Bertrand account creation), podcast RSS + Whisper transcription, press feed RSS parsers, Tier 3 real-world signal compilers, kill-switch Process B monitor.
 
 ## I/O contract
 
