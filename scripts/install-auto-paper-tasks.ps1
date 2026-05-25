@@ -40,14 +40,27 @@
 param(
     [string]$ProjectRoot          = "C:\Users\User\Desktop\Claude1",
     [string]$EntryLocalTime       = "9:35 AM",
+    [int]   $EntryDayOffset       = 0,
     [string]$MonitorStartLocalTime= "10:00 AM",
     [string]$MonitorEndLocalTime  = "3:30 PM",
     [int]   $MonitorRepeatMinutes = 30,
+    [int]   $MonitorDayOffset     = 0,
     [string]$ReconcileLocalTime   = "4:30 PM",
+    [int]   $ReconcileDayOffset   = 0,
     [string]$EntryTaskName        = "ClaudeTradingAutoPaperEntry",
     [string]$MonitorTaskName      = "ClaudeTradingAutoPaperMonitor",
     [string]$ReconcileTaskName    = "ClaudeTradingAutoPaperReconcile"
 )
+
+# DayOffset: shifts the Mon-Fri trigger forward by N days. Use when your local
+# time is east of ET and a US trading day's slash command fires in your
+# overnight or next-morning. Example for Singapore (SGT, UTC+8) during EDT
+# (May-Nov, UTC-4 — 12 hours behind SGT):
+#   - Entry: 9:35 AM ET = 9:35 PM SGT same day. EntryDayOffset = 0.
+#   - Monitor: 10:00 AM ET = 10:00 PM SGT same-day start. MonitorDayOffset = 0.
+#       (Monitor's repetitions DO cross midnight; script handles that below.)
+#   - Reconcile: 4:30 PM ET = 4:30 AM SGT *next* day → fires Tue-Sat SGT for
+#       ET Mon-Fri. ReconcileDayOffset = 1.
 
 $ErrorActionPreference = "Stop"
 
@@ -110,19 +123,34 @@ function New-AutoPaperSettings {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 20)
 }
 
+function Get-WeekdayNamesShifted {
+    # Return Mon-Fri shifted forward by $Offset days. Used to derive the
+    # correct local trigger days when the US trading day's slash command
+    # fires in the local next-day overnight (e.g. SGT reconcile).
+    param([int]$Offset = 0)
+
+    $allDays = @("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+    # Mon=1..Fri=5 in $allDays indexing.
+    $baseIdx = 1,2,3,4,5
+    return $baseIdx | ForEach-Object { $allDays[($_ + $Offset) % 7] }
+}
+
 function Register-AutoPaperTaskOnce {
     # Once-per-weekday at a specific local time.
     param(
         [string]$Name,
         [string]$SlashCommand,
         [string]$LocalTime,
-        [string]$Description
+        [string]$Description,
+        [int]   $DayOffset = 0
     )
+
+    $days = Get-WeekdayNamesShifted -Offset $DayOffset
 
     $action = New-AutoPaperAction -SlashCommand $SlashCommand
     $trigger = New-ScheduledTaskTrigger `
         -Weekly `
-        -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday `
+        -DaysOfWeek $days `
         -At $LocalTime
 
     $existing = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
@@ -139,34 +167,42 @@ function Register-AutoPaperTaskOnce {
         -Settings (New-AutoPaperSettings) `
         -Description $Description | Out-Null
 
-    Write-Output "  Registered: $Name @ $LocalTime (Mon-Fri)"
+    $dayList = ($days -join ",")
+    Write-Output "  Registered: $Name @ $LocalTime ($dayList)"
 }
 
 function Register-AutoPaperTaskRepeating {
     # Repeat every N minutes between StartLocalTime and EndLocalTime on weekdays.
     # Implemented as: a Weekly trigger at StartLocalTime, configured to repeat
     # every $RepeatMinutes for the duration (EndLocalTime - StartLocalTime).
+    # When EndLocalTime <= StartLocalTime, the window is assumed to cross
+    # midnight (end is on the next calendar day) — needed for SGT/HKT etc.
+    # where the US session falls in local overnight.
     param(
         [string]$Name,
         [string]$SlashCommand,
         [string]$StartLocalTime,
         [string]$EndLocalTime,
         [int]   $RepeatMinutes,
-        [string]$Description
+        [string]$Description,
+        [int]   $DayOffset = 0
     )
 
     $startDt = [DateTime]::Parse($StartLocalTime)
     $endDt   = [DateTime]::Parse($EndLocalTime)
     if ($endDt -le $startDt) {
-        throw "End time ($EndLocalTime) must be after start time ($StartLocalTime)"
+        # Cross-midnight window — interpret end as next calendar day.
+        $endDt = $endDt.AddDays(1)
     }
     $duration = $endDt - $startDt
+
+    $days = Get-WeekdayNamesShifted -Offset $DayOffset
 
     $action = New-AutoPaperAction -SlashCommand $SlashCommand
 
     $trigger = New-ScheduledTaskTrigger `
         -Weekly `
-        -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday `
+        -DaysOfWeek $days `
         -At $StartLocalTime
     $trigger.Repetition = (New-ScheduledTaskTrigger `
         -Once -At $StartLocalTime `
@@ -187,7 +223,9 @@ function Register-AutoPaperTaskRepeating {
         -Settings (New-AutoPaperSettings) `
         -Description $Description | Out-Null
 
-    Write-Output "  Registered: $Name @ $StartLocalTime, every ${RepeatMinutes}min until $EndLocalTime (Mon-Fri)"
+    $dayList = ($days -join ",")
+    $durMsg = if ($endDt.Date -gt $startDt.Date) { "until $EndLocalTime next day" } else { "until $EndLocalTime" }
+    Write-Output "  Registered: $Name @ $StartLocalTime, every ${RepeatMinutes}min $durMsg ($dayList)"
 }
 
 # ---------------- install all three ------------------------------------------
@@ -200,6 +238,7 @@ Register-AutoPaperTaskOnce `
     -Name $EntryTaskName `
     -SlashCommand "/auto-paper" `
     -LocalTime $EntryLocalTime `
+    -DayOffset $EntryDayOffset `
     -Description "Claude Code autonomous paper-trade entry: picks from morning-scan candidates, places via Tiger paper API"
 
 Register-AutoPaperTaskRepeating `
@@ -208,12 +247,14 @@ Register-AutoPaperTaskRepeating `
     -StartLocalTime $MonitorStartLocalTime `
     -EndLocalTime $MonitorEndLocalTime `
     -RepeatMinutes $MonitorRepeatMinutes `
+    -DayOffset $MonitorDayOffset `
     -Description "Claude Code paper-auto intraday monitor: per-bar sell-decision composer auto-exit for starter-state positions"
 
 Register-AutoPaperTaskOnce `
     -Name $ReconcileTaskName `
     -SlashCommand "/auto-paper-reconcile" `
     -LocalTime $ReconcileLocalTime `
+    -DayOffset $ReconcileDayOffset `
     -Description "Claude Code paper-auto EOD reconcile: pulls filled orders, updates submitted-state ledgers to starter/closed, auto-places broker-side stop on starter transition"
 
 Write-Output ""
