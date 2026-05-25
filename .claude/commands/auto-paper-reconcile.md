@@ -31,6 +31,7 @@ The module:
    - **no_match** → no order at Tiger at all (manually cancelled outside framework)
    - **error** → broker call or ledger-write failed; surface for manual fix
 4. Updates the ledger (re-validates against schema) + positions.json entry
+5. **On `filled` or `partial` (Session 3): auto-places a broker-side STP SELL** via `TigerClient.place_stop_loss` at the ledger's `stop_price`, sized to the **actual filled quantity** (not requested — partial fills get a smaller stop). The resulting broker order ID is recorded on `position_state.stop_order_id`. Stop-placement failures are non-fatal: the submitted→starter transition stays committed, and the next reconcile re-attempts (idempotent — skips if `stop_order_id` is already set). `ReconcileResult.stop_order_id` + `stop_place_error` surface what happened.
 
 If no positions are in `submitted` state, the reconciler returns `[]` and the command exits with `AUTO_PAPER_RECONCILE_NOTHING_PENDING`.
 
@@ -75,8 +76,9 @@ For these three classes, append a short "what to look at" block.
 - **Real-run is NOT idempotent.** Once a ledger is moved to `starter`, a second reconcile won't re-match (the position is no longer in `submitted` state). The reconciler only acts on `submitted`-state positions.
 - **No trade recommendations.** This is bookkeeping, not portfolio management. `/p_s` or `/p_s_sync` for state inspection; `/auto-paper` for new entries.
 
-## What's NOT done by this command (deferred to sessions 3-4)
+## What's NOT done by this command
 
-- **Placing broker-side stops once filled** — session 3 ships OCA stop+target groups that fire automatically when a `submitted` → `starter` transition happens. For now, the stop is a number in the ledger; not at the broker.
-- **Per-bar sell-decision composer auto-exit** — session 3.
-- **Performance scoring** — `/auto-paper-perf` ships in session 4 (realized vs backtest expectation).
+- **Per-bar sell-decision composer auto-exit** — that's `/auto-paper-monitor` (Session 3). Runs every 30 min during the session and exits via the four OHLCV-derivable sell-discipline detectors.
+- **Performance scoring** — `/auto-paper-perf` (Session 4). Realized vs backtest expectation.
+- **OCA stop+target groups** — Session 3 places a plain STP SELL only; bracket-style OCA with a profit target leg is deferred (Tiger's OCA primitive needs more SDK plumbing than the MVP needs).
+- **Trailing stop ratchet** — the broker stop sits at the original `stop_price`. Tightening as the position moves favorably is post-MVP.

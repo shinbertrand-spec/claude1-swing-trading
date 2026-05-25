@@ -1,5 +1,5 @@
 ---
-description: /auto-paper — autonomous paper-trading entry. Reads today's morning-scan candidates, filters to deployable setups (tools/deployable_setups.yml), runs the 5-gate compliance per candidate, sizes via tools.position_sizer against the Tiger paper account, auto-places limit-buy orders via TigerClient, writes to a PARALLEL ledger track (ledgers/paper-auto/<TICKER>.yml + journal/paper-auto/positions.json) that's separate from the human-discretionary track. Paper-only — refuses live. Supports --dry-run. Session 1 scope - entry only; EOD reconciliation and broker-side stops are subsequent sessions.
+description: /auto-paper — autonomous paper-trading entry. Reads today's morning-scan candidates, filters to deployable setups (tools/deployable_setups.yml), runs the 5-gate compliance per candidate, sizes via tools.position_sizer against the Tiger paper account, auto-places limit-buy orders via TigerClient, writes to a PARALLEL ledger track (ledgers/paper-auto/<TICKER>.yml + journal/paper-auto/positions.json) that's separate from the human-discretionary track. Paper-only — refuses live. Supports --dry-run. Pair with /auto-paper-monitor (intraday exits) and /auto-paper-reconcile (EOD fills + stops); see /auto-paper-perf for realized vs backtest scoring.
 ---
 
 # /auto-paper — Autonomous Paper-Trading (Entry Pipeline)
@@ -131,14 +131,17 @@ Output (and reply via Telegram if invoked from a Telegram session):
 - Cost basis of new placements: $W
 ```
 
-## Step 5 — What's NOT done by this command (Session 1)
+## Step 5 — Companion commands in the auto-paper loop
 
-- **EOD reconciliation** — actual fill prices for placed orders are NOT yet written back. Session 2 ships a `/auto-paper-reconcile` command that pulls `TigerClient.get_filled_orders()` and updates each ledger's `fill_price` to the broker's `avg_fill_price`.
-- **Broker-side stops** — the stop is recorded in the ledger but NO stop-loss order is placed at Tiger. Session 3 ships the OCA stop+target group.
-- **Per-bar sell-decision auto-exit** — Session 3.
-- **Performance dashboard** — Session 4.
+This command handles entry only. The rest of the lifecycle is owned by sibling commands:
 
-For Session 1, after running this command, **manually monitor fills via `/p_s_sync --include-orders`** (or pull `TigerClient.open_orders()` directly).
+- **`/auto-paper-reconcile`** (default 4:30 PM ET) — pulls `TigerClient.get_filled_orders()`, updates each ledger's `fill_price` to the broker's `avg_fill_price`, transitions `submitted` → `starter` (or → `closed` for DAY-expired), and **places a broker-side STP SELL at the ledger's `stop_price`** sized to filled qty.
+- **`/auto-paper-monitor`** (default every 30 min, 10 AM – 3:30 PM ET) — per-bar sell-decision composer over `starter` positions; on a non-hold action places a limit-sell and cancels the resting stop.
+- **`/auto-paper-perf`** (on demand) — realized vs backtest expectation across the closed paper-auto track.
+
+Install the full cron loop with `.\scripts\install-auto-paper-tasks.ps1`. For monitoring in-flight today, `/p_s_sync --include-orders` shows open Tiger orders that haven't reconciled yet.
+
+**v1 simplifications:** partial sells from the composer close the whole position; no live trailing stop ratchet; PE-expansion warning hardcoded False (no fundamentals source); STP SELL only (no OCA bracket).
 
 ## Guardrails
 

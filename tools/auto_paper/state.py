@@ -218,3 +218,40 @@ def load_positions_json() -> dict[str, Any]:
         return {"positions": []}
     with open(PAPER_AUTO_POSITIONS_JSON, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def record_stop_order_id(ticker: str, stop_order_id: int) -> str:
+    """Record the broker stop-loss order ID on the paper-auto ledger.
+
+    Called after a successful ``TigerClient.place_stop_loss`` so that the
+    next reconcile run (or monitor run) can match / cancel the stop without
+    double-placing.
+
+    Writes to ``position_state.stop_order_id`` — added to the schema in
+    Session 3. Re-validates the doc before writing.
+
+    Returns:
+        The ledger path that was updated.
+
+    Raises:
+        PaperAutoStateError: if the ledger doesn't exist or fails revalidation.
+    """
+    p = ledger_path(ticker)
+    if not os.path.isfile(p):
+        raise PaperAutoStateError(f"no paper-auto ledger for {ticker}")
+
+    with open(p, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh) or {}
+
+    ps = doc.setdefault("position_state", {})
+    ps["stop_order_id"] = int(stop_order_id)
+
+    doc.setdefault("meta", {})
+    doc["meta"]["updated_by"] = "auto_paper/reconcile"
+    doc["meta"]["updated_at"] = _now_iso()
+
+    _validate_against_schema(doc)
+
+    with open(p, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+    return p

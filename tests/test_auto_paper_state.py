@@ -145,3 +145,21 @@ def test_load_positions_json_empty_missing(paper_dirs):
     """When the file doesn't exist, returns an empty positions index (no raise)."""
     data = state.load_positions_json()
     assert data == {"positions": []}
+
+
+def test_record_stop_order_id_writes_field(paper_dirs):
+    """Session 3 — state.record_stop_order_id persists position_state.stop_order_id."""
+    state.write_submitted_ledger(
+        ticker="NVDA", setup_type="EP", setup_grade="Swan",
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        shares=10, broker_order_id=10001, broker="tiger_paper",
+    )
+    path = state.record_stop_order_id("NVDA", stop_order_id=55_555)
+    doc = yaml.safe_load(open(path))
+    assert doc["position_state"]["stop_order_id"] == 55_555
+    assert doc["meta"]["updated_by"] == "auto_paper/reconcile"
+
+
+def test_record_stop_order_id_missing_ledger(paper_dirs):
+    with pytest.raises(state.PaperAutoStateError, match="no paper-auto ledger"):
+        state.record_stop_order_id("MISSING", stop_order_id=1)

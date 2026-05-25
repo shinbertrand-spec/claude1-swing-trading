@@ -359,6 +359,10 @@
           "description": "Weighted-average entry across all filled legs. The stop after ADD-ON #1 migrates to this value. Computed by tools/combined_breakeven.py in Phase 2."
         },
         "current_stop": { "type": "number", "exclusiveMinimum": 0 },
+        "stop_order_id": {
+          "type": "integer",
+          "description": "Broker-side global order ID for the active protective stop, when one is resting at the broker. Populated by tools.auto_paper.reconcile after submitted->starter transition (Session 3); cleared by tools.auto_paper.exits when the position closes and the stop is cancelled. Absent for human-track positions or paper-auto positions before a stop has been placed."
+        },
         "trail_ma": {
           "enum": ["lows_of_day", "5_day_MA", "10_day_MA", "20_day_MA", "50_day_MA", "combined_breakeven"],
           "description": "Trailing mechanism currently in force. Tightens over time per swing-momentum-execution stop-migration table; never widens."

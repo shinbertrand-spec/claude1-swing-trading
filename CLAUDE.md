@@ -430,31 +430,57 @@ validation of deployable strategies:
    "paper-auto"` (additive schema changes; older ledgers validate
    unchanged).
 
-**Scope progression:**
-- Session 1 (shipped 2026-05-24): entry pipeline; `submitted` state writes.
-- Session 2 (shipped 2026-05-24): EOD reconciliation
+**Scope progression — ALL FOUR SESSIONS SHIPPED 2026-05-24/25:**
+- Session 1: entry pipeline; `submitted` state writes.
+- Session 2: EOD reconciliation
   (`tools.auto_paper.reconcile.reconcile_today()` pulls filled + open orders
   from Tiger, matches by `broker_order_id`, transitions ledger state:
   `submitted` → `starter` on full / partial fill, → `closed` on
-  DAY-expired). Slash command `/auto-paper-reconcile` + Task Scheduler
-  installer `scripts/install-auto-paper-tasks.ps1` (registers entry at
-  9:35 AM ET + reconcile at 4:30 PM ET, Mon-Fri).
-- Session 3: broker-side stop orders (OCA stop+target groups); per-bar
-  sell-decision composer firing real exits.
-- Session 4: performance dashboard — realized vs backtest expectation.
+  DAY-expired). Slash command `/auto-paper-reconcile`.
+- Session 3: **broker-side stop orders** (plain STP SELL placed at
+  ledger `stop_price` sized to filled qty, on `submitted` → `starter`
+  transition; OCA bracket deferred) + **per-bar sell-decision composer
+  auto-exit** (`tools.auto_paper.exits.evaluate_exits()` composes 4
+  OHLCV-derivable sell-discipline detectors over each `starter` position;
+  on non-hold action, places limit-sell at bid − 0.1%, cancels resting
+  stop, transitions to `closed`). Slash command `/auto-paper-monitor`.
+  Schema bump: `position_state.stop_order_id` (optional int).
+- Session 4: **performance dashboard** (`tools.auto_paper.performance`)
+  reads closed paper-auto ledgers, computes realized TradeStats + ReturnStats
+  (reuses `tools.backtest.metrics`), compares against backtest expectations
+  from `tools/deployable_setups.yml` with a three-band status flag
+  (ok / warn / fail per 25%/50% Sharpe tolerance + n≥30 verdict threshold).
+  `compute_open_pnl()` pulls live unrealized P&L from Tiger. Slash command
+  `/auto-paper-perf`.
 
-**Cron wiring (Session 2):** `scripts/install-auto-paper-tasks.ps1`
-registers two Windows Task Scheduler jobs:
+**Cron wiring:** `scripts/install-auto-paper-tasks.ps1` registers THREE
+Windows Task Scheduler jobs:
 
 | Task | Fires | Slash command |
 |---|---|---|
 | `ClaudeTradingAutoPaperEntry` | 9:35 AM ET, Mon-Fri | `/auto-paper` |
+| `ClaudeTradingAutoPaperMonitor` | every 30 min, 10:00 AM – 3:30 PM ET, Mon-Fri | `/auto-paper-monitor` |
 | `ClaudeTradingAutoPaperReconcile` | 4:30 PM ET, Mon-Fri | `/auto-paper-reconcile` |
 
-Both self-gate inside the slash command (no candidates → exit clean; no
-pending → exit clean), so over-firing on holidays is harmless. Install
-with `.\scripts\install-auto-paper-tasks.ps1` (defaults assume US Eastern;
-override `-EntryLocalTime` and `-ReconcileLocalTime` for other zones).
+All three self-gate inside the slash command (no candidates → exit clean;
+no `starter` positions → exit clean; no `submitted` positions → exit
+clean), so over-firing on holidays is harmless. Install with
+`.\scripts\install-auto-paper-tasks.ps1` (defaults assume US Eastern;
+override `-EntryLocalTime` / `-MonitorStartLocalTime` /
+`-MonitorEndLocalTime` / `-ReconcileLocalTime` for other zones).
+
+`/auto-paper-perf` is NOT cron'd — it's a query, not part of the
+trade-lifecycle loop. Run on demand to compare live results against the
+backtest's predicted edge (SEPA-VCP+sell-aware target Sharpe 2.28;
+EP loosened target 2.13).
+
+**v1 simplifications (deferred):**
+- Partial sells (`sell_50` / `sell_75`) from the composer close the whole
+  position. Pyramid leg management is a future enhancement.
+- No live trailing-stop ratchet (broker stop sits at original `stop_price`).
+- PE-expansion sell criterion is False (no fundamentals source yet; queued
+  via the `edgartools` dep).
+- OCA stop+target groups deferred; STP SELL only.
 
 ## Sensitive Information
 
