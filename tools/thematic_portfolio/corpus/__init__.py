@@ -25,9 +25,14 @@ Deferred to followup sessions:
 * Substantive-artifact classifier (Haiku 4.5 LLM call) — Loop-1-trigger
   filter per [[swing-thematic-portfolio-substantive-artifact-definition]];
   separate LLM prompt, not a deterministic module.
-* Tier 3 real-world signals (power-sector quarterly earnings, semiconductor
-  inventory, hyperscaler capex guidance, energy futures) — out of scope
-  until v2; v1 ships with `tier3_signals: null` in the manifest.
+* Tier 3 real-world signals — partially shipped. Power-sector compiler
+  lives at :mod:`tools.thematic_portfolio.tier3.power_sector` (curated
+  16-ticker snapshot via yfinance, output at
+  ``ledgers/thematic/tier3/power_sector.json``). The orchestrator's
+  ``build_live_bundle`` auto-discovers any present
+  ``ledgers/thematic/tier3/<slot>.json`` and surfaces it under
+  ``tier3_signals``. Remaining slots (semiconductor_inventory,
+  ai_capex_announcements, energy_futures) deferred to followup sessions.
 
 ## Entity CIKs (confirmed 2026-05-24 — see project_thematic_portfolio memory)
 

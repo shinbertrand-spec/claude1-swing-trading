@@ -311,6 +311,35 @@ def _ensemble_filings(
     return out
 
 
+_TIER3_SLOT_FILES: dict[str, str] = {
+    # Loop 1 prompt's tier3_signals slot → filename in tier3_root
+    "power_sector": "power_sector.json",
+    "semiconductor_inventory": "semiconductor_inventory.json",
+    "ai_capex_announcements": "ai_capex_announcements.json",
+    "energy_futures": "energy_futures.json",
+}
+
+
+def _discover_tier3_signals(tier3_root: Path) -> dict[str, str] | None:
+    """Scan ``tier3_root`` for the per-slot compiled JSON files.
+
+    Returns a ``{slot: path_string}`` dict containing only the slots
+    whose JSON file exists on disk, or None when the directory is
+    missing entirely or contains no recognised files.
+
+    v1 ships ``power_sector.json`` only; remaining slots stay absent
+    until their respective compilers ship (per tier3/__init__.py).
+    """
+    if not tier3_root.exists() or not tier3_root.is_dir():
+        return None
+    out: dict[str, str] = {}
+    for slot, filename in _TIER3_SLOT_FILES.items():
+        candidate = tier3_root / filename
+        if candidate.is_file():
+            out[slot] = str(candidate)
+    return out or None
+
+
 def build_live_bundle(
     *,
     trigger_type: str,
@@ -324,6 +353,7 @@ def build_live_bundle(
     ensemble_filed_dates: dict[str, str] | None = None,
     corpus_root: Path = Path("ledgers/thematic/corpus"),
     thirteen_f_root: Path = Path("ledgers/thematic/13f"),
+    tier3_root: Path = Path("ledgers/thematic/tier3"),
     loop1_dir: Path = Path("ledgers/thematic/loop1"),
     state_file: Path = Path("journal/thematic-portfolio/state.json"),
     allocation_pct_override: float | None = None,
@@ -429,6 +459,8 @@ def build_live_bundle(
         current_thematic_positions=state_dict.get("current_thematic_positions", []),
     )
 
+    tier3_signals = _discover_tier3_signals(tier3_root)
+
     return compose_loop1_input_bundle(
         trigger_type=trigger_type,
         fired_at=fired_at,
@@ -440,6 +472,7 @@ def build_live_bundle(
         ensemble_filings=ensemble_filings,
         portfolio_state=portfolio_state,
         prior_loop1_path=prior_loop1_path,
+        tier3_signals=tier3_signals,
     )
 
 

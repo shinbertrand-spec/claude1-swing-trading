@@ -13,6 +13,7 @@ from tools.thematic_portfolio.orchestrator import (
     FilingPaths,
     KillSwitchUnavailableError,
     PortfolioState,
+    _discover_tier3_signals,
     aggregate_critic_outputs,
     apply_aggregation_to_positions,
     build_live_bundle,
@@ -558,6 +559,79 @@ def test_build_live_bundle_fails_fast_before_nav_provider(tmp_path: Path):
         _bundle_with_ks_state(tmp_path, nav_provider=boom_nav)
     # If the check fired correctly, nav_provider was never called and
     # the test sees the kill-switch error, not the Tiger error.
+
+
+# ---------------------------------------------------------------------------
+# _discover_tier3_signals + build_live_bundle integration
+# ---------------------------------------------------------------------------
+
+
+def test_discover_tier3_returns_none_when_dir_missing(tmp_path: Path):
+    assert _discover_tier3_signals(tmp_path / "doesnt-exist") is None
+
+
+def test_discover_tier3_returns_none_when_dir_empty(tmp_path: Path):
+    assert _discover_tier3_signals(tmp_path) is None
+
+
+def test_discover_tier3_picks_only_known_slot_files(tmp_path: Path):
+    """Files with names outside the known slot list MUST be ignored —
+    the Loop 1 prompt only knows about the 4 enumerated slots."""
+    (tmp_path / "power_sector.json").write_text("{}")
+    (tmp_path / "ai_capex_announcements.json").write_text("{}")
+    (tmp_path / "random_unrelated.json").write_text("{}")
+    (tmp_path / "notes.md").write_text("x")
+    result = _discover_tier3_signals(tmp_path)
+    assert result is not None
+    assert set(result.keys()) == {"power_sector", "ai_capex_announcements"}
+    assert result["power_sector"].endswith("power_sector.json")
+
+
+def test_build_live_bundle_omits_tier3_when_dir_empty(tmp_path: Path):
+    bundle = build_live_bundle(
+        trigger_type="monthly_base",
+        fired_at="2026-05-26T07:49:25+00:00",
+        sa_lp_period="2026-03-31",
+        prior_sa_lp_period="2025-12-31",
+        loop1_dir=tmp_path / "loop1",
+        state_file=tmp_path / "doesnt-exist.json",
+        thirteen_f_root=tmp_path / "13f",
+        corpus_root=tmp_path / "corpus",
+        tier3_root=tmp_path / "tier3-empty",
+        kill_switch_state_dir=tmp_path / "ks-empty",
+        nav_provider=lambda: 1_000_000.0,
+        compose_manifest_fn=_stub_manifest,
+    )
+    assert bundle["tier3_signals"] is None
+
+
+def test_build_live_bundle_propagates_tier3_signals_when_files_present(tmp_path: Path):
+    """When ledgers/thematic/tier3/power_sector.json exists, the bundle's
+    tier3_signals dict surfaces its path so Loop 1 can read it."""
+    tier3_dir = tmp_path / "tier3"
+    tier3_dir.mkdir()
+    (tier3_dir / "power_sector.json").write_text('{"schema_version":"1.0"}')
+
+    bundle = build_live_bundle(
+        trigger_type="monthly_base",
+        fired_at="2026-05-26T07:49:25+00:00",
+        sa_lp_period="2026-03-31",
+        prior_sa_lp_period="2025-12-31",
+        loop1_dir=tmp_path / "loop1",
+        state_file=tmp_path / "doesnt-exist.json",
+        thirteen_f_root=tmp_path / "13f",
+        corpus_root=tmp_path / "corpus",
+        tier3_root=tier3_dir,
+        kill_switch_state_dir=tmp_path / "ks-empty",
+        nav_provider=lambda: 1_000_000.0,
+        compose_manifest_fn=_stub_manifest,
+    )
+
+    assert bundle["tier3_signals"] is not None
+    assert "power_sector" in bundle["tier3_signals"]
+    assert bundle["tier3_signals"]["power_sector"].endswith("power_sector.json")
+    # Slots without files are absent — Loop 1 sees the gap explicitly
+    assert "semiconductor_inventory" not in bundle["tier3_signals"]
 
 
 # ---------------------------------------------------------------------------

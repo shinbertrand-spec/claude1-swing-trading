@@ -41,6 +41,11 @@ ledgers/thematic/loop1/_state/
 # (the LLM audit trail) ARE tracked; the raw 13F snapshots are not.
 ledgers/thematic/13f/
 
+# Thematic-portfolio Tier 3 signal snapshots — regenerable from yfinance /
+# EDGAR via tools.thematic_portfolio.tier3.*. Prices move daily; the
+# canonical record is the Loop 1 output JSON that cites these by ticker.
+ledgers/thematic/tier3/
+
 # Thematic-portfolio dry-run bundle scratch + per-position critic input
 # bundles + per-firing input bundle. All regenerable: _dryrun/ from
 # build_live_bundle, __critic_inputs/ from the Loop 1 output JSON,
