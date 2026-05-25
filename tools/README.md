@@ -118,6 +118,21 @@ Per-section staleness windows enforced (per doctrine's max-staleness table):
 | `catalyst` | 7 days |
 | `earnings_calendar` | 24 h |
 
+### Thematic-portfolio (gate-3 build, parallel to swing-equity stack)
+
+Lives in [`thematic_portfolio/`](thematic_portfolio/). Sibling axis to the swing-equity tools — operates on quarterly-rebalance + event-driven inputs (SA LP 13F + ensemble 13Fs + Loop 1 reasoning output) instead of per-trade OHLCV. Per [[swing-thematic-portfolio-session-2-design-changes]] revisions.
+
+| Tool | Returns | Used by |
+|---|---|---|
+| [`thematic_portfolio/sizer.py`](thematic_portfolio/sizer.py) | Unified mirror weights: `1.0 × sa_lp_weight × thematic_allocation`, capped at 5% per Q7 | `thematic-portfolio` subagent Loop 1 Pass 3 |
+| [`thematic_portfolio/ensemble_overlap.py`](thematic_portfolio/ensemble_overlap.py) | M1 Jaccard (≥0.85 pass) + M3 rank-based ensemble triangulation (≥0.5 consensus health) + per-position critic-trigger context per session-2 #5 pseudocode | Loop 1 Pass 4 + Loop 2 calibration |
+
+Per session-2 design change #6: specific position-fund pairs in design notes are illustrative-only — these tools accept live 13F data per cycle, no constant encodes a specific pair. Per #4: ensemble triangulation is rank-based, NOT notional (Light Street $0.50B vs Coatue $29.06B would drown otherwise).
+
+M2 (critic-outcome alignment over rolling 4q) deferred — requires 4 quarters of accumulated Loop 1 critic decision history; lands in Weeks 5-8 paper-trade phase.
+
+Not yet built: corpus-ingest pipeline (twitterapi.io + edgartools + BG2 RSS + press feeds), put-overlay tracker, kill-switch Process B monitor, `/thematic-portfolio` slash command orchestrator.
+
 ## I/O contract
 
 Every tool exports a pure `compute(...)` (or `compute_from_ohlcv(...)`) returning a [`TraceEntry`](contract.py):
