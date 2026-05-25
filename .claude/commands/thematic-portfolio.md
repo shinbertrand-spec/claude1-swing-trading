@@ -160,44 +160,27 @@ portfolio_state = PortfolioState(
 
 ## Step 5 — Compose the Loop 1 input bundle
 
+Steps 3 + 4 + 5 are wrapped by [`tools.thematic_portfolio.orchestrator.build_live_bundle`](../../tools/thematic_portfolio/orchestrator.py) — it reads the corpus manifest, the thematic-track state file, fetches the live Tiger paper NAV, builds SA LP + ensemble `FilingPaths`, and calls `compose_loop1_input_bundle` for you. The function defaults match the on-disk layout this skill produces in Step 2, so the typical call is short:
+
 ```python
-from tools.thematic_portfolio.orchestrator import (
-    compose_loop1_input_bundle, FilingPaths
-)
+from pathlib import Path
+from tools.thematic_portfolio.orchestrator import build_live_bundle
 
-sa_lp_filing = FilingPaths(
-    latest_period=<sa_lp_period>,
-    latest_long_book_path=f"ledgers/thematic/13f/sa_lp/0002045724-{sa_lp_period}-long.json",
-    latest_filed_date=<from thirteen_f output>,
-    latest_put_complex_path=f"ledgers/thematic/13f/sa_lp/0002045724-{sa_lp_period}-puts.json",
-    latest_call_book_path=f"ledgers/thematic/13f/sa_lp/0002045724-{sa_lp_period}-calls.json",
-    prior_period=<prior_sa_lp_period or None>,
-    prior_long_book_path=f"ledgers/thematic/13f/sa_lp/0002045724-{prior_sa_lp_period}-long.json" if prior_sa_lp_period else None,
-)
-
-ensemble_filings = {
-    fund: FilingPaths(
-        latest_period=<sa_lp_period>,
-        latest_long_book_path=f"ledgers/thematic/13f/{fund}/{cik}-{sa_lp_period}-long.json",
-        prior_period=<prior_sa_lp_period or None>,
-        prior_long_book_path=(...) if prior_sa_lp_period else None,
-    )
-    for fund, cik in {"altimeter": "0001541617", "coatue": "0001135730", "light_street": "0001569049"}.items()
-}
-
-bundle = compose_loop1_input_bundle(
+bundle = build_live_bundle(
     trigger_type="monthly_base" if monthly_base else "substantive_artifact",
     fired_at=fired_at,
+    sa_lp_period=sa_lp_period,
+    prior_sa_lp_period=prior_sa_lp_period,
     triggering_artifact=triggering_artifact if not monthly_base else None,
     rate_limit_consumed_this_week_before_firing=n_firings_in_window,
     mandatory_escalation=mandatory_escalation if not monthly_base else False,
-    corpus_snapshot=<output of manifest.compose>,
-    sa_lp_filing=sa_lp_filing,
-    ensemble_filings=ensemble_filings,
-    portfolio_state=portfolio_state,
-    prior_loop1_path=prior_loop1_path,
+    sa_lp_filed_date=<from thirteen_f output for sa_lp>,
+    ensemble_filed_dates={fund: <from thirteen_f output> for fund in ("altimeter", "coatue", "light_street")},
+    allocation_pct_override=args.allocation_pct,  # None to use state.json or default 10
 )
 ```
+
+If you need lower-level control (different ensemble funds, custom corpus root, mock NAV for a dry-run-without-broker), use `compose_loop1_input_bundle` + `FilingPaths` + `PortfolioState` directly — `build_live_bundle` is just the common-case wrapper.
 
 ## Step 6 — `--dry-run` early exit
 
@@ -245,9 +228,9 @@ For each `position` in `loop1_output.positions`:
 
 Each critic invocation takes the position dict + `loop1_context: {regime, thesis_state_summary, short_overlay_bias_flag}` + the `critic_trigger_context` block. Returns JSON per the critic template.
 
-Save each critic output to `ledgers/thematic/loop1/<fired_at>__critic_outputs/<ticker>__<critic>.json`.
+**IMPORTANT — dispatcher writes critic JSONs, not the critic.** Critic subagents have `tools: Read, Glob` only (no Write tool by design — keeps the persona prompt cheap to spin up and prevents critics from clobbering each other's output). Each critic emits the JSON inline in its returned message; YOU (this orchestrator) extract the JSON block from the agent's return value and persist it to `ledgers/thematic/loop1/<fired_at>__critic_outputs/<ticker>__<critic>.json` via the `Write` tool. Make critic-input bundles available to each critic at `ledgers/thematic/loop1/<fired_at>__critic_inputs/<ticker>.json` (one per position) and pass the path in the prompt — that's cheaper than embedding the full position+context in every dispatch message.
 
-Dispatch ALL critics for ALL positions in parallel (one Agent() per critic-per-position; this is the right place to use the parallel Agent dispatch pattern).
+Dispatch ALL critics for ALL positions in parallel (one Agent() per critic-per-position; this is the right place to use the parallel Agent dispatch pattern). After all return, batch the `Write` calls to persist.
 
 ## Step 9 — Aggregate critic outputs
 

@@ -1,0 +1,26 @@
+{
+  "critic": "friedman_extended",
+  "position_ticker": "BE",
+  "loop1_firing_id": "2026-05-25T07:49:25+00:00",
+  "critic_call_id": "2026-05-25T07:49:25+00:00__BE__friedman_extended",
+  "risks": [
+    {
+      "risk": "Bloom Energy's fuel-cell margin depends on the 100GW-by-2030 power buildout that interconnection-queue + FERC permitting timelines cannot physically deliver; realistic ceiling is 25-35GW by 2030, pushing 65-75GW to 2032-2035, collapsing Bloom's near-term volume ramp and triggering competitive margin compression.",
+      "grounding_citation": "Friedman Substack (late 2025) — power-infra thesis critique: 'even granting gas-resource availability, interconnection queue + permitting timelines + transmission buildout prevent 100GW by 2030; real near-term ceiling is 25-35GW.' Buildout timing slip cascades into volume assumptions for distributed-generation vendors like Bloom Energy.",
+      "severity": "high"
+    },
+    {
+      "risk": "Bloom Energy occupies the small-cap power-infra displacement zone (fuel cells, distributed generation); majors (Caterpillar, Cummins, GE Vernova, Siemens Energy) enter these niches within 18-24 months, compressing the temporary pricing power that Bloom's current margin depends on — structural decay clock embedded in the position thesis.",
+      "grounding_citation": "Friedman session-2 extension (2026-05-25): 'small-cap power-infra names face the 18-24-month majors-entry clock; sizing should reflect that the alpha window is shorter than SA LP-style position-duration assumes.' BE qualifies as sub-$10B distributed-generation name with embedded displacement risk.",
+      "severity": "high"
+    },
+    {
+      "risk": "Ensemble disagreement (Altimeter exited, Light Street holds) signals a potential thesis-change SA LP has not re-evaluated — Altimeter's exit may reflect repricing of either the 100GW buildout timeline OR the small-cap displacement risk; SA LP's retention of dominant 22.79% weighting despite trimming 35.64% suggests potential blind spot to off-thesis exit signals.",
+      "grounding_citation": "Critic trigger context: 'BE held by Light Street; exited by Altimeter this quarter—ensemble is split.' This is a material institutional signal disagreement that warrants SA LP re-evaluation rather than unchanged position retention.",
+      "severity": "medium"
+    }
+  ],
+  "confidence_adjustment": "structural_risk",
+  "adjustment_rationale": "Bloom Energy is the prototypical small-cap power-infra squeeze play that triggers structural-risk classification under session-2 criteria: (1) position weight >2% of total portfolio (22.8% of long book = ~2.3% of total), (2) BE sits in the fuel-cell / distributed-generation cluster where majors enter in 18-24 months, (3) underlying thesis depends on aggressive 100GW-by-2030 buildout that interconnection-queue + FERC permitting data does not support — realistic timeline is 25-35GW by 2030. The temporary margin that justifies current valuation is a timing arbitrage, not a structural advantage. Ensemble disagreement (Altimeter exit) compounds the signal: an institutional holder has repriced this specific name while SA LP held the line at 22.79% of long book. SA LP's power-as-binding-constraint thesis is directionally correct (power IS the bottleneck), but Bloom's deliverability-on-timeline AND majors-displacement-resistance are both worse than the position weight implies. Recommend structural_risk designation and re-evaluation of whether 2.3% is sized for an 18-24-month alpha window, not a 5-7 year hold.",
+  "estimated_cost_usd": 0.12
+}

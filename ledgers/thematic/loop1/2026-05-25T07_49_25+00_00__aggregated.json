@@ -1,0 +1,17 @@
+[
+  {
+    "ticker": "BE",
+    "loop1_target_pct": 2.278941887893259,
+    "adjusted_target_pct": 2.278941887893259,
+    "weight_reduction_applied": 0.0,
+    "recommended_action": "hold_pending_bertrand_review",
+    "n_critics_minus_20": 1,
+    "n_critics_minus_50": 0,
+    "n_critics_structural_risk": 1,
+    "structural_risk_critics": [
+      "friedman_extended"
+    ],
+    "minus_50_critics": [],
+    "rationale": "STRUCTURAL_RISK fired by ['friedman_extended']; position held at Loop 1 target pending manual Bertrand review."
+  }
+]

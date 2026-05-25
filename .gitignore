@@ -36,6 +36,19 @@ ledgers/thematic/kill_switch/_state/
 # Thematic-portfolio Loop 1 firing log (artifact classifier rate-limit state).
 ledgers/thematic/loop1/_state/
 
+# Thematic-portfolio raw 13F fetches — regenerable from EDGAR via
+# tools.thematic_portfolio.corpus.thirteen_f --ensemble. Loop 1 outputs
+# (the LLM audit trail) ARE tracked; the raw 13F snapshots are not.
+ledgers/thematic/13f/
+
+# Thematic-portfolio dry-run bundle scratch + per-position critic input
+# bundles + per-firing input bundle. All regenerable: _dryrun/ from
+# build_live_bundle, __critic_inputs/ from the Loop 1 output JSON,
+# __bundle.json from build_live_bundle.
+ledgers/thematic/loop1/_dryrun/
+ledgers/thematic/loop1/*__critic_inputs/
+ledgers/thematic/loop1/*__bundle.json
+
 # News snapshots — runtime data, regenerable from the bot. Schema + examples tracked.
 ledgers/news/[0-9]*-[0-9]*-[0-9]*/
 

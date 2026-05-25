@@ -221,18 +221,183 @@ def compose_loop1_input_bundle(
 def find_prior_loop1_output(loop1_dir: Path) -> str | None:
     """Locate the most recent Loop 1 output JSON in ``loop1_dir`` (by mtime).
 
+    The canonical Loop 1 output filename is ``<fired_at>.json``; sidecar
+    files like ``<fired_at>__bundle.json``, ``<fired_at>__aggregated.json``
+    are skipped (the ``__`` suffix marks them as non-canonical).
+
     Returns the path as a string, or None when no prior firing exists.
     """
     if not loop1_dir.exists() or not loop1_dir.is_dir():
         return None
     candidates = [
         p for p in loop1_dir.glob("*.json")
-        if p.is_file() and not p.name.startswith("_")
+        if p.is_file() and not p.name.startswith("_") and "__" not in p.name
     ]
     if not candidates:
         return None
     most_recent = max(candidates, key=lambda p: p.stat().st_mtime)
     return str(most_recent)
+
+
+# ---------------------------------------------------------------------------
+# Live-bundle composer (orchestrator skill Step 2-5 wrapper)
+# ---------------------------------------------------------------------------
+
+
+ENSEMBLE_CIKS: dict[str, str] = {
+    "altimeter": "0001541617",
+    "coatue": "0001135730",
+    "light_street": "0001569049",
+}
+
+SA_LP_CIK_PRIMARY = "0002045724"
+
+
+def _default_tiger_nav_provider() -> float:
+    """Read the live Tiger paper-account NAV; fall back to $1M on Infinity quirk."""
+    from ..broker.tiger import TigerClient  # local import — broker is not a test dep
+
+    summary = TigerClient().account_summary().output
+    nav = summary.get("net_liquidation") or summary.get("cash")
+    if nav is None or nav == float("inf"):
+        return 1_000_000.0
+    return float(nav)
+
+
+def _ensemble_filings(
+    *,
+    latest_period: str,
+    prior_period: str | None,
+    thirteen_f_root: Path,
+    latest_filed_dates: dict[str, str] | None = None,
+) -> dict[str, FilingPaths]:
+    """Build FilingPaths for each ensemble fund using the standard
+    `<root>/<fund>/<cik>-<period>-long.json` layout."""
+    out: dict[str, FilingPaths] = {}
+    for fund, cik in ENSEMBLE_CIKS.items():
+        out[fund] = FilingPaths(
+            latest_period=latest_period,
+            latest_long_book_path=str(
+                thirteen_f_root / fund / f"{cik}-{latest_period}-long.json"
+            ),
+            latest_filed_date=(latest_filed_dates or {}).get(fund),
+            prior_period=prior_period,
+            prior_long_book_path=(
+                str(thirteen_f_root / fund / f"{cik}-{prior_period}-long.json")
+                if prior_period
+                else None
+            ),
+        )
+    return out
+
+
+def build_live_bundle(
+    *,
+    trigger_type: str,
+    fired_at: str,
+    sa_lp_period: str,
+    prior_sa_lp_period: str | None,
+    triggering_artifact: dict | None = None,
+    rate_limit_consumed_this_week_before_firing: int = 0,
+    mandatory_escalation: bool = False,
+    sa_lp_filed_date: str | None = None,
+    ensemble_filed_dates: dict[str, str] | None = None,
+    corpus_root: Path = Path("ledgers/thematic/corpus"),
+    thirteen_f_root: Path = Path("ledgers/thematic/13f"),
+    loop1_dir: Path = Path("ledgers/thematic/loop1"),
+    state_file: Path = Path("journal/thematic-portfolio/state.json"),
+    allocation_pct_override: float | None = None,
+    nav_provider=_default_tiger_nav_provider,
+    compose_manifest_fn=None,
+) -> dict[str, Any]:
+    """Compose a Loop 1 input bundle from live on-disk artifacts + Tiger NAV.
+
+    This is the Step 4-5 wrapper for the `/thematic-portfolio` slash command:
+    it reads state, fetches NAV, composes the corpus manifest, builds the
+    SA LP + ensemble FilingPaths, and calls `compose_loop1_input_bundle`.
+
+    Dependency injection (``nav_provider`` and ``compose_manifest_fn``) keeps
+    the function testable without a live Tiger client or real corpus files.
+    """
+    if compose_manifest_fn is None:
+        from .corpus.manifest import compose as _compose
+        def compose_manifest_fn(corpus_root, since):  # type: ignore[misc]
+            return _compose(corpus_root=corpus_root, since=since).output
+
+    state_dict: dict[str, Any]
+    if state_file.exists():
+        state_dict = json.loads(state_file.read_text())
+    else:
+        state_dict = {
+            "thematic_allocation_pct": allocation_pct_override or 10.0,
+            "current_loop5_phase": "phase1_10pct",
+            "current_thematic_positions": [],
+        }
+
+    if allocation_pct_override is not None:
+        state_dict["thematic_allocation_pct"] = allocation_pct_override
+
+    prior_loop1_path = find_prior_loop1_output(loop1_dir)
+    since = "1970-01-01T00:00:00Z"
+    if prior_loop1_path:
+        try:
+            prior_data = json.loads(Path(prior_loop1_path).read_text())
+            since = prior_data.get("meta", {}).get("fired_at", since)
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    corpus_snapshot = compose_manifest_fn(corpus_root, since)
+
+    sa_lp_filing = FilingPaths(
+        latest_period=sa_lp_period,
+        latest_long_book_path=str(
+            thirteen_f_root / "sa_lp" / f"{SA_LP_CIK_PRIMARY}-{sa_lp_period}-long.json"
+        ),
+        latest_filed_date=sa_lp_filed_date,
+        latest_put_complex_path=str(
+            thirteen_f_root / "sa_lp" / f"{SA_LP_CIK_PRIMARY}-{sa_lp_period}-puts.json"
+        ),
+        latest_call_book_path=str(
+            thirteen_f_root / "sa_lp" / f"{SA_LP_CIK_PRIMARY}-{sa_lp_period}-calls.json"
+        ),
+        prior_period=prior_sa_lp_period,
+        prior_long_book_path=(
+            str(
+                thirteen_f_root
+                / "sa_lp"
+                / f"{SA_LP_CIK_PRIMARY}-{prior_sa_lp_period}-long.json"
+            )
+            if prior_sa_lp_period
+            else None
+        ),
+    )
+
+    ensemble_filings = _ensemble_filings(
+        latest_period=sa_lp_period,
+        prior_period=prior_sa_lp_period,
+        thirteen_f_root=thirteen_f_root,
+        latest_filed_dates=ensemble_filed_dates,
+    )
+
+    portfolio_state = PortfolioState(
+        thematic_allocation_pct=float(state_dict["thematic_allocation_pct"]),
+        current_loop5_phase=str(state_dict["current_loop5_phase"]),
+        total_portfolio_nav_usd=float(nav_provider()),
+        current_thematic_positions=state_dict.get("current_thematic_positions", []),
+    )
+
+    return compose_loop1_input_bundle(
+        trigger_type=trigger_type,
+        fired_at=fired_at,
+        triggering_artifact=triggering_artifact,
+        rate_limit_consumed_this_week_before_firing=rate_limit_consumed_this_week_before_firing,
+        mandatory_escalation=mandatory_escalation,
+        corpus_snapshot=corpus_snapshot,
+        sa_lp_filing=sa_lp_filing,
+        ensemble_filings=ensemble_filings,
+        portfolio_state=portfolio_state,
+        prior_loop1_path=prior_loop1_path,
+    )
 
 
 # ---------------------------------------------------------------------------

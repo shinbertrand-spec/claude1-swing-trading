@@ -1,0 +1,21 @@
+{
+  "critic": "marcus",
+  "position_ticker": "BE",
+  "loop1_firing_id": "2026-05-25T07:49:25+00:00",
+  "critic_call_id": "2026-05-25T07:49:25+00:00__BE__marcus",
+  "risks": [
+    {
+      "risk": "Power-demand curve flattens if AI capex growth decelerates post-2026; Bloom's PPA revenue tied to the trillion-dollar-cluster timeline which requires unbroken exponential growth, not sigmoid compression.",
+      "grounding_citation": "Marcus Substack 2024-2025: 'The OOM stack has not delivered the predicted jumps. Capability gains have flattened in 2024-2025 across every public benchmark... The drop-in remote worker timeline assumed in Situational Awareness requires continued exponentials; what's actually being delivered is sigmoids.' BE's power thesis is downstream consumption (Thorstad: 'consumption' not 'frontier capability'), so demand scales WITH hyperscaler-build slope. If slope flattens, so do PPA growth expectations.",
+      "severity": "medium"
+    },
+    {
+      "risk": "Altimeter exit (vs Light Street hold) may be early signal that the 100GW-by-2030 constraint is already softening in practice; SA LP retained dominant position after 176% run but trimmed 35.64%, suggesting internal position-softening even before a manifest demand miss.",
+      "grounding_citation": "Marcus Substack: 'AGI-by-2027 is not happening on schedule... By end of 2025, fewer than 5 of 7 enumerated AGI capabilities will be in production.' If capability realization slips, compute-capex budgets re-baseline lower. Altimeter's exit (this quarter) may prefigure corporate PPA deferrals in H2 2026 as boards internalize delayed-AGI timeline. SA LP's own 35.64% trim is consistent with this risk.",
+      "severity": "medium"
+    }
+  ],
+  "confidence_adjustment": "minus_20",
+  "adjustment_rationale": "BE is correctly classified as power-infra (not frontier-AI-capability), so attack surface is lower than chip longs. However, the position thesis is explicitly dependent on the 100GW-by-2030 power constraint being real AND hyperscaler capex maintaining exponential trajectory through 2027-2028. My published frame flags both the OOM plateau (capability flattening) and the timeline slip (AGI-by-2027 is mispriced). If AI capex growth moderates from hyperbolic to sigmoidal in 2026-2027, Bloom's PPA pipeline contracts, not reverses—power demand is real even on a slow-AI timeline. But at SA LP's allocation weight (6.42% post-trim) and current valuations priced for continued exponential growth, a 20% adjustment accounts for the demand-curve-softening tail risk. The Altimeter exit provides a secondary signal that the power-as-constraint narrative may not hold up as cleanly as SA LP's model assumes.",
+  "estimated_cost_usd": 0.08
+}

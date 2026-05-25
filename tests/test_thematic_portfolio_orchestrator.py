@@ -14,6 +14,7 @@ from tools.thematic_portfolio.orchestrator import (
     PortfolioState,
     aggregate_critic_outputs,
     apply_aggregation_to_positions,
+    build_live_bundle,
     compose_loop1_input_bundle,
     find_prior_loop1_output,
 )
@@ -296,6 +297,168 @@ def test_find_prior_loop1_skips_underscore_prefixed(tmp_path: Path):
     (tmp_path / "2026-06-01T0930.json").write_text("{}")
     result = find_prior_loop1_output(tmp_path)
     assert Path(result).name == "2026-06-01T0930.json"
+
+
+def test_find_prior_loop1_skips_double_underscore_sidecars(tmp_path: Path):
+    """Sidecar files (__bundle, __aggregated, __critic_outputs) are skipped —
+    only the canonical ``<fired_at>.json`` output counts as a prior firing."""
+    canonical = tmp_path / "2026-05-25T0749.json"
+    canonical.write_text("{}")
+    time.sleep(0.01)
+    # These sidecars have newer mtime but must not be picked.
+    (tmp_path / "2026-05-25T0749__bundle.json").write_text("{}")
+    (tmp_path / "2026-05-25T0749__aggregated.json").write_text("[]")
+    result = find_prior_loop1_output(tmp_path)
+    assert Path(result).name == "2026-05-25T0749.json"
+
+
+# ---------------------------------------------------------------------------
+# build_live_bundle
+# ---------------------------------------------------------------------------
+
+
+def _stub_manifest(corpus_root, since):  # noqa: ARG001
+    return {
+        "snapshot_id": "stub",
+        "refreshed_at": "2026-05-25T07:49:25Z",
+        "paths": {"aschenbrenner_essays": "aschenbrenner/essays/*.md"},
+        "slot_counts": {"aschenbrenner_essays": 1},
+        "n_total_artifacts": 1,
+        "since": since,
+    }
+
+
+def test_build_live_bundle_first_ever_firing(tmp_path: Path):
+    """No state.json, no prior Loop 1 — defaults compose a phase1_10pct bundle."""
+    bundle = build_live_bundle(
+        trigger_type="monthly_base",
+        fired_at="2026-05-25T07:49:25+00:00",
+        sa_lp_period="2026-03-31",
+        prior_sa_lp_period="2025-12-31",
+        sa_lp_filed_date="2026-05-18",
+        ensemble_filed_dates={"altimeter": "2026-05-15", "coatue": "2026-05-15", "light_street": "2026-05-15"},
+        loop1_dir=tmp_path / "loop1",
+        state_file=tmp_path / "doesnt-exist.json",
+        thirteen_f_root=tmp_path / "13f",
+        corpus_root=tmp_path / "corpus",
+        nav_provider=lambda: 1_000_000.0,
+        compose_manifest_fn=_stub_manifest,
+    )
+
+    assert bundle["trigger"]["type"] == "monthly_base"
+    assert bundle["trigger"]["fired_at"] == "2026-05-25T07:49:25+00:00"
+    assert bundle["portfolio_state"]["thematic_allocation_pct"] == 10.0
+    assert bundle["portfolio_state"]["current_loop5_phase"] == "phase1_10pct"
+    assert bundle["portfolio_state"]["total_portfolio_nav_usd"] == 1_000_000.0
+    assert bundle["portfolio_state"]["current_thematic_positions"] == []
+    assert bundle["prior_loop1_output"]["path"] is None
+    assert bundle["corpus_snapshot"]["snapshot_id"] == "stub"
+    assert bundle["corpus_snapshot"]["since"] == "1970-01-01T00:00:00Z"
+
+    sa_lp = bundle["filings"]["sa_lp"]
+    assert sa_lp["latest_13f"]["period"] == "2026-03-31"
+    assert sa_lp["latest_13f"]["filed"] == "2026-05-18"
+    assert Path(sa_lp["latest_13f"]["long_book_path"]).name == "0002045724-2026-03-31-long.json"
+    assert Path(sa_lp["latest_13f"]["long_book_path"]).parent.name == "sa_lp"
+    assert sa_lp["prior_13f"]["period"] == "2025-12-31"
+
+    ensemble = bundle["filings"]["ensemble"]
+    assert set(ensemble.keys()) == {"altimeter", "coatue", "light_street"}
+    coatue_path = Path(ensemble["coatue"]["latest_13f"]["long_book_path"])
+    assert coatue_path.name == "0001135730-2026-03-31-long.json"
+    assert coatue_path.parent.name == "coatue"
+
+
+def test_build_live_bundle_reads_state_file(tmp_path: Path):
+    """Existing state.json drives allocation + phase + held positions."""
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps({
+        "thematic_allocation_pct": 15.0,
+        "current_loop5_phase": "phase2_15pct",
+        "current_thematic_positions": [
+            {"ticker": "BE", "shares": 100, "cost_basis": 25.0, "current_weight_pct_of_total": 2.3},
+        ],
+    }))
+
+    bundle = build_live_bundle(
+        trigger_type="monthly_base",
+        fired_at="2026-09-01T13:30:00+00:00",
+        sa_lp_period="2026-06-30",
+        prior_sa_lp_period="2026-03-31",
+        loop1_dir=tmp_path / "loop1",
+        state_file=state_file,
+        thirteen_f_root=tmp_path / "13f",
+        corpus_root=tmp_path / "corpus",
+        nav_provider=lambda: 1_250_000.0,
+        compose_manifest_fn=_stub_manifest,
+    )
+
+    assert bundle["portfolio_state"]["thematic_allocation_pct"] == 15.0
+    assert bundle["portfolio_state"]["current_loop5_phase"] == "phase2_15pct"
+    assert bundle["portfolio_state"]["total_portfolio_nav_usd"] == 1_250_000.0
+    assert len(bundle["portfolio_state"]["current_thematic_positions"]) == 1
+
+
+def test_build_live_bundle_allocation_override(tmp_path: Path):
+    """``allocation_pct_override`` wins over both state.json and the default."""
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps({
+        "thematic_allocation_pct": 10.0,
+        "current_loop5_phase": "phase1_10pct",
+        "current_thematic_positions": [],
+    }))
+
+    bundle = build_live_bundle(
+        trigger_type="monthly_base",
+        fired_at="2026-05-25T07:49:25+00:00",
+        sa_lp_period="2026-03-31",
+        prior_sa_lp_period=None,
+        loop1_dir=tmp_path / "loop1",
+        state_file=state_file,
+        thirteen_f_root=tmp_path / "13f",
+        corpus_root=tmp_path / "corpus",
+        allocation_pct_override=25.0,
+        nav_provider=lambda: 1_000_000.0,
+        compose_manifest_fn=_stub_manifest,
+    )
+
+    assert bundle["portfolio_state"]["thematic_allocation_pct"] == 25.0
+    # When prior_sa_lp_period is None, the bundle either omits prior_13f
+    # entirely or sets it to None — either is acceptable.
+    assert bundle["filings"]["sa_lp"].get("prior_13f") is None
+
+
+def test_build_live_bundle_uses_prior_loop1_fired_at_as_since(tmp_path: Path):
+    """When a prior Loop 1 exists, ``since`` in the corpus manifest call should
+    be the prior firing's ``meta.fired_at`` (used for recent-artifact filtering)."""
+    loop1_dir = tmp_path / "loop1"
+    loop1_dir.mkdir()
+    prior_path = loop1_dir / "2026-04-01T1330.json"
+    prior_path.write_text(json.dumps({
+        "meta": {"fired_at": "2026-04-01T13:30:00+00:00"},
+    }))
+
+    seen_since: dict[str, str] = {}
+
+    def capture_manifest(corpus_root, since):  # noqa: ARG001
+        seen_since["value"] = since
+        return _stub_manifest(corpus_root, since)
+
+    bundle = build_live_bundle(
+        trigger_type="monthly_base",
+        fired_at="2026-05-25T07:49:25+00:00",
+        sa_lp_period="2026-03-31",
+        prior_sa_lp_period="2025-12-31",
+        loop1_dir=loop1_dir,
+        state_file=tmp_path / "doesnt-exist.json",
+        thirteen_f_root=tmp_path / "13f",
+        corpus_root=tmp_path / "corpus",
+        nav_provider=lambda: 1_000_000.0,
+        compose_manifest_fn=capture_manifest,
+    )
+
+    assert seen_since["value"] == "2026-04-01T13:30:00+00:00"
+    assert bundle["prior_loop1_output"]["path"] == str(prior_path)
 
 
 # ---------------------------------------------------------------------------

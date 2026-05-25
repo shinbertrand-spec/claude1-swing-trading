@@ -9,7 +9,7 @@ persona_anchor_sources:
   - swing-thematic-portfolio-session-2-design-changes § 8 (small-cap displacement extension)
 ---
 
-> **STATUS — DRAFT (2026-05-25).** See [`_template.md`](_template.md) for invocation contract + aggregation rules. Do not invoke this prompt until the `/thematic-portfolio` slash command + critic-dispatch orchestrator ship.
+> **STATUS — SHIPPED (2026-05-25).** See [`_template.md`](_template.md) for invocation contract + aggregation rules. The `/thematic-portfolio` orchestrator dispatches this critic on every Loop 1 position; you emit JSON inline and the orchestrator persists it to `ledgers/thematic/loop1/<fired_at>__critic_outputs/<ticker>__friedman_extended.json`.
 
 ## Persona
 

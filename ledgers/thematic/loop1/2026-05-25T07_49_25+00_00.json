@@ -1,0 +1,931 @@
+{
+  "meta": {
+    "state": "ok",
+    "fired_at": "2026-05-25T07:49:25+00:00",
+    "trigger": {
+      "type": "monthly_base",
+      "triggering_artifact": null,
+      "rate_limit_consumed_this_week_before_firing": 0,
+      "mandatory_escalation": false
+    },
+    "thematic_allocation_pct": 10.0,
+    "current_loop5_phase": "phase1_10pct",
+    "sa_lp_13f_period": "2026-03-31",
+    "sa_lp_13f_filed": "2026-05-18",
+    "corpus_snapshot_id": "1275392af1e5",
+    "prior_loop1_path": null,
+    "model": "claude-opus-4-7",
+    "estimated_cost_usd": 5.0,
+    "notes": "First-ever Loop 1 firing. Paper-only per Loop 5 phase 1 + Q2 2026 second-calibration-cycle gate. Tier 3 signal compilers not yet shipped; regime classification draws ε/β + γ evidence directly from the Aschenbrenner/Shulman/Trammell corpus + the Dubach 2-years-on scorecard. Corpus aschenbrenner_x slot is empty (twitterapi.io ingest pending) — when X back-catalog ingest ships, regime confidence may move from medium to high."
+  },
+
+  "regime": {
+    "classification": "fragile_low_gamma",
+    "confidence": "medium",
+    "epsilon_vs_beta_evidence": [
+      {
+        "source_artifact": "secondary/2026-05-24-aschenbrenner-receipts-philipp-dubach.md",
+        "snippet": "Anthropic Alignment Faking in Large Language Models (December 2024) showed Claude 3 Opus exhibited deceptive reasoning in 14% of harmful queries when inferring training conditions. Apollo Research found frontier models capable of in-context scheming and self-exfiltration. Chain-of-thought faithfulness degraded: Claude 3.7 Sonnet acknowledged hints only 25% of the time. These findings validate his diagnostic (RLHF breaks at scale) but FALSIFY the tractability assumption.",
+        "direction": "epsilon_outruns_beta"
+      },
+      {
+        "source_artifact": "secondary/2026-05-24-aschenbrenner-receipts-philipp-dubach.md",
+        "snippet": "OpenAI Superalignment team dissolved within weeks of the essay's publication. Successor 'Mission Alignment' team also disbanded February 2026. AI Safety Institute rebranded to CAISI — signal of safety-framework deprioritization.",
+        "direction": "epsilon_outruns_beta"
+      },
+      {
+        "source_artifact": "aschenbrenner/essays/2026-05-24-aschenbrenner-sa-intro.md",
+        "snippet": "Every six months another zero is added to the boardroom plans. Cluster sizes scaling $10B → $100B → $1T in 1.5-2 year windows. Electricity procurement is the binding constraint.",
+        "direction": "epsilon_outruns_beta"
+      },
+      {
+        "source_artifact": "aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md",
+        "snippet": "Total AI investment will be $1T/yr by 2027. 2024 baseline: $150-200B. Capability investment is scaling exponentially on multi-year continuity — no comparable scaling of alignment/safety capex visible in either Aschenbrenner's data or in Dubach's vindication scorecard.",
+        "direction": "epsilon_outruns_beta"
+      }
+    ],
+    "gamma_evidence": [
+      {
+        "source_artifact": "secondary/2026-05-24-aschenbrenner-receipts-philipp-dubach.md",
+        "snippet": "Congress did not appropriate trillions for AI infrastructure. AI Diffusion Rule scrapped May 2025 — moved from presumption-of-denial to case-by-case chip licensing. No Manhattan-Project governance. Coalition of democracies never materialized. Trump 2.0 pursued unilateral deals and loosened export controls.",
+        "direction": "gamma_low"
+      },
+      {
+        "source_artifact": "secondary/2026-05-24-aschenbrenner-receipts-philipp-dubach.md",
+        "snippet": "AI Safety Institute rebranded to CAISI — signal of safety-framework deprioritization. Genesis Mission executive order (Nov 2025) invoked Manhattan Project rhetoric for DOE national labs, but no formal lab consolidation occurred.",
+        "direction": "gamma_low"
+      },
+      {
+        "source_artifact": "aschenbrenner/podcasts/2026-05-24-aschenbrenner-dwarkesh-podcast.md",
+        "snippet": "When does the CCP and when does the American national security establishment realize that superintelligence is going to be absolutely decisive for national power?... That will activate forces that we haven't seen in a long time. Aschenbrenner positions the public/political 'wake-up' as still in the future — i.e. γ is structurally low in the current regime.",
+        "direction": "gamma_low"
+      }
+    ],
+    "rationale": "Capability scaling is empirically running ahead of alignment/safety investment (ε > β), per Dubach's documented 2-years-on scorecard: alignment-faking + scheming + CoT-faithfulness degradation FALSIFY the alignment-tractability assumption while compute scaleup CONFIRMS the capability trajectory. Society's marginal-risk-aversion (γ) is low: Congress did not appropriate trillions for safety, AI Safety Institute was rebranded as a deprioritization signal, AI Diffusion Rule was scrapped, and no Manhattan-Project governance materialized. SA LP's barbell is individually optimal but socially under-hedged.",
+    "implication_for_book": "Preserve SA LP long-side mirroring at phase-1 sizing; amplify put-overlay relative to baseline via Loop 3 (cash_raise primary + optional NVDA-only portfolio-insurance leg)."
+  },
+
+  "short_overlay_bias_flag": {
+    "fired": true,
+    "rationale": "Regime classification = fragile_low_gamma triggers Loop 3 amplification of put-overlay relative to baseline. SA LP's institutional put complex ($8.46B notional across 11 chip names) is NOT replicable at retail scale (strikes/expiries/theta/margin do not scale down cleanly). Primary response is a cash_raise leg that holds 20% of the thematic-bucket as cash rather than deploying it to longs; secondary leg is an NVDA-only OTM put spread per Week 1c verification (SMH refused — OTM put spreads 6.3-12.6% across all OTM strikes; NVDA OTM puts spreads 1.3-2.2% PASS).",
+    "loop3_recommendation": {
+      "primary": "cash_raise",
+      "primary_pct_reduction_of_long_book": 20.0,
+      "secondary": "nvda_otm_puts",
+      "secondary_pct_of_total_portfolio": 1.0,
+      "spread_quality_check_passed": true
+    },
+    "source_artifacts": [
+      {
+        "source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md",
+        "snippet": "$8.46B notional puts on the chip stack (NVDA, SMH, AMD, AVGO, ORCL, ASML, MU, TSM, INTC) PAIRED with long power generation + AI hosting + memory. 62% of portfolio notional in semiconductor puts.",
+        "tier": 2
+      },
+      {
+        "source": "trammell/2026-05-24-trammell-aschenbrenner-existential-risk-and-growth-2025.md",
+        "snippet": "Fragile World (ε > β, γ ≤ 1): labor doesn't shift fast enough → M_∞ = 0. Kuznets curve too slow; doom.",
+        "tier": 1
+      },
+      {
+        "source": "secondary/2026-05-24-2pml-trammell-aschenbrenner-review.md",
+        "snippet": "Cash-raise + put-overlay during volatility = NOT a stagnation-bet but a resource-conservation move that pre-positions for the next acceleration phase.",
+        "tier": 2
+      }
+    ]
+  },
+
+  "positions": [
+    {
+      "ticker": "BE",
+      "name": "BLOOM ENERGY CORP",
+      "sector": "power_infra",
+      "sa_lp_weight_pct_of_long_book": 22.789418878932587,
+      "raw_target_pct_of_total_pre_cap": 2.278941887893259,
+      "target_weight_pct_of_total": 2.278941887893259,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 2.278941887893259,
+      "recommended_action": "open",
+      "conviction_tier": "boost",
+      "ensemble_holds": ["light_street"],
+      "ensemble_exits": ["altimeter"],
+      "critic_trigger_context": {
+        "trigger_rule": "ensemble_disagreement",
+        "specialist_gating": [],
+        "context_summary": "BE held by ['light_street']; exited by ['altimeter'] this quarter — ensemble is split. Critic panel evaluates whether the exits read off-thesis change SA LP did not act on."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Bloom Energy's fuel-cell power generation serves AI-cluster power demand. Risk channel is downstream consumption (electricity for compute), not AI capability frontier itself — Trammell-Aschenbrenner consumption-as-risk-driver model applies cleanly.",
+        "source_artifacts": ["aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing; this position is the power-as-binding-constraint anchor of the SA LP long book and Loop 1 mirrors it at 1.0×.",
+      "rationale": "SA LP's #1 long at 22.79% of long book ($878.71M); SA LP trimmed 35.64% Q4→Q1 (Bloom was 15.87% of portfolio Q4 → 6.42% Q1 per Dave Manuel) but retained dominant position after 176% run. Shulman's 80K Hours framing identifies heat dissipation/power as the ultimate physical constraint; Aschenbrenner's Ch IIIa identifies '100GW of new continuous power' as the binding constraint for the trillion-dollar-cluster trajectory. Bloom's fuel-cell architecture is a direct play on that constraint.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Bloom Energy (BE) $878.71M / 6.42% of portfolio. Trimmed 35.64% (was 15.87% → 6.42%) — taking some chips off the table after 176% run.", "tier": 2},
+        {"source": "aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md", "snippet": "Power is the binding constraint, not chips. 100GW of new continuous power required by 2030. >20% of US electricity production.", "tier": 1},
+        {"source": "shulman/2026-05-24-shulman-80k-hours-podcast.md", "snippet": "Heat dissipation forces eventual expansion beyond Earth — i.e. terrestrial power generation is the near-term limit. This is the direct economic-physics justification for SA LP's long-power-+-data-infrastructure positioning.", "tier": 1}
+      ]
+    },
+    {
+      "ticker": "SNDK",
+      "name": "SANDISK CORP",
+      "sector": "storage_memory",
+      "sa_lp_weight_pct_of_long_book": 18.786465827423584,
+      "raw_target_pct_of_total_pre_cap": 1.8786465827423584,
+      "target_weight_pct_of_total": 1.8786465827423584,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 1.8786465827423584,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": ["patel", "rasgon"],
+        "context_summary": "SNDK: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline. Memory/storage specialist gating (Patel + Rasgon) fires."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "SanDisk's NAND/storage product line serves AI checkpoint storage demand. Position is the 'second-derivative trade' framing — captures AI checkpoint storage spend without depending on the chip-capability narrative sustaining. Risk channel is downstream of the AI tech (storage of model weights/checkpoints), not the capability frontier.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing. This is SA LP's largest non-consensus position — Patel/Rasgon specialist critics will adjudicate the contrarian-storage-thesis vs the consensus chip exposure on the ensemble side.",
+      "rationale": "SA LP's #2 long at 18.79% of long book ($724.36M); SA LP increased meaningfully vs Q4 ($250.25M → $724.36M, ~189% increase). Dave Manuel frames it as the 'second-derivative trade capturing AI checkpoint storage without depending on chip-narrative sustainability.' No ensemble fund holds — Altimeter, Coatue, Light Street all absent — making this the highest-conviction SA-LP-only thesis in the long book.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "SanDisk (SNDK) $724.36M / 5.30%. Storage / memory: positioned as 'second-derivative trade' capturing AI checkpoint storage without depending on chip-narrative sustainability.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "CRWV",
+      "name": "COREWEAVE INC",
+      "sector": "gpu_cloud",
+      "sa_lp_weight_pct_of_long_book": 14.42184469439231,
+      "raw_target_pct_of_total_pre_cap": 1.4421844694392312,
+      "target_weight_pct_of_total": 1.4421844694392312,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 1.4421844694392312,
+      "recommended_action": "open",
+      "conviction_tier": "boost",
+      "ensemble_holds": ["altimeter"],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "none",
+        "specialist_gating": [],
+        "context_summary": "CRWV: held by SA LP and ['altimeter']; no recent ensemble exits. Standard consensus position — critic panel runs at baseline weight."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "CoreWeave is a GPU-cloud / compute-rental layer that monetizes AI-cluster utilization. Risk channel is downstream of the underlying AI capability — the company exists because frontier labs rent CoreWeave's H100/B100 capacity. Consumption-side of the AI economy, not capability frontier itself.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing; consensus with Altimeter (only ensemble fund holding) suggests baseline weight in critic dispatch.",
+      "rationale": "SA LP's #3 long at 14.42% of long book ($556.07M); SA LP increased 18% Q4→Q1. The GPU-cloud / compute layer — the only consensus position between SA LP and any ensemble fund (Altimeter $348.54M). Aschenbrenner's Ch IIIa explicitly identifies '1GW (2026)' cluster scale; CoreWeave is the publicly-listed pure-play on that 2026-scale rental compute.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "CoreWeave (CRWV) $556.07M / 4.07%. Increased 18% Q4→Q1. GPU cloud / compute layer (second-largest conviction long).", "tier": 2},
+        {"source": "aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md", "snippet": "Cluster trajectory: ~1M H100-equiv / $10s of B / ~1 GW by 2026 — Hoover Dam / large nuclear reactor scale.", "tier": 1}
+      ]
+    },
+    {
+      "ticker": "IREN",
+      "name": "IREN LIMITED",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 10.400929064170864,
+      "raw_target_pct_of_total_pre_cap": 1.0400929064170863,
+      "target_weight_pct_of_total": 1.0400929064170863,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 1.0400929064170863,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "IREN: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "IREN is a Bitcoin miner pivoting to AI hosting — re-purposes existing electrical infrastructure (gigawatt-scale grid interconnects, water rights, datacenter shells) to serve AI compute demand. Risk channel is the downstream consumption-side power/infrastructure layer, not the AI capability frontier.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing. Sector consistent with Aschenbrenner's power-as-binding-constraint framing.",
+      "rationale": "SA LP's #4 long at 10.40% of long book ($401.04M); SA LP increased Q4→Q1 ($328.62M → $401.04M, ~22%). Member of the Bitcoin-miners-pivoting-to-AI-hosting cluster (~5-6% of SA LP book per Dave Manuel) — re-purposes Bitcoin-mining electrical/datacenter infrastructure to AI workloads.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "IREN Limited $401.04M / 2.93%. Bitcoin miners pivoting to AI hosting (~5-6%): CleanSpark, Riot, IREN, Bitdeer, Bitfarms.", "tier": 2},
+        {"source": "aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md", "snippet": "Where do I find 10GW? is a favorite topic of conversation in SF. What any compute guy is thinking about is securing power, land, permitting, and datacenter construction.", "tier": 1}
+      ]
+    },
+    {
+      "ticker": "CORZ",
+      "name": "CORE SCIENTIFIC INC NEW",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 10.091022010839298,
+      "raw_target_pct_of_total_pre_cap": 1.00910220108393,
+      "target_weight_pct_of_total": 1.00910220108393,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 1.00910220108393,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "CORZ: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Core Scientific is a Bitcoin miner / datacenter operator with announced AI-hosting contracts (CoreWeave is a customer). Risk channel is power-infrastructure consumption side, not AI capability frontier.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP's #5 long at 10.09% of long book ($389.09M); SA LP trimmed Q4→Q1 ($418.69M → $389.09M, ~7%). Per Dave Manuel, SA LP 'reduced 7.59% → 2.84%' as % of total portfolio — taking some chips off the table after gains but retained material exposure.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Core Scientific (CORZ) $389.09M / 2.84%. Reduced 7.59% → 2.84%.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "APLD",
+      "name": "APPLIED DIGITAL CORP",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 8.298679361178086,
+      "raw_target_pct_of_total_pre_cap": 0.8298679361178086,
+      "target_weight_pct_of_total": 0.8298679361178086,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.8298679361178086,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "APLD: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Applied Digital operates datacenters for HPC/AI hosting. Power/datacenter infrastructure consumption side — consistent Trammell-Aschenbrenner model.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP's #6 long at 8.30% of long book ($319.98M); SA LP increased Q4→Q1 ($278.03M → $319.98M, ~15%). Per Dave Manuel: 'Applied Digital +19%' as quarterly change.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Applied Digital (APLD) $319.98M / 2.34%. Applied Digital +19% (major increase).", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "RIOT",
+      "name": "RIOT PLATFORMS INC",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 3.687106745892605,
+      "raw_target_pct_of_total_pre_cap": 0.3687106745892605,
+      "target_weight_pct_of_total": 0.3687106745892605,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.3687106745892605,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "RIOT: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Riot Platforms is a Bitcoin miner with AI-hosting pivot exposure. Power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $142.17M (3.69% of long book); SA LP increased Q4→Q1 ($78.14M → $142.17M, ~82%). Per Dave Manuel: 'Riot +86%' as quarterly change. Member of miner-pivot cluster.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Riot Platforms (RIOT) $142.17M / 1.04%. Riot +86%.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "CLSK",
+      "name": "CLEANSPARK INC",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 2.709443274610269,
+      "raw_target_pct_of_total_pre_cap": 0.2709443274610269,
+      "target_weight_pct_of_total": 0.2709443274610269,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.2709443274610269,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "CLSK: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "CleanSpark — Bitcoin miner / power-infrastructure consumer. Power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $104.47M (2.71% of long book); SA LP added massively Q4→Q1 ($16.60M → $104.47M, ~530%). Per Dave Manuel: 'CleanSpark +648%' — the largest quarter-over-quarter % increase in the SA LP book.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "CleanSpark (CLSK) $104.47M / 0.76%. CleanSpark +648% (largest quarterly % increase).", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "SEI",
+      "name": "SOLARIS ENERGY INFRAS INC",
+      "sector": "power_infra",
+      "sa_lp_weight_pct_of_long_book": 1.6202901587256693,
+      "raw_target_pct_of_total_pre_cap": 0.16202901587256693,
+      "target_weight_pct_of_total": 0.16202901587256693,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.16202901587256693,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "SEI: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Solaris Energy Infrastructure — mobile power solutions for oilfield/data-center workloads. Power-infrastructure consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $62.47M (1.62% of long book); SA LP trimmed Q4→Q1 ($85.80M → $62.47M, ~27%). Member of SA LP's 'Power + infrastructure' cluster per Dave Manuel.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Power + infrastructure (~13% of book): Bloom Energy, T1 Energy, Solaris Energy Infrastructure, Power Solutions Intl, Babcock & Wilcox.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "TE",
+      "name": "T1 ENERGY INC",
+      "sector": "power_infra",
+      "sa_lp_weight_pct_of_long_book": 1.1385529305342,
+      "raw_target_pct_of_total_pre_cap": 0.11385529305342,
+      "target_weight_pct_of_total": 0.11385529305342,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.11385529305342,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "TE: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline. (SA LP added this quarter — new position.)"
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "T1 Energy — power-infrastructure / energy-systems company. Power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing. New SA LP position this quarter.",
+      "rationale": "SA LP $43.90M (1.14% of long book); NEW position Q1 2026 — SA LP added ~3.6% of company outstanding per Dave Manuel. Power+infrastructure cluster.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "T1 Energy (TE): $43.9M, ~3.6% of company outstanding. NEW position this quarter.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "BITF",
+      "name": "BITFARMS LTD",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 1.0051915025903484,
+      "raw_target_pct_of_total_pre_cap": 0.10051915025903484,
+      "target_weight_pct_of_total": 0.10051915025903484,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.10051915025903484,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "BITF: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Bitfarms — Bitcoin miner / power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $38.76M (1.01% of long book); SA LP added Q4→Q1 ($16.21M → $38.76M, ~139%). Per Dave Manuel: 'Bitfarms +188%' quarterly change.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Bitfarms +188% (major increase).", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "BTDR",
+      "name": "BITDEER TECHNOLOGIES GROUP",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 0.7716028452092278,
+      "raw_target_pct_of_total_pre_cap": 0.07716028452092279,
+      "target_weight_pct_of_total": 0.07716028452092279,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.07716028452092279,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "BTDR: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Bitdeer Technologies — Bitcoin mining / AI hosting. Power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $29.75M (0.77% of long book); SA LP added Q4→Q1 ($20.04M → $29.75M, ~48%).",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Bitcoin miners pivoting to AI hosting cluster.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "PSIX",
+      "name": "POWER SOLUTIONS INTL INC",
+      "sector": "power_infra",
+      "sa_lp_weight_pct_of_long_book": 0.6825721816000369,
+      "raw_target_pct_of_total_pre_cap": 0.06825721816000369,
+      "target_weight_pct_of_total": 0.06825721816000369,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.06825721816000369,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "PSIX: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Power Solutions International — engine/power systems. Power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $26.32M (0.68% of long book); SA LP added marginally Q4→Q1 ($24.70M → $26.32M, ~7%).",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Power + infrastructure cluster.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "WYFI",
+      "name": "WHITEFIBER INC",
+      "sector": "data_infra",
+      "sa_lp_weight_pct_of_long_book": 0.5429008362578427,
+      "raw_target_pct_of_total_pre_cap": 0.054290083625784274,
+      "target_weight_pct_of_total": 0.054290083625784274,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.054290083625784274,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "WYFI: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "WhiteFiber — data infrastructure / fiber. Consumption-side.",
+        "source_artifacts": []
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $20.93M (0.54% of long book); SA LP held Q4→Q1 ($27.77M → $20.93M, ~25% trim). Datacenter/data-infra layer.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "WhiteFiber retained Q4 to Q1.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "AMD",
+      "name": "ADVANCED MICRO DEVICES INC",
+      "sector": "chip",
+      "sa_lp_weight_pct_of_long_book": 0.5230507753899213,
+      "raw_target_pct_of_total_pre_cap": 0.05230507753899213,
+      "target_weight_pct_of_total": 0.05230507753899213,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.05230507753899213,
+      "recommended_action": "open",
+      "conviction_tier": "boost",
+      "ensemble_holds": ["light_street"],
+      "ensemble_exits": ["coatue"],
+      "critic_trigger_context": {
+        "trigger_rule": "ensemble_disagreement",
+        "specialist_gating": [],
+        "context_summary": "AMD held by ['light_street']; exited by ['coatue'] this quarter — ensemble is split. Critic panel evaluates whether the exits read off-thesis change SA LP did not act on."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "technology",
+        "structural_risk_adjustment_applicable": true,
+        "rationale": "AMD is a frontier-AI-capability long (MI300 / MI325 GPUs compete with Nvidia H100/B100 in AI training/inference). Risk channel is the AI capability frontier itself — Thorstad critique applies: Trammell-Aschenbrenner consumption-as-risk-driver model's main theorems don't hold cleanly. Thorstad critic will fire at high weight on this position; recommended adjustment will propagate via standard critic aggregation.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "trammell/2026-05-24-trammell-aschenbrenner-existential-risk-and-growth-2025.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing for individual longs (the put-overlay is the regime-driven amplification, not long-side shrinkage). Thorstad-frame structural-risk flag set; downstream critic panel will adjudicate.",
+      "rationale": "SA LP $20.17M (0.52% of long book) — a small starter common position paired with a $969M notional AMD put per Dave Manuel. Per Dave Manuel: 'Small starter commons in shorted names = optionality preservation, not conviction longs.' This is one of those — the long-side mirror is correspondingly small.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Small 'starter' commons in shorted names = optionality preservation, not conviction longs. AMD: $20.17M long paired with $969M notional put.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "BW",
+      "name": "BABCOCK & WILCOX ENTERPRISES",
+      "sector": "power_infra",
+      "sa_lp_weight_pct_of_long_book": 0.5158187079232852,
+      "raw_target_pct_of_total_pre_cap": 0.05158187079232852,
+      "target_weight_pct_of_total": 0.05158187079232852,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.05158187079232852,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "BW: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Babcock & Wilcox — power generation systems (boilers, nuclear services). Power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $19.89M (0.52% of long book); SA LP added Q4→Q1 ($8.58M → $19.89M, ~132%). Power+infrastructure cluster.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Power + infrastructure (~13% of book): Babcock & Wilcox.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "SHAZ",
+      "name": "SHARONAI HOLDINGS INC",
+      "sector": "data_infra",
+      "sa_lp_weight_pct_of_long_book": 0.46931035088460554,
+      "raw_target_pct_of_total_pre_cap": 0.046931035088460554,
+      "target_weight_pct_of_total": 0.046931035088460554,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.046931035088460554,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "SHAZ: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline. (SA LP added this quarter — new position.)"
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "SharonAI Holdings — AI/datacenter services. Consumption-side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing. New SA LP position this quarter.",
+      "rationale": "SA LP $18.10M (0.47% of long book); NEW position Q1 2026 per Dave Manuel.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Major new position: SharonAI Holdings (SHAZ): $18.1M.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "PUMP",
+      "name": "PROPETRO HLDG CORP",
+      "sector": "energy_services",
+      "sa_lp_weight_pct_of_long_book": 0.3402022869637065,
+      "raw_target_pct_of_total_pre_cap": 0.034020228696370655,
+      "target_weight_pct_of_total": 0.034020228696370655,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.034020228696370655,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "PUMP: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "ProPetro Holding — oilfield services / hydraulic fracturing. Marcellus/Utica shale gas chain consumption side (per Aschenbrenner's '100GW from Marcellus shale alone is feasible' thesis).",
+        "source_artifacts": ["aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing.",
+      "rationale": "SA LP $13.12M (0.34% of long book); SA LP added Q4→Q1 ($8.66M → $13.12M, ~51%). Energy-services / Marcellus-shale thesis play.",
+      "source_artifacts": [
+        {"source": "aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md", "snippet": "100GW from Marcellus shale alone is feasible: ~36 BCF/day Marcellus production could generate 150GW continuous. Requires ~1,200 new wells.", "tier": 1}
+      ]
+    },
+    {
+      "ticker": "SMH",
+      "name": "VANECK SEMICONDUCTOR ETF",
+      "sector": "chip_etf",
+      "sa_lp_weight_pct_of_long_book": 0.2679782725882822,
+      "raw_target_pct_of_total_pre_cap": 0.02679782725882822,
+      "target_weight_pct_of_total": 0.02679782725882822,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.02679782725882822,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "SMH (long-side commons): no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline. SA LP added this quarter — paired with $2.04B notional SMH puts (the headline put leg). This long-side commons leg is optionality preservation, NOT a recommendation to replicate the SMH put complex (SMH puts refused at retail per Week 1c verification)."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "technology",
+        "structural_risk_adjustment_applicable": true,
+        "rationale": "SMH ETF aggregate semiconductor exposure = frontier-AI-capability risk channel. Thorstad-frame applies.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing. Note: the headline SA LP exposure on SMH is the $2.04B notional put complex (62% of fund's put-side notional weight) — NOT this $10.33M starter long. The put complex is institutional-only and is NOT replicated; the long-side commons is mirrored at 0.027% per the sizer.",
+      "rationale": "SA LP $10.33M long-side commons (0.27% of long book); SA LP added Q4→Q1 — paired with $2.04B notional SMH puts (the largest single put in the put complex per Dave Manuel). The long-side commons leg is optionality preservation per Dave Manuel framing.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "VanEck Semiconductor ETF (SMH) $2.04B notional put / 14.94% of portfolio notional. Long-side starter commons of $10.33M = optionality preservation.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "INTC",
+      "name": "INTEL CORP",
+      "sector": "chip",
+      "sa_lp_weight_pct_of_long_book": 0.2315863603321694,
+      "raw_target_pct_of_total_pre_cap": 0.02315863603321694,
+      "target_weight_pct_of_total": 0.02315863603321694,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.02315863603321694,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "INTC: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "technology",
+        "structural_risk_adjustment_applicable": true,
+        "rationale": "Intel — chip-design / foundry. Frontier-AI-capability risk channel.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing; Thorstad-frame structural risk flagged.",
+      "rationale": "SA LP $8.93M (0.23% of long book); SA LP added massively Q4→Q1 ($37 → $8.93M — effectively rebuilt position). Per Dave Manuel: Intel was a 13%+ leveraged call position in Q1 — exited that, retained small starter common as optionality preservation alongside $159M notional Intel put.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Intel calls (was 13%+ leveraged position) — complete exit. Long-side $8.93M starter common paired with $159M notional Intel put.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "TSM",
+      "name": "TAIWAN SEMICONDUCTOR MANUFAC",
+      "sector": "chip",
+      "sa_lp_weight_pct_of_long_book": 0.19653272756964416,
+      "raw_target_pct_of_total_pre_cap": 0.019653272756964414,
+      "target_weight_pct_of_total": 0.019653272756964414,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.019653272756964414,
+      "recommended_action": "open",
+      "conviction_tier": "boost",
+      "ensemble_holds": ["altimeter", "coatue", "light_street"],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "none",
+        "specialist_gating": [],
+        "context_summary": "TSM: held by SA LP and ['altimeter', 'coatue', 'light_street']; no recent ensemble exits. Standard consensus position — critic panel runs at baseline weight."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "technology",
+        "structural_risk_adjustment_applicable": true,
+        "rationale": "TSMC — foundry / chip fabrication for frontier AI accelerators (H100/B100, AMD MI300, Apple/Tesla custom). Frontier-AI-capability risk channel.",
+        "source_artifacts": ["aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md", "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing; Thorstad-frame structural risk flagged. Full ensemble consensus position.",
+      "rationale": "SA LP $7.58M (0.20% of long book); SA LP added this quarter — small starter common alongside $535M notional TSM put. Per Dave Manuel: 'Holds BOTH puts and calls on Micron AND TSMC — described as volatility plays, not directional bets.' Three of three ensemble funds hold TSM (Altimeter $461.53M, Coatue, Light Street $76.91M) — strongest consensus signal in the long book.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Holds BOTH puts and calls on Micron AND TSMC — described as volatility plays, not directional bets. Expects large moves in memory + foundry without picking winners.", "tier": 2},
+        {"source": "aschenbrenner/essays/2026-05-24-aschenbrenner-sa-iiia-trillion-dollar-cluster.md", "snippet": "TSMC wafer capacity: ~400K wafers/month (5/3/7nm combined); AI chips ~5-10% of annual production (2024).", "tier": 1}
+      ]
+    },
+    {
+      "ticker": "HIVE",
+      "name": "HIVE DIGITAL TECHNOLOGIES LT",
+      "sector": "miner_pivot",
+      "sa_lp_weight_pct_of_long_book": 0.16712450188231484,
+      "raw_target_pct_of_total_pre_cap": 0.016712450188231483,
+      "target_weight_pct_of_total": 0.016712450188231483,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.016712450188231483,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "HIVE: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline. (SA LP added this quarter — new position.)"
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Hive Digital Technologies — Bitcoin miner with HPC/AI pivot. Power-consumption side.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing. New SA LP position this quarter.",
+      "rationale": "SA LP $6.44M (0.17% of long book); NEW position Q1 2026 per Dave Manuel.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Major new position: Hive Digital (HIVE): $6.44M.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "ASML",
+      "name": "ASML HLDG NV N Y REGISTRY",
+      "sector": "chip",
+      "sa_lp_weight_pct_of_long_book": 0.1587076650541147,
+      "raw_target_pct_of_total_pre_cap": 0.01587076650541147,
+      "target_weight_pct_of_total": 0.01587076650541147,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.01587076650541147,
+      "recommended_action": "open",
+      "conviction_tier": "boost",
+      "ensemble_holds": ["coatue", "light_street"],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "none",
+        "specialist_gating": [],
+        "context_summary": "ASML: held by SA LP and ['coatue', 'light_street']; no recent ensemble exits. Standard consensus position — critic panel runs at baseline weight."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "technology",
+        "structural_risk_adjustment_applicable": true,
+        "rationale": "ASML — EUV lithography monopoly enabling sub-5nm process nodes. Frontier-AI-capability risk channel.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing; Thorstad-frame structural risk flagged.",
+      "rationale": "SA LP $6.12M (0.16% of long book); SA LP added this quarter — small starter common alongside $494M notional ASML put.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "ASML put $494M / 3.61% of portfolio notional. Long-side $6.12M starter common.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "MU",
+      "name": "MICRON TECHNOLOGY INC",
+      "sector": "memory",
+      "sa_lp_weight_pct_of_long_book": 0.1521246246281761,
+      "raw_target_pct_of_total_pre_cap": 0.01521246246281761,
+      "target_weight_pct_of_total": 0.01521246246281761,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.01521246246281761,
+      "recommended_action": "open",
+      "conviction_tier": "boost",
+      "ensemble_holds": ["coatue"],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "none",
+        "specialist_gating": ["patel", "rasgon"],
+        "context_summary": "MU: held by SA LP and ['coatue']; no recent ensemble exits. Standard consensus position — critic panel runs at baseline weight. Memory specialist gating (Patel + Rasgon) fires."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "technology",
+        "structural_risk_adjustment_applicable": true,
+        "rationale": "Micron — HBM3/HBM4 memory for AI accelerators. Frontier-AI-capability risk channel via HBM bottleneck.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing; Thorstad-frame structural risk flagged. Memory specialist gating active.",
+      "rationale": "SA LP $5.87M (0.15% of long book); SA LP added this quarter — small starter common alongside $584M notional MU put. Per Dave Manuel: 'Holds BOTH puts and calls on Micron AND TSMC — volatility plays, not directional bets.'",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Holds BOTH puts and calls on Micron AND TSMC — described as volatility plays, not directional bets.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "GLW",
+      "name": "CORNING INC",
+      "sector": "data_infra",
+      "sa_lp_weight_pct_of_long_book": 0.018629993771996166,
+      "raw_target_pct_of_total_pre_cap": 0.0018629993771996168,
+      "target_weight_pct_of_total": 0.0018629993771996168,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.0018629993771996168,
+      "recommended_action": "open",
+      "conviction_tier": "sa_lp_only",
+      "ensemble_holds": [],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "non_consensus_sa_lp_solo",
+        "specialist_gating": [],
+        "context_summary": "GLW: no ensemble fund holds; SA LP holds. Non-consensus thesis — critic panel evaluates baseline. (SA LP added this quarter — new position.)"
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "consumption",
+        "structural_risk_adjustment_applicable": false,
+        "rationale": "Corning — fiber-optic / specialty glass. Consumption-side data infrastructure.",
+        "source_artifacts": []
+      },
+      "regime_position_logic": "fragile_low_gamma preserves sizing. New SA LP position this quarter.",
+      "rationale": "SA LP $0.72M (0.02% of long book); NEW position Q1 2026 — very small starter.",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "Corning small starter common.", "tier": 2}
+      ]
+    },
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA CORPORATION",
+      "sector": "chip",
+      "sa_lp_weight_pct_of_long_book": 0.012913420654855227,
+      "raw_target_pct_of_total_pre_cap": 0.0012913420654855228,
+      "target_weight_pct_of_total": 0.0012913420654855228,
+      "cap_binding": "none",
+      "current_weight_pct_of_total": 0.0,
+      "delta_weight_pct": 0.0012913420654855228,
+      "recommended_action": "open",
+      "conviction_tier": "boost",
+      "ensemble_holds": ["altimeter", "coatue", "light_street"],
+      "ensemble_exits": [],
+      "critic_trigger_context": {
+        "trigger_rule": "none",
+        "specialist_gating": [],
+        "context_summary": "NVDA: held by SA LP and ['altimeter', 'coatue', 'light_street']; no recent ensemble exits. Standard consensus position — critic panel runs at baseline weight. Full ensemble consensus."
+      },
+      "thorstad_frame_check": {
+        "risk_channel": "technology",
+        "structural_risk_adjustment_applicable": true,
+        "rationale": "Nvidia — frontier-AI-accelerator monopoly (H100/B100/Rubin generations). Risk channel IS the AI capability frontier itself. Thorstad critique applies at maximum weight.",
+        "source_artifacts": ["press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md"]
+      },
+      "regime_position_logic": "fragile_low_gamma preserves long-side mirror sizing at 0.001% — this is starter-common optionality preservation, NOT a conviction long. SA LP's headline NVDA exposure is the $1.57B notional put, which is mirrored via the Loop 3 NVDA-OTM-put portfolio-insurance leg (1% of total portfolio per short_overlay_bias).",
+      "rationale": "SA LP $0.50M long-side commons (0.013% of long book); SA LP added this quarter — small starter common alongside $1.57B notional NVDA put (second-largest position in put complex). Per Dave Manuel: 'small starter commons in shorted names (e.g. $498K NVDA position alongside $1.57B puts) = optionality preservation, not conviction longs.' Full ensemble consensus on the long side (Altimeter $1.63B, Coatue, Light Street $47.47M).",
+      "source_artifacts": [
+        {"source": "press/2026-05-24-sa-lp-q1-2026-13f-davemanuel.md", "snippet": "$498K NVDA position alongside $1.57B puts = optionality preservation, not conviction longs. NVDA put = $1.57B / 11.47% of portfolio notional.", "tier": 2}
+      ]
+    }
+  ],
+
+  "drift_signals": [],
+
+  "structural_risk_escalations": [],
+
+  "validation": {
+    "cap_enforcement_passed": true,
+    "every_position_has_source_artifacts": true,
+    "every_position_has_thorstad_frame": true,
+    "every_position_has_critic_trigger_context": true,
+    "paper_only_enforced": true,
+    "allocation_within_loop5_phase": true,
+    "no_put_replication_recommended": true,
+    "no_process_b_modification": true,
+    "failures": [],
+    "warnings": [
+      "Regime classification confidence is medium (not high) — primary evidence is Dubach 2-years-on scorecard + Aschenbrenner essay + Shulman podcast. Confidence will move to high when (a) aschenbrenner_x corpus slot is populated (twitterapi.io ingest pending), (b) Q2 2026 SA LP 13F provides second calibration cycle, and (c) Tier 3 signal compilers ship (power-sector earnings, semi inventory, AI capex announcements, energy futures).",
+      "M3 rank-based ensemble triangulation = 0.10 (fails >=0.5 threshold) — SA LP's miner-pivot / power-infra top-10 has near-zero rank overlap with Altimeter/Coatue/Light Street top-10s. This is a feature, not a bug, given SA LP's barbell architecture targets a different layer of the AI capex stack — but consumers should note that the ensemble triangulation provides weak external validation here.",
+      "Light Street's $0.50B long book is small relative to Coatue ($29.06B). Rank-based comparison treats them equally (per session-2 design change #4), but consumers should weight ensemble signals accordingly."
+    ]
+  }
+}

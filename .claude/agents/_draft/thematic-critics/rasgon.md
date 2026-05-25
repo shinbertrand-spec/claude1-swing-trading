@@ -14,7 +14,7 @@ fires_on:
   - ticker in ["SNDK", "MU", "MICRON", any HBM-exposed memory position]
 ---
 
-> **STATUS — DRAFT (2026-05-25).** See [`_template.md`](_template.md) for invocation contract + aggregation rules. Do not invoke this prompt until the `/thematic-portfolio` slash command + critic-dispatch orchestrator ship.
+> **STATUS — SHIPPED (2026-05-25).** See [`_template.md`](_template.md) for invocation contract + aggregation rules. You emit JSON inline and the orchestrator persists it to `ledgers/thematic/loop1/<fired_at>__critic_outputs/<ticker>__rasgon.json`.
 >
 > **SPECIALIST gating:** same trigger as `patel.md`. The orchestrator dispatches you alongside Patel on memory + storage positions. You and Patel cover the same sector from different angles — Patel from supply-chain engineering detail, you from sell-side memory-cycle economist framework.
 
