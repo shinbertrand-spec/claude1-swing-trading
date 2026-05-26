@@ -48,19 +48,38 @@ if (-not $data.positions -or $data.positions.Count -eq 0) {
     exit 0
 }
 
-# ---- Fetch live prices from Yahoo Finance ----
-function Get-YahooPrice {
-    param([string]$Ticker)
-    try {
-        $url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$Ticker"
-        $resp = Invoke-RestMethod -Uri $url -Method Get -UserAgent "Mozilla/5.0" -TimeoutSec 10
-        if ($resp.quoteResponse.result.Count -gt 0) {
-            return [double]$resp.quoteResponse.result[0].regularMarketPrice
-        }
-    } catch {
-        Write-Warning "Yahoo price fetch failed for $Ticker - $_"
+# ---- Fetch live prices via yfinance (batched) ----
+# Yahoo's free /v7/finance/quote HTTP endpoint started returning 401
+# Unauthorized in 2024-2025; replaced with a yfinance-based batched
+# fetch via scripts/fetch_prices.py. One Python invocation per run
+# (~3s for 7 tickers) vs one HTTP call per ticker in the old design.
+function Get-AllPrices {
+    param([string[]]$Tickers)
+    if (-not $Tickers -or $Tickers.Count -eq 0) { return @{} }
+    $helper = "C:\Users\User\Desktop\Claude1\scripts\fetch_prices.py"
+    if (-not (Test-Path -LiteralPath $helper)) {
+        Write-Warning "fetch_prices.py missing at $helper"
+        return @{}
     }
-    return $null
+    try {
+        # uv run inherits cwd from script; helper script uses only yfinance.
+        $json = & uv run python $helper @Tickers 2>$null
+        if (-not $json) {
+            Write-Warning "fetch_prices.py returned empty output"
+            return @{}
+        }
+        $obj = $json | ConvertFrom-Json
+        # PS 5.1 ConvertFrom-Json returns PSCustomObject; convert to hashtable
+        # for case-sensitive lookup by ticker.
+        $out = @{}
+        foreach ($prop in $obj.PSObject.Properties) {
+            $out[$prop.Name] = [double]$prop.Value
+        }
+        return $out
+    } catch {
+        Write-Warning "Batched price fetch failed: $_"
+        return @{}
+    }
 }
 
 # ---- Alert helper ----
@@ -79,9 +98,16 @@ function Send-Alert {
 $today = (Get-Date).ToString('yyyy-MM-dd')
 $mutated = $false
 
+# Fetch all prices in one batched yfinance call (~3s for 7-10 tickers).
+$tickers = @($data.positions | ForEach-Object { $_.ticker })
+$prices = Get-AllPrices -Tickers $tickers
+
 foreach ($p in $data.positions) {
-    $live = Get-YahooPrice -Ticker $p.ticker
-    if (-not $live) { continue }
+    $live = if ($prices.ContainsKey($p.ticker)) { $prices[$p.ticker] } else { $null }
+    if (-not $live) {
+        Write-Warning "No price for $($p.ticker) - skipping"
+        continue
+    }
 
     $pctGain = (($live - $p.entry_price) / $p.entry_price) * 100
     $stopDist = (($live - $p.stop) / $live) * 100  # how far above stop (%)
@@ -141,7 +167,11 @@ foreach ($p in $data.positions) {
 
 # ---- Persist state if any changes ----
 if ($mutated) {
-    $data.updated = (Get-Date).ToString('o')
+    # $data is a PSCustomObject from ConvertFrom-Json. Setting a nonexistent
+    # property fails with "The property cannot be found" — the positions.json
+    # never carried an 'updated' field, so we add-or-overwrite via Add-Member
+    # with -Force (idempotent across runs).
+    $data | Add-Member -NotePropertyName 'updated' -NotePropertyValue ((Get-Date).ToString('o')) -Force
     $data | ConvertTo-Json -Depth 10 | Out-File -LiteralPath $PositionsFile -Encoding UTF8
 }
 
