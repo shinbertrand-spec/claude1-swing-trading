@@ -1,0 +1,117 @@
+# sp500_leaning_88 — the original Claude1 quant universe.
+#
+# Hand-curated 2026-05-24, SP500-leaning + mega-cap-tilted, 87 individual
+# tickers + QQQ (ETF). The "88" label in tools/deployable_setups.yml and
+# strategy YAMLs is 87 + the SPY benchmark added at runtime by
+# tools.backtest.runner (SPY is NOT in this list — it's a separate
+# benchmark: field on each strategy spec).
+#
+# Selection caveats (from tools/deployable_setups.yml header):
+#   - Selected from currently-extant names; no delisted/merged names.
+#   - Not point-in-time. Paper-trade only; real-capital should re-test
+#     against point-in-time membership.
+#
+# Preserved in this file for audit / reproducibility — every cleared
+# verdict in deployable_setups.yml under "88-ticker SP500-leaning" was
+# computed against this exact list. Do NOT mutate. New universes go in
+# sibling files (e.g. sp500_2026q2.yml).
+#
+# Source: extracted byte-identical from the inline universe.tickers
+# blocks of all 6 strategy YAMLs on 2026-05-26 (md5 confirmed identical
+# across clenow_momentum / connors_rsi2 / dual_ma_trend_following /
+# ts_momentum / xs_low_volatility / xs_short_term_reversal).
+
+name: sp500_leaning_88
+pinned_at: 2026-05-24
+provenance: hand-curated from S&P 500 mega/large-cap leaders + sector representatives
+notes: |
+  87 + SPY benchmark = "88". QQQ included as an ETF position for
+  ts_momentum / xs_low_volatility cross-sectional ranking.
+tickers:
+  - "AAPL"
+  - "ABBV"
+  - "ADBE"
+  - "AMD"
+  - "AMT"
+  - "AMZN"
+  - "APD"
+  - "ASML"
+  - "AVGO"
+  - "AXP"
+  - "BABA"
+  - "BAC"
+  - "BKNG"
+  - "BLK"
+  - "CAT"
+  - "CEG"
+  - "CMCSA"
+  - "COIN"
+  - "COP"
+  - "COST"
+  - "CRM"
+  - "CVX"
+  - "DIS"
+  - "DUK"
+  - "EQIX"
+  - "ETN"
+  - "FCX"
+  - "FDX"
+  - "GE"
+  - "GOOGL"
+  - "GS"
+  - "HD"
+  - "HON"
+  - "HUBB"
+  - "ISRG"
+  - "JNJ"
+  - "JPM"
+  - "KLAC"
+  - "KO"
+  - "LIN"
+  - "LLY"
+  - "LMT"
+  - "LULU"
+  - "MA"
+  - "MCD"
+  - "META"
+  - "MO"
+  - "MRK"
+  - "MRVL"
+  - "MS"
+  - "MSFT"
+  - "MU"
+  - "NBIS"
+  - "NEE"
+  - "NFLX"
+  - "NKE"
+  - "NUE"
+  - "NVDA"
+  - "ORCL"
+  - "OXY"
+  - "PDD"
+  - "PEP"
+  - "PG"
+  - "PLD"
+  - "PLTR"
+  - "QCOM"
+  - "QQQ"
+  - "RBLX"
+  - "SBUX"
+  - "SCHW"
+  - "SLB"
+  - "SO"
+  - "T"
+  - "TLN"
+  - "TMO"
+  - "TMUS"
+  - "TSLA"
+  - "UNH"
+  - "UPS"
+  - "V"
+  - "VRT"
+  - "VRTX"
+  - "VST"
+  - "WCC"
+  - "WMT"
+  - "XLK"
+  - "XOM"

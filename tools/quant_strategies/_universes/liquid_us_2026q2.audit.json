@@ -1,0 +1,6030 @@
+{
+  "asof": "2026-05-26",
+  "adv_floor_shares": 500000,
+  "lookback_days": 60,
+  "survivors": [
+    {
+      "ticker": "A",
+      "median_adv_shares": 2077950.0
+    },
+    {
+      "ticker": "AA",
+      "median_adv_shares": 4699950.0
+    },
+    {
+      "ticker": "AAL",
+      "median_adv_shares": 59293150.0
+    },
+    {
+      "ticker": "AAON",
+      "median_adv_shares": 831500.0
+    },
+    {
+      "ticker": "AAP",
+      "median_adv_shares": 1464950.0
+    },
+    {
+      "ticker": "AAPL",
+      "median_adv_shares": 41293400.0
+    },
+    {
+      "ticker": "ABBV",
+      "median_adv_shares": 6256250.0
+    },
+    {
+      "ticker": "ABNB",
+      "median_adv_shares": 3514050.0
+    },
+    {
+      "ticker": "ABR",
+      "median_adv_shares": 3000500.0
+    },
+    {
+      "ticker": "ABT",
+      "median_adv_shares": 11149950.0
+    },
+    {
+      "ticker": "ACAD",
+      "median_adv_shares": 1652550.0
+    },
+    {
+      "ticker": "ACGL",
+      "median_adv_shares": 1923400.0
+    },
+    {
+      "ticker": "ACHC",
+      "median_adv_shares": 2948100.0
+    },
+    {
+      "ticker": "ACI",
+      "median_adv_shares": 5764900.0
+    },
+    {
+      "ticker": "ACIW",
+      "median_adv_shares": 722950.0
+    },
+    {
+      "ticker": "ACLS",
+      "median_adv_shares": 659800.0
+    },
+    {
+      "ticker": "ACM",
+      "median_adv_shares": 1191100.0
+    },
+    {
+      "ticker": "ACMR",
+      "median_adv_shares": 1094250.0
+    },
+    {
+      "ticker": "ACN",
+      "median_adv_shares": 5269750.0
+    },
+    {
+      "ticker": "ADAM",
+      "median_adv_shares": 632300.0
+    },
+    {
+      "ticker": "ADBE",
+      "median_adv_shares": 4927050.0
+    },
+    {
+      "ticker": "ADC",
+      "median_adv_shares": 1054250.0
+    },
+    {
+      "ticker": "ADEA",
+      "median_adv_shares": 1265472.5
+    },
+    {
+      "ticker": "ADI",
+      "median_adv_shares": 3525250.0
+    },
+    {
+      "ticker": "ADM",
+      "median_adv_shares": 3650550.0
+    },
+    {
+      "ticker": "ADMA",
+      "median_adv_shares": 4986200.0
+    },
+    {
+      "ticker": "ADNT",
+      "median_adv_shares": 846150.0
+    },
+    {
+      "ticker": "ADP",
+      "median_adv_shares": 3138800.0
+    },
+    {
+      "ticker": "ADSK",
+      "median_adv_shares": 1812350.0
+    },
+    {
+      "ticker": "ADT",
+      "median_adv_shares": 9465200.0
+    },
+    {
+      "ticker": "AEE",
+      "median_adv_shares": 1704450.0
+    },
+    {
+      "ticker": "AEIS",
+      "median_adv_shares": 642850.0
+    },
+    {
+      "ticker": "AEO",
+      "median_adv_shares": 4661750.0
+    },
+    {
+      "ticker": "AEP",
+      "median_adv_shares": 3143350.0
+    },
+    {
+      "ticker": "AES",
+      "median_adv_shares": 11238950.0
+    },
+    {
+      "ticker": "AESI",
+      "median_adv_shares": 3806050.0
+    },
+    {
+      "ticker": "AFL",
+      "median_adv_shares": 2056850.0
+    },
+    {
+      "ticker": "AGCO",
+      "median_adv_shares": 625750.0
+    },
+    {
+      "ticker": "AHCO",
+      "median_adv_shares": 1340550.0
+    },
+    {
+      "ticker": "AHR",
+      "median_adv_shares": 2388800.0
+    },
+    {
+      "ticker": "AIG",
+      "median_adv_shares": 3708750.0
+    },
+    {
+      "ticker": "AJG",
+      "median_adv_shares": 1901650.0
+    },
+    {
+      "ticker": "AKAM",
+      "median_adv_shares": 4487700.0
+    },
+    {
+      "ticker": "AKR",
+      "median_adv_shares": 1053600.0
+    },
+    {
+      "ticker": "ALB",
+      "median_adv_shares": 1868700.0
+    },
+    {
+      "ticker": "ALGM",
+      "median_adv_shares": 1920250.0
+    },
+    {
+      "ticker": "ALGN",
+      "median_adv_shares": 1024800.0
+    },
+    {
+      "ticker": "ALGT",
+      "median_adv_shares": 509900.0
+    },
+    {
+      "ticker": "ALHC",
+      "median_adv_shares": 3385150.0
+    },
+    {
+      "ticker": "ALK",
+      "median_adv_shares": 3986550.0
+    },
+    {
+      "ticker": "ALKS",
+      "median_adv_shares": 2061500.0
+    },
+    {
+      "ticker": "ALL",
+      "median_adv_shares": 1394400.0
+    },
+    {
+      "ticker": "ALLE",
+      "median_adv_shares": 912700.0
+    },
+    {
+      "ticker": "ALLY",
+      "median_adv_shares": 3098950.0
+    },
+    {
+      "ticker": "ALV",
+      "median_adv_shares": 764200.0
+    },
+    {
+      "ticker": "AM",
+      "median_adv_shares": 2452200.0
+    },
+    {
+      "ticker": "AMAT",
+      "median_adv_shares": 6001350.0
+    },
+    {
+      "ticker": "AMCR",
+      "median_adv_shares": 4452300.0
+    },
+    {
+      "ticker": "AMD",
+      "median_adv_shares": 35760300.0
+    },
+    {
+      "ticker": "AME",
+      "median_adv_shares": 1178900.0
+    },
+    {
+      "ticker": "AMGN",
+      "median_adv_shares": 2372550.0
+    },
+    {
+      "ticker": "AMH",
+      "median_adv_shares": 3085700.0
+    },
+    {
+      "ticker": "AMKR",
+      "median_adv_shares": 3784400.0
+    },
+    {
+      "ticker": "AMN",
+      "median_adv_shares": 933750.0
+    },
+    {
+      "ticker": "AMP",
+      "median_adv_shares": 604350.0
+    },
+    {
+      "ticker": "AMPH",
+      "median_adv_shares": 539900.0
+    },
+    {
+      "ticker": "AMRX",
+      "median_adv_shares": 1616250.0
+    },
+    {
+      "ticker": "AMT",
+      "median_adv_shares": 3026450.0
+    },
+    {
+      "ticker": "AMTM",
+      "median_adv_shares": 1722650.0
+    },
+    {
+      "ticker": "AMZN",
+      "median_adv_shares": 42565850.0
+    },
+    {
+      "ticker": "ANET",
+      "median_adv_shares": 7340100.0
+    },
+    {
+      "ticker": "ANF",
+      "median_adv_shares": 1206700.0
+    },
+    {
+      "ticker": "AON",
+      "median_adv_shares": 1313300.0
+    },
+    {
+      "ticker": "AOS",
+      "median_adv_shares": 1452950.0
+    },
+    {
+      "ticker": "AOSL",
+      "median_adv_shares": 508350.0
+    },
+    {
+      "ticker": "APA",
+      "median_adv_shares": 7407350.0
+    },
+    {
+      "ticker": "APAM",
+      "median_adv_shares": 734700.0
+    },
+    {
+      "ticker": "APD",
+      "median_adv_shares": 1160950.0
+    },
+    {
+      "ticker": "APG",
+      "median_adv_shares": 2616650.0
+    },
+    {
+      "ticker": "APH",
+      "median_adv_shares": 9158350.0
+    },
+    {
+      "ticker": "APLE",
+      "median_adv_shares": 2951200.0
+    },
+    {
+      "ticker": "APO",
+      "median_adv_shares": 4532450.0
+    },
+    {
+      "ticker": "APP",
+      "median_adv_shares": 4418600.0
+    },
+    {
+      "ticker": "APTV",
+      "median_adv_shares": 2632500.0
+    },
+    {
+      "ticker": "AR",
+      "median_adv_shares": 5131550.0
+    },
+    {
+      "ticker": "ARE",
+      "median_adv_shares": 2151550.0
+    },
+    {
+      "ticker": "ARES",
+      "median_adv_shares": 3350350.0
+    },
+    {
+      "ticker": "ARI",
+      "median_adv_shares": 1385750.0
+    },
+    {
+      "ticker": "ARLO",
+      "median_adv_shares": 1215600.0
+    },
+    {
+      "ticker": "ARMK",
+      "median_adv_shares": 2417850.0
+    },
+    {
+      "ticker": "AROC",
+      "median_adv_shares": 1553650.0
+    },
+    {
+      "ticker": "ARR",
+      "median_adv_shares": 2855700.0
+    },
+    {
+      "ticker": "ARW",
+      "median_adv_shares": 527650.0
+    },
+    {
+      "ticker": "ARWR",
+      "median_adv_shares": 1869100.0
+    },
+    {
+      "ticker": "ASB",
+      "median_adv_shares": 2044750.0
+    },
+    {
+      "ticker": "ASGN",
+      "median_adv_shares": 775167.0
+    },
+    {
+      "ticker": "ASH",
+      "median_adv_shares": 704500.0
+    },
+    {
+      "ticker": "ASO",
+      "median_adv_shares": 1291700.0
+    },
+    {
+      "ticker": "ATEN",
+      "median_adv_shares": 859150.0
+    },
+    {
+      "ticker": "ATI",
+      "median_adv_shares": 1790450.0
+    },
+    {
+      "ticker": "ATMU",
+      "median_adv_shares": 805150.0
+    },
+    {
+      "ticker": "ATO",
+      "median_adv_shares": 901500.0
+    },
+    {
+      "ticker": "AUB",
+      "median_adv_shares": 955600.0
+    },
+    {
+      "ticker": "AVA",
+      "median_adv_shares": 530000.0
+    },
+    {
+      "ticker": "AVAV",
+      "median_adv_shares": 1190800.0
+    },
+    {
+      "ticker": "AVB",
+      "median_adv_shares": 934950.0
+    },
+    {
+      "ticker": "AVGO",
+      "median_adv_shares": 21000700.0
+    },
+    {
+      "ticker": "AVNS",
+      "median_adv_shares": 772600.0
+    },
+    {
+      "ticker": "AVNT",
+      "median_adv_shares": 674300.0
+    },
+    {
+      "ticker": "AVT",
+      "median_adv_shares": 1024650.0
+    },
+    {
+      "ticker": "AVTR",
+      "median_adv_shares": 8851350.0
+    },
+    {
+      "ticker": "AVY",
+      "median_adv_shares": 636550.0
+    },
+    {
+      "ticker": "AWK",
+      "median_adv_shares": 1727550.0
+    },
+    {
+      "ticker": "AXON",
+      "median_adv_shares": 956550.0
+    },
+    {
+      "ticker": "AXP",
+      "median_adv_shares": 3108800.0
+    },
+    {
+      "ticker": "AXTA",
+      "median_adv_shares": 2306750.0
+    },
+    {
+      "ticker": "AZTA",
+      "median_adv_shares": 985800.0
+    },
+    {
+      "ticker": "BA",
+      "median_adv_shares": 6395250.0
+    },
+    {
+      "ticker": "BAC",
+      "median_adv_shares": 35658950.0
+    },
+    {
+      "ticker": "BAH",
+      "median_adv_shares": 1538350.0
+    },
+    {
+      "ticker": "BALL",
+      "median_adv_shares": 2167300.0
+    },
+    {
+      "ticker": "BANC",
+      "median_adv_shares": 2832600.0
+    },
+    {
+      "ticker": "BAX",
+      "median_adv_shares": 7387300.0
+    },
+    {
+      "ticker": "BBT",
+      "median_adv_shares": 703000.0
+    },
+    {
+      "ticker": "BBWI",
+      "median_adv_shares": 5619000.0
+    },
+    {
+      "ticker": "BBY",
+      "median_adv_shares": 3633150.0
+    },
+    {
+      "ticker": "BC",
+      "median_adv_shares": 743250.0
+    },
+    {
+      "ticker": "BDX",
+      "median_adv_shares": 2670700.0
+    },
+    {
+      "ticker": "BEN",
+      "median_adv_shares": 4731000.0
+    },
+    {
+      "ticker": "BF-B",
+      "median_adv_shares": 4611400.0
+    },
+    {
+      "ticker": "BFAM",
+      "median_adv_shares": 801150.0
+    },
+    {
+      "ticker": "BFH",
+      "median_adv_shares": 584200.0
+    },
+    {
+      "ticker": "BG",
+      "median_adv_shares": 1724600.0
+    },
+    {
+      "ticker": "BGC",
+      "median_adv_shares": 2796850.0
+    },
+    {
+      "ticker": "BHF",
+      "median_adv_shares": 521950.0
+    },
+    {
+      "ticker": "BIIB",
+      "median_adv_shares": 1050600.0
+    },
+    {
+      "ticker": "BILL",
+      "median_adv_shares": 1834600.0
+    },
+    {
+      "ticker": "BJ",
+      "median_adv_shares": 1893200.0
+    },
+    {
+      "ticker": "BKH",
+      "median_adv_shares": 789450.0
+    },
+    {
+      "ticker": "BKNG",
+      "median_adv_shares": 8056700.0
+    },
+    {
+      "ticker": "BKR",
+      "median_adv_shares": 8543500.0
+    },
+    {
+      "ticker": "BKU",
+      "median_adv_shares": 743900.0
+    },
+    {
+      "ticker": "BL",
+      "median_adv_shares": 1118000.0
+    },
+    {
+      "ticker": "BLD",
+      "median_adv_shares": 513950.0
+    },
+    {
+      "ticker": "BLDR",
+      "median_adv_shares": 2370000.0
+    },
+    {
+      "ticker": "BLK",
+      "median_adv_shares": 675300.0
+    },
+    {
+      "ticker": "BLKB",
+      "median_adv_shares": 581350.0
+    },
+    {
+      "ticker": "BMRN",
+      "median_adv_shares": 1879250.0
+    },
+    {
+      "ticker": "BMY",
+      "median_adv_shares": 9787850.0
+    },
+    {
+      "ticker": "BNL",
+      "median_adv_shares": 1956800.0
+    },
+    {
+      "ticker": "BNY",
+      "median_adv_shares": 3465500.0
+    },
+    {
+      "ticker": "BOOT",
+      "median_adv_shares": 641400.0
+    },
+    {
+      "ticker": "BOX",
+      "median_adv_shares": 2167450.0
+    },
+    {
+      "ticker": "BR",
+      "median_adv_shares": 1339350.0
+    },
+    {
+      "ticker": "BRBR",
+      "median_adv_shares": 3524000.0
+    },
+    {
+      "ticker": "BRK-B",
+      "median_adv_shares": 4667700.0
+    },
+    {
+      "ticker": "BRKR",
+      "median_adv_shares": 1929100.0
+    },
+    {
+      "ticker": "BRO",
+      "median_adv_shares": 2919550.0
+    },
+    {
+      "ticker": "BROS",
+      "median_adv_shares": 3812250.0
+    },
+    {
+      "ticker": "BRX",
+      "median_adv_shares": 2516200.0
+    },
+    {
+      "ticker": "BSX",
+      "median_adv_shares": 14808750.0
+    },
+    {
+      "ticker": "BSY",
+      "median_adv_shares": 2504950.0
+    },
+    {
+      "ticker": "BTSG",
+      "median_adv_shares": 2427600.0
+    },
+    {
+      "ticker": "BTU",
+      "median_adv_shares": 3012500.0
+    },
+    {
+      "ticker": "BURL",
+      "median_adv_shares": 770400.0
+    },
+    {
+      "ticker": "BWA",
+      "median_adv_shares": 2509800.0
+    },
+    {
+      "ticker": "BWXT",
+      "median_adv_shares": 1024350.0
+    },
+    {
+      "ticker": "BX",
+      "median_adv_shares": 6969800.0
+    },
+    {
+      "ticker": "BXMT",
+      "median_adv_shares": 1269300.0
+    },
+    {
+      "ticker": "BXP",
+      "median_adv_shares": 1841400.0
+    },
+    {
+      "ticker": "BYD",
+      "median_adv_shares": 869000.0
+    },
+    {
+      "ticker": "C",
+      "median_adv_shares": 12777200.0
+    },
+    {
+      "ticker": "CAG",
+      "median_adv_shares": 13679250.0
+    },
+    {
+      "ticker": "CAH",
+      "median_adv_shares": 1753800.0
+    },
+    {
+      "ticker": "CAKE",
+      "median_adv_shares": 1104750.0
+    },
+    {
+      "ticker": "CALM",
+      "median_adv_shares": 793050.0
+    },
+    {
+      "ticker": "CALX",
+      "median_adv_shares": 823300.0
+    },
+    {
+      "ticker": "CALY",
+      "median_adv_shares": 2334200.0
+    },
+    {
+      "ticker": "CAR",
+      "median_adv_shares": 1385800.0
+    },
+    {
+      "ticker": "CARG",
+      "median_adv_shares": 1135150.0
+    },
+    {
+      "ticker": "CARR",
+      "median_adv_shares": 6013750.0
+    },
+    {
+      "ticker": "CART",
+      "median_adv_shares": 3753750.0
+    },
+    {
+      "ticker": "CAT",
+      "median_adv_shares": 2422150.0
+    },
+    {
+      "ticker": "CAVA",
+      "median_adv_shares": 2794700.0
+    },
+    {
+      "ticker": "CB",
+      "median_adv_shares": 1571100.0
+    },
+    {
+      "ticker": "CBOE",
+      "median_adv_shares": 848400.0
+    },
+    {
+      "ticker": "CBRE",
+      "median_adv_shares": 1893250.0
+    },
+    {
+      "ticker": "CBRL",
+      "median_adv_shares": 1076300.0
+    },
+    {
+      "ticker": "CBSH",
+      "median_adv_shares": 1157350.0
+    },
+    {
+      "ticker": "CC",
+      "median_adv_shares": 2926550.0
+    },
+    {
+      "ticker": "CCI",
+      "median_adv_shares": 3032200.0
+    },
+    {
+      "ticker": "CCK",
+      "median_adv_shares": 1043850.0
+    },
+    {
+      "ticker": "CCL",
+      "median_adv_shares": 26538250.0
+    },
+    {
+      "ticker": "CCOI",
+      "median_adv_shares": 927450.0
+    },
+    {
+      "ticker": "CDNS",
+      "median_adv_shares": 2196300.0
+    },
+    {
+      "ticker": "CDP",
+      "median_adv_shares": 918150.0
+    },
+    {
+      "ticker": "CDW",
+      "median_adv_shares": 1517050.0
+    },
+    {
+      "ticker": "CE",
+      "median_adv_shares": 2227600.0
+    },
+    {
+      "ticker": "CEG",
+      "median_adv_shares": 2759200.0
+    },
+    {
+      "ticker": "CELH",
+      "median_adv_shares": 6657700.0
+    },
+    {
+      "ticker": "CENX",
+      "median_adv_shares": 1852000.0
+    },
+    {
+      "ticker": "CERT",
+      "median_adv_shares": 3581350.0
+    },
+    {
+      "ticker": "CF",
+      "median_adv_shares": 3712000.0
+    },
+    {
+      "ticker": "CFFN",
+      "median_adv_shares": 842350.0
+    },
+    {
+      "ticker": "CFG",
+      "median_adv_shares": 4428250.0
+    },
+    {
+      "ticker": "CFR",
+      "median_adv_shares": 516400.0
+    },
+    {
+      "ticker": "CG",
+      "median_adv_shares": 3261200.0
+    },
+    {
+      "ticker": "CGNX",
+      "median_adv_shares": 1816150.0
+    },
+    {
+      "ticker": "CHD",
+      "median_adv_shares": 1919650.0
+    },
+    {
+      "ticker": "CHDN",
+      "median_adv_shares": 927600.0
+    },
+    {
+      "ticker": "CHH",
+      "median_adv_shares": 577400.0
+    },
+    {
+      "ticker": "CHRD",
+      "median_adv_shares": 896700.0
+    },
+    {
+      "ticker": "CHRW",
+      "median_adv_shares": 1601950.0
+    },
+    {
+      "ticker": "CHTR",
+      "median_adv_shares": 2004950.0
+    },
+    {
+      "ticker": "CHWY",
+      "median_adv_shares": 7733900.0
+    },
+    {
+      "ticker": "CI",
+      "median_adv_shares": 1596350.0
+    },
+    {
+      "ticker": "CIEN",
+      "median_adv_shares": 2584300.0
+    },
+    {
+      "ticker": "CINF",
+      "median_adv_shares": 626050.0
+    },
+    {
+      "ticker": "CL",
+      "median_adv_shares": 5597350.0
+    },
+    {
+      "ticker": "CLF",
+      "median_adv_shares": 16675750.0
+    },
+    {
+      "ticker": "CLSK",
+      "median_adv_shares": 18653950.0
+    },
+    {
+      "ticker": "CLX",
+      "median_adv_shares": 2386350.0
+    },
+    {
+      "ticker": "CMC",
+      "median_adv_shares": 1002650.0
+    },
+    {
+      "ticker": "CMCSA",
+      "median_adv_shares": 28540150.0
+    },
+    {
+      "ticker": "CME",
+      "median_adv_shares": 2181650.0
+    },
+    {
+      "ticker": "CMG",
+      "median_adv_shares": 15648800.0
+    },
+    {
+      "ticker": "CMI",
+      "median_adv_shares": 864700.0
+    },
+    {
+      "ticker": "CMS",
+      "median_adv_shares": 2637950.0
+    },
+    {
+      "ticker": "CNC",
+      "median_adv_shares": 5529000.0
+    },
+    {
+      "ticker": "CNH",
+      "median_adv_shares": 14294150.0
+    },
+    {
+      "ticker": "CNK",
+      "median_adv_shares": 1900300.0
+    },
+    {
+      "ticker": "CNM",
+      "median_adv_shares": 2204350.0
+    },
+    {
+      "ticker": "CNO",
+      "median_adv_shares": 615700.0
+    },
+    {
+      "ticker": "CNP",
+      "median_adv_shares": 4507800.0
+    },
+    {
+      "ticker": "CNR",
+      "median_adv_shares": 874300.0
+    },
+    {
+      "ticker": "CNX",
+      "median_adv_shares": 1845100.0
+    },
+    {
+      "ticker": "CNXC",
+      "median_adv_shares": 1320900.0
+    },
+    {
+      "ticker": "COCO",
+      "median_adv_shares": 1156600.0
+    },
+    {
+      "ticker": "COF",
+      "median_adv_shares": 4629550.0
+    },
+    {
+      "ticker": "COHR",
+      "median_adv_shares": 6382800.0
+    },
+    {
+      "ticker": "COHU",
+      "median_adv_shares": 865800.0
+    },
+    {
+      "ticker": "COIN",
+      "median_adv_shares": 10800500.0
+    },
+    {
+      "ticker": "COLB",
+      "median_adv_shares": 2571800.0
+    },
+    {
+      "ticker": "COLM",
+      "median_adv_shares": 556450.0
+    },
+    {
+      "ticker": "CON",
+      "median_adv_shares": 674000.0
+    },
+    {
+      "ticker": "COO",
+      "median_adv_shares": 2088750.0
+    },
+    {
+      "ticker": "COP",
+      "median_adv_shares": 8961900.0
+    },
+    {
+      "ticker": "COR",
+      "median_adv_shares": 1370950.0
+    },
+    {
+      "ticker": "CORT",
+      "median_adv_shares": 1192400.0
+    },
+    {
+      "ticker": "COST",
+      "median_adv_shares": 1777550.0
+    },
+    {
+      "ticker": "COTY",
+      "median_adv_shares": 7448650.0
+    },
+    {
+      "ticker": "CPAY",
+      "median_adv_shares": 549300.0
+    },
+    {
+      "ticker": "CPB",
+      "median_adv_shares": 7913400.0
+    },
+    {
+      "ticker": "CPRI",
+      "median_adv_shares": 2653600.0
+    },
+    {
+      "ticker": "CPRT",
+      "median_adv_shares": 7763950.0
+    },
+    {
+      "ticker": "CPRX",
+      "median_adv_shares": 1432900.0
+    },
+    {
+      "ticker": "CPT",
+      "median_adv_shares": 1051550.0
+    },
+    {
+      "ticker": "CR",
+      "median_adv_shares": 502150.0
+    },
+    {
+      "ticker": "CRBG",
+      "median_adv_shares": 5254650.0
+    },
+    {
+      "ticker": "CRC",
+      "median_adv_shares": 899150.0
+    },
+    {
+      "ticker": "CRGY",
+      "median_adv_shares": 7687300.0
+    },
+    {
+      "ticker": "CRH",
+      "median_adv_shares": 5391000.0
+    },
+    {
+      "ticker": "CRI",
+      "median_adv_shares": 1045500.0
+    },
+    {
+      "ticker": "CRK",
+      "median_adv_shares": 2114050.0
+    },
+    {
+      "ticker": "CRL",
+      "median_adv_shares": 837300.0
+    },
+    {
+      "ticker": "CRM",
+      "median_adv_shares": 12334500.0
+    },
+    {
+      "ticker": "CROX",
+      "median_adv_shares": 1192750.0
+    },
+    {
+      "ticker": "CRS",
+      "median_adv_shares": 644250.0
+    },
+    {
+      "ticker": "CRSR",
+      "median_adv_shares": 1072250.0
+    },
+    {
+      "ticker": "CRUS",
+      "median_adv_shares": 565000.0
+    },
+    {
+      "ticker": "CRWD",
+      "median_adv_shares": 3118400.0
+    },
+    {
+      "ticker": "CSCO",
+      "median_adv_shares": 20034850.0
+    },
+    {
+      "ticker": "CSGP",
+      "median_adv_shares": 5888500.0
+    },
+    {
+      "ticker": "CSX",
+      "median_adv_shares": 12380300.0
+    },
+    {
+      "ticker": "CTAS",
+      "median_adv_shares": 2016100.0
+    },
+    {
+      "ticker": "CTKB",
+      "median_adv_shares": 703500.0
+    },
+    {
+      "ticker": "CTRE",
+      "median_adv_shares": 1957150.0
+    },
+    {
+      "ticker": "CTSH",
+      "median_adv_shares": 6121050.0
+    },
+    {
+      "ticker": "CTVA",
+      "median_adv_shares": 3594400.0
+    },
+    {
+      "ticker": "CUBE",
+      "median_adv_shares": 2092150.0
+    },
+    {
+      "ticker": "CURB",
+      "median_adv_shares": 715250.0
+    },
+    {
+      "ticker": "CUZ",
+      "median_adv_shares": 1907450.0
+    },
+    {
+      "ticker": "CVBF",
+      "median_adv_shares": 1421850.0
+    },
+    {
+      "ticker": "CVI",
+      "median_adv_shares": 1073600.0
+    },
+    {
+      "ticker": "CVLT",
+      "median_adv_shares": 842700.0
+    },
+    {
+      "ticker": "CVNA",
+      "median_adv_shares": 12138300.0
+    },
+    {
+      "ticker": "CVS",
+      "median_adv_shares": 7407000.0
+    },
+    {
+      "ticker": "CVX",
+      "median_adv_shares": 11653300.0
+    },
+    {
+      "ticker": "CWEN",
+      "median_adv_shares": 875000.0
+    },
+    {
+      "ticker": "CWK",
+      "median_adv_shares": 1478950.0
+    },
+    {
+      "ticker": "CWST",
+      "median_adv_shares": 797900.0
+    },
+    {
+      "ticker": "CXM",
+      "median_adv_shares": 3502350.0
+    },
+    {
+      "ticker": "CXT",
+      "median_adv_shares": 717500.0
+    },
+    {
+      "ticker": "CXW",
+      "median_adv_shares": 998150.0
+    },
+    {
+      "ticker": "CYTK",
+      "median_adv_shares": 2041350.0
+    },
+    {
+      "ticker": "CZR",
+      "median_adv_shares": 4061200.0
+    },
+    {
+      "ticker": "D",
+      "median_adv_shares": 4462100.0
+    },
+    {
+      "ticker": "DAL",
+      "median_adv_shares": 11172550.0
+    },
+    {
+      "ticker": "DAN",
+      "median_adv_shares": 1031000.0
+    },
+    {
+      "ticker": "DAR",
+      "median_adv_shares": 2738950.0
+    },
+    {
+      "ticker": "DASH",
+      "median_adv_shares": 4133000.0
+    },
+    {
+      "ticker": "DBX",
+      "median_adv_shares": 3295050.0
+    },
+    {
+      "ticker": "DCH",
+      "median_adv_shares": 4418450.0
+    },
+    {
+      "ticker": "DCI",
+      "median_adv_shares": 544150.0
+    },
+    {
+      "ticker": "DD",
+      "median_adv_shares": 3501500.0
+    },
+    {
+      "ticker": "DDOG",
+      "median_adv_shares": 4634650.0
+    },
+    {
+      "ticker": "DE",
+      "median_adv_shares": 1147900.0
+    },
+    {
+      "ticker": "DECK",
+      "median_adv_shares": 1987250.0
+    },
+    {
+      "ticker": "DEI",
+      "median_adv_shares": 2180450.0
+    },
+    {
+      "ticker": "DELL",
+      "median_adv_shares": 7064000.0
+    },
+    {
+      "ticker": "DFH",
+      "median_adv_shares": 719450.0
+    },
+    {
+      "ticker": "DG",
+      "median_adv_shares": 3231100.0
+    },
+    {
+      "ticker": "DGX",
+      "median_adv_shares": 802950.0
+    },
+    {
+      "ticker": "DHI",
+      "median_adv_shares": 2395750.0
+    },
+    {
+      "ticker": "DHR",
+      "median_adv_shares": 4237750.0
+    },
+    {
+      "ticker": "DINO",
+      "median_adv_shares": 2343800.0
+    },
+    {
+      "ticker": "DIOD",
+      "median_adv_shares": 582500.0
+    },
+    {
+      "ticker": "DIS",
+      "median_adv_shares": 8764750.0
+    },
+    {
+      "ticker": "DKS",
+      "median_adv_shares": 1040100.0
+    },
+    {
+      "ticker": "DLB",
+      "median_adv_shares": 618150.0
+    },
+    {
+      "ticker": "DLR",
+      "median_adv_shares": 1792450.0
+    },
+    {
+      "ticker": "DLTR",
+      "median_adv_shares": 3206000.0
+    },
+    {
+      "ticker": "DNOW",
+      "median_adv_shares": 3044700.0
+    },
+    {
+      "ticker": "DOC",
+      "median_adv_shares": 7263750.0
+    },
+    {
+      "ticker": "DOCN",
+      "median_adv_shares": 3651100.0
+    },
+    {
+      "ticker": "DOCS",
+      "median_adv_shares": 2831550.0
+    },
+    {
+      "ticker": "DOCU",
+      "median_adv_shares": 3619200.0
+    },
+    {
+      "ticker": "DOV",
+      "median_adv_shares": 932900.0
+    },
+    {
+      "ticker": "DOW",
+      "median_adv_shares": 13288650.0
+    },
+    {
+      "ticker": "DPZ",
+      "median_adv_shares": 928950.0
+    },
+    {
+      "ticker": "DRH",
+      "median_adv_shares": 1783750.0
+    },
+    {
+      "ticker": "DRI",
+      "median_adv_shares": 1169700.0
+    },
+    {
+      "ticker": "DT",
+      "median_adv_shares": 6199050.0
+    },
+    {
+      "ticker": "DTE",
+      "median_adv_shares": 1216250.0
+    },
+    {
+      "ticker": "DTM",
+      "median_adv_shares": 730950.0
+    },
+    {
+      "ticker": "DUK",
+      "median_adv_shares": 3520600.0
+    },
+    {
+      "ticker": "DUOL",
+      "median_adv_shares": 1722150.0
+    },
+    {
+      "ticker": "DV",
+      "median_adv_shares": 2647300.0
+    },
+    {
+      "ticker": "DVA",
+      "median_adv_shares": 754300.0
+    },
+    {
+      "ticker": "DVN",
+      "median_adv_shares": 14000850.0
+    },
+    {
+      "ticker": "DXC",
+      "median_adv_shares": 3039250.0
+    },
+    {
+      "ticker": "DXCM",
+      "median_adv_shares": 4329400.0
+    },
+    {
+      "ticker": "EA",
+      "median_adv_shares": 1836950.0
+    },
+    {
+      "ticker": "EAT",
+      "median_adv_shares": 1105550.0
+    },
+    {
+      "ticker": "EBAY",
+      "median_adv_shares": 4901250.0
+    },
+    {
+      "ticker": "ECG",
+      "median_adv_shares": 505450.0
+    },
+    {
+      "ticker": "ECL",
+      "median_adv_shares": 1549850.0
+    },
+    {
+      "ticker": "ED",
+      "median_adv_shares": 1803700.0
+    },
+    {
+      "ticker": "EEFT",
+      "median_adv_shares": 618350.0
+    },
+    {
+      "ticker": "EFC",
+      "median_adv_shares": 1293050.0
+    },
+    {
+      "ticker": "EFX",
+      "median_adv_shares": 1425350.0
+    },
+    {
+      "ticker": "EHC",
+      "median_adv_shares": 871850.0
+    },
+    {
+      "ticker": "EIX",
+      "median_adv_shares": 2880350.0
+    },
+    {
+      "ticker": "EL",
+      "median_adv_shares": 3958000.0
+    },
+    {
+      "ticker": "ELAN",
+      "median_adv_shares": 4865400.0
+    },
+    {
+      "ticker": "ELF",
+      "median_adv_shares": 2413550.0
+    },
+    {
+      "ticker": "ELS",
+      "median_adv_shares": 1379650.0
+    },
+    {
+      "ticker": "ELV",
+      "median_adv_shares": 1703900.0
+    },
+    {
+      "ticker": "EMBC",
+      "median_adv_shares": 824500.0
+    },
+    {
+      "ticker": "EMN",
+      "median_adv_shares": 1390600.0
+    },
+    {
+      "ticker": "EMR",
+      "median_adv_shares": 2910150.0
+    },
+    {
+      "ticker": "ENOV",
+      "median_adv_shares": 899200.0
+    },
+    {
+      "ticker": "ENPH",
+      "median_adv_shares": 5863700.0
+    },
+    {
+      "ticker": "ENR",
+      "median_adv_shares": 1132150.0
+    },
+    {
+      "ticker": "ENTG",
+      "median_adv_shares": 2670350.0
+    },
+    {
+      "ticker": "EOG",
+      "median_adv_shares": 4113450.0
+    },
+    {
+      "ticker": "EPAM",
+      "median_adv_shares": 1352750.0
+    },
+    {
+      "ticker": "EPC",
+      "median_adv_shares": 732150.0
+    },
+    {
+      "ticker": "EPR",
+      "median_adv_shares": 803050.0
+    },
+    {
+      "ticker": "EPRT",
+      "median_adv_shares": 2007650.0
+    },
+    {
+      "ticker": "EQH",
+      "median_adv_shares": 3671800.0
+    },
+    {
+      "ticker": "EQIX",
+      "median_adv_shares": 509000.0
+    },
+    {
+      "ticker": "EQR",
+      "median_adv_shares": 2437350.0
+    },
+    {
+      "ticker": "EQT",
+      "median_adv_shares": 7897550.0
+    },
+    {
+      "ticker": "ES",
+      "median_adv_shares": 2197700.0
+    },
+    {
+      "ticker": "ESAB",
+      "median_adv_shares": 612650.0
+    },
+    {
+      "ticker": "ESI",
+      "median_adv_shares": 2838200.0
+    },
+    {
+      "ticker": "ESNT",
+      "median_adv_shares": 653600.0
+    },
+    {
+      "ticker": "ETN",
+      "median_adv_shares": 2471150.0
+    },
+    {
+      "ticker": "ETR",
+      "median_adv_shares": 2761700.0
+    },
+    {
+      "ticker": "ETSY",
+      "median_adv_shares": 2743800.0
+    },
+    {
+      "ticker": "EVR",
+      "median_adv_shares": 598600.0
+    },
+    {
+      "ticker": "EVRG",
+      "median_adv_shares": 1805050.0
+    },
+    {
+      "ticker": "EW",
+      "median_adv_shares": 4896450.0
+    },
+    {
+      "ticker": "EWBC",
+      "median_adv_shares": 912950.0
+    },
+    {
+      "ticker": "EXC",
+      "median_adv_shares": 7866550.0
+    },
+    {
+      "ticker": "EXE",
+      "median_adv_shares": 3190150.0
+    },
+    {
+      "ticker": "EXEL",
+      "median_adv_shares": 2416150.0
+    },
+    {
+      "ticker": "EXLS",
+      "median_adv_shares": 2280950.0
+    },
+    {
+      "ticker": "EXPD",
+      "median_adv_shares": 1052400.0
+    },
+    {
+      "ticker": "EXPE",
+      "median_adv_shares": 1670050.0
+    },
+    {
+      "ticker": "EXPI",
+      "median_adv_shares": 1042019.0
+    },
+    {
+      "ticker": "EXR",
+      "median_adv_shares": 1097500.0
+    },
+    {
+      "ticker": "EXTR",
+      "median_adv_shares": 1782350.0
+    },
+    {
+      "ticker": "EYE",
+      "median_adv_shares": 1460200.0
+    },
+    {
+      "ticker": "EZPW",
+      "median_adv_shares": 716850.0
+    },
+    {
+      "ticker": "F",
+      "median_adv_shares": 46579200.0
+    },
+    {
+      "ticker": "FAF",
+      "median_adv_shares": 858850.0
+    },
+    {
+      "ticker": "FANG",
+      "median_adv_shares": 2886500.0
+    },
+    {
+      "ticker": "FAST",
+      "median_adv_shares": 6570550.0
+    },
+    {
+      "ticker": "FBIN",
+      "median_adv_shares": 2614950.0
+    },
+    {
+      "ticker": "FBP",
+      "median_adv_shares": 1224400.0
+    },
+    {
+      "ticker": "FBRT",
+      "median_adv_shares": 882450.0
+    },
+    {
+      "ticker": "FCF",
+      "median_adv_shares": 738200.0
+    },
+    {
+      "ticker": "FCPT",
+      "median_adv_shares": 672100.0
+    },
+    {
+      "ticker": "FCX",
+      "median_adv_shares": 15933800.0
+    },
+    {
+      "ticker": "FDS",
+      "median_adv_shares": 843700.0
+    },
+    {
+      "ticker": "FDX",
+      "median_adv_shares": 1547750.0
+    },
+    {
+      "ticker": "FE",
+      "median_adv_shares": 4292700.0
+    },
+    {
+      "ticker": "FFBC",
+      "median_adv_shares": 752250.0
+    },
+    {
+      "ticker": "FFIN",
+      "median_adv_shares": 698550.0
+    },
+    {
+      "ticker": "FFIV",
+      "median_adv_shares": 640850.0
+    },
+    {
+      "ticker": "FG",
+      "median_adv_shares": 607250.0
+    },
+    {
+      "ticker": "FHB",
+      "median_adv_shares": 1514700.0
+    },
+    {
+      "ticker": "FHI",
+      "median_adv_shares": 753950.0
+    },
+    {
+      "ticker": "FHN",
+      "median_adv_shares": 4361250.0
+    },
+    {
+      "ticker": "FIBK",
+      "median_adv_shares": 1184050.0
+    },
+    {
+      "ticker": "FIS",
+      "median_adv_shares": 5905250.0
+    },
+    {
+      "ticker": "FISV",
+      "median_adv_shares": 6305750.0
+    },
+    {
+      "ticker": "FITB",
+      "median_adv_shares": 7100900.0
+    },
+    {
+      "ticker": "FIVE",
+      "median_adv_shares": 1033700.0
+    },
+    {
+      "ticker": "FLEX",
+      "median_adv_shares": 3706450.0
+    },
+    {
+      "ticker": "FLG",
+      "median_adv_shares": 4360150.0
+    },
+    {
+      "ticker": "FLO",
+      "median_adv_shares": 5376650.0
+    },
+    {
+      "ticker": "FLR",
+      "median_adv_shares": 2510500.0
+    },
+    {
+      "ticker": "FLS",
+      "median_adv_shares": 2047200.0
+    },
+    {
+      "ticker": "FMC",
+      "median_adv_shares": 3108300.0
+    },
+    {
+      "ticker": "FN",
+      "median_adv_shares": 673450.0
+    },
+    {
+      "ticker": "FNB",
+      "median_adv_shares": 6325950.0
+    },
+    {
+      "ticker": "FND",
+      "median_adv_shares": 2884400.0
+    },
+    {
+      "ticker": "FNF",
+      "median_adv_shares": 1681650.0
+    },
+    {
+      "ticker": "FORM",
+      "median_adv_shares": 1587400.0
+    },
+    {
+      "ticker": "FOUR",
+      "median_adv_shares": 1775400.0
+    },
+    {
+      "ticker": "FOX",
+      "median_adv_shares": 1155850.0
+    },
+    {
+      "ticker": "FOXA",
+      "median_adv_shares": 3026650.0
+    },
+    {
+      "ticker": "FOXF",
+      "median_adv_shares": 561950.0
+    },
+    {
+      "ticker": "FR",
+      "median_adv_shares": 889800.0
+    },
+    {
+      "ticker": "FRPT",
+      "median_adv_shares": 1531350.0
+    },
+    {
+      "ticker": "FRT",
+      "median_adv_shares": 724450.0
+    },
+    {
+      "ticker": "FSLR",
+      "median_adv_shares": 1946450.0
+    },
+    {
+      "ticker": "FTDR",
+      "median_adv_shares": 598650.0
+    },
+    {
+      "ticker": "FTI",
+      "median_adv_shares": 3734950.0
+    },
+    {
+      "ticker": "FTNT",
+      "median_adv_shares": 5641450.0
+    },
+    {
+      "ticker": "FTRE",
+      "median_adv_shares": 1196500.0
+    },
+    {
+      "ticker": "FTV",
+      "median_adv_shares": 2763700.0
+    },
+    {
+      "ticker": "FUL",
+      "median_adv_shares": 502550.0
+    },
+    {
+      "ticker": "FULT",
+      "median_adv_shares": 1899800.0
+    },
+    {
+      "ticker": "FUN",
+      "median_adv_shares": 1599500.0
+    },
+    {
+      "ticker": "FWRD",
+      "median_adv_shares": 726150.0
+    },
+    {
+      "ticker": "G",
+      "median_adv_shares": 2422550.0
+    },
+    {
+      "ticker": "GAP",
+      "median_adv_shares": 7152300.0
+    },
+    {
+      "ticker": "GBCI",
+      "median_adv_shares": 900150.0
+    },
+    {
+      "ticker": "GD",
+      "median_adv_shares": 1307450.0
+    },
+    {
+      "ticker": "GDDY",
+      "median_adv_shares": 1930800.0
+    },
+    {
+      "ticker": "GDYN",
+      "median_adv_shares": 1693350.0
+    },
+    {
+      "ticker": "GE",
+      "median_adv_shares": 5297850.0
+    },
+    {
+      "ticker": "GEHC",
+      "median_adv_shares": 3802650.0
+    },
+    {
+      "ticker": "GEN",
+      "median_adv_shares": 6736100.0
+    },
+    {
+      "ticker": "GEO",
+      "median_adv_shares": 1740900.0
+    },
+    {
+      "ticker": "GEV",
+      "median_adv_shares": 2349150.0
+    },
+    {
+      "ticker": "GGG",
+      "median_adv_shares": 1067250.0
+    },
+    {
+      "ticker": "GILD",
+      "median_adv_shares": 5763800.0
+    },
+    {
+      "ticker": "GIS",
+      "median_adv_shares": 8696100.0
+    },
+    {
+      "ticker": "GKOS",
+      "median_adv_shares": 656750.0
+    },
+    {
+      "ticker": "GLPI",
+      "median_adv_shares": 1961650.0
+    },
+    {
+      "ticker": "GLW",
+      "median_adv_shares": 12350550.0
+    },
+    {
+      "ticker": "GM",
+      "median_adv_shares": 7176300.0
+    },
+    {
+      "ticker": "GME",
+      "median_adv_shares": 6046300.0
+    },
+    {
+      "ticker": "GMED",
+      "median_adv_shares": 1047100.0
+    },
+    {
+      "ticker": "GNL",
+      "median_adv_shares": 1794500.0
+    },
+    {
+      "ticker": "GNRC",
+      "median_adv_shares": 790350.0
+    },
+    {
+      "ticker": "GNTX",
+      "median_adv_shares": 1898300.0
+    },
+    {
+      "ticker": "GNW",
+      "median_adv_shares": 3084550.0
+    },
+    {
+      "ticker": "GO",
+      "median_adv_shares": 3571450.0
+    },
+    {
+      "ticker": "GOGO",
+      "median_adv_shares": 1586850.0
+    },
+    {
+      "ticker": "GOOG",
+      "median_adv_shares": 17380350.0
+    },
+    {
+      "ticker": "GOOGL",
+      "median_adv_shares": 26158050.0
+    },
+    {
+      "ticker": "GPC",
+      "median_adv_shares": 1746100.0
+    },
+    {
+      "ticker": "GPK",
+      "median_adv_shares": 6685750.0
+    },
+    {
+      "ticker": "GPN",
+      "median_adv_shares": 3382000.0
+    },
+    {
+      "ticker": "GRMN",
+      "median_adv_shares": 779250.0
+    },
+    {
+      "ticker": "GS",
+      "median_adv_shares": 1910750.0
+    },
+    {
+      "ticker": "GT",
+      "median_adv_shares": 8139750.0
+    },
+    {
+      "ticker": "GTES",
+      "median_adv_shares": 2136950.0
+    },
+    {
+      "ticker": "GTLS",
+      "median_adv_shares": 1395450.0
+    },
+    {
+      "ticker": "GTM",
+      "median_adv_shares": 7820900.0
+    },
+    {
+      "ticker": "GVA",
+      "median_adv_shares": 583000.0
+    },
+    {
+      "ticker": "GWRE",
+      "median_adv_shares": 1332550.0
+    },
+    {
+      "ticker": "GXO",
+      "median_adv_shares": 1169500.0
+    },
+    {
+      "ticker": "H",
+      "median_adv_shares": 754600.0
+    },
+    {
+      "ticker": "HAE",
+      "median_adv_shares": 748000.0
+    },
+    {
+      "ticker": "HAL",
+      "median_adv_shares": 13702550.0
+    },
+    {
+      "ticker": "HALO",
+      "median_adv_shares": 1469450.0
+    },
+    {
+      "ticker": "HAS",
+      "median_adv_shares": 1592800.0
+    },
+    {
+      "ticker": "HASI",
+      "median_adv_shares": 841800.0
+    },
+    {
+      "ticker": "HAYW",
+      "median_adv_shares": 2227300.0
+    },
+    {
+      "ticker": "HBAN",
+      "median_adv_shares": 22063700.0
+    },
+    {
+      "ticker": "HCA",
+      "median_adv_shares": 994950.0
+    },
+    {
+      "ticker": "HCC",
+      "median_adv_shares": 781800.0
+    },
+    {
+      "ticker": "HCSG",
+      "median_adv_shares": 564800.0
+    },
+    {
+      "ticker": "HD",
+      "median_adv_shares": 4158700.0
+    },
+    {
+      "ticker": "HE",
+      "median_adv_shares": 1868850.0
+    },
+    {
+      "ticker": "HGV",
+      "median_adv_shares": 745550.0
+    },
+    {
+      "ticker": "HIG",
+      "median_adv_shares": 1368800.0
+    },
+    {
+      "ticker": "HIMS",
+      "median_adv_shares": 25327050.0
+    },
+    {
+      "ticker": "HIW",
+      "median_adv_shares": 1199200.0
+    },
+    {
+      "ticker": "HL",
+      "median_adv_shares": 14340950.0
+    },
+    {
+      "ticker": "HLI",
+      "median_adv_shares": 626150.0
+    },
+    {
+      "ticker": "HLIT",
+      "median_adv_shares": 1120400.0
+    },
+    {
+      "ticker": "HLNE",
+      "median_adv_shares": 756550.0
+    },
+    {
+      "ticker": "HLT",
+      "median_adv_shares": 1537700.0
+    },
+    {
+      "ticker": "HLX",
+      "median_adv_shares": 1778700.0
+    },
+    {
+      "ticker": "HNI",
+      "median_adv_shares": 714150.0
+    },
+    {
+      "ticker": "HOG",
+      "median_adv_shares": 3329450.0
+    },
+    {
+      "ticker": "HOMB",
+      "median_adv_shares": 1430750.0
+    },
+    {
+      "ticker": "HON",
+      "median_adv_shares": 3725600.0
+    },
+    {
+      "ticker": "HOOD",
+      "median_adv_shares": 25220700.0
+    },
+    {
+      "ticker": "HOPE",
+      "median_adv_shares": 832600.0
+    },
+    {
+      "ticker": "HP",
+      "median_adv_shares": 1215900.0
+    },
+    {
+      "ticker": "HPE",
+      "median_adv_shares": 15726550.0
+    },
+    {
+      "ticker": "HPQ",
+      "median_adv_shares": 16237900.0
+    },
+    {
+      "ticker": "HQY",
+      "median_adv_shares": 912150.0
+    },
+    {
+      "ticker": "HR",
+      "median_adv_shares": 3204850.0
+    },
+    {
+      "ticker": "HRB",
+      "median_adv_shares": 2209500.0
+    },
+    {
+      "ticker": "HRL",
+      "median_adv_shares": 4540600.0
+    },
+    {
+      "ticker": "HRMY",
+      "median_adv_shares": 677450.0
+    },
+    {
+      "ticker": "HSIC",
+      "median_adv_shares": 1267400.0
+    },
+    {
+      "ticker": "HST",
+      "median_adv_shares": 8396950.0
+    },
+    {
+      "ticker": "HSY",
+      "median_adv_shares": 1713600.0
+    },
+    {
+      "ticker": "HTO",
+      "median_adv_shares": 531550.0
+    },
+    {
+      "ticker": "HTZ",
+      "median_adv_shares": 8141250.0
+    },
+    {
+      "ticker": "HUBB",
+      "median_adv_shares": 567981.5
+    },
+    {
+      "ticker": "HUBG",
+      "median_adv_shares": 702500.0
+    },
+    {
+      "ticker": "HUM",
+      "median_adv_shares": 1536850.0
+    },
+    {
+      "ticker": "HWC",
+      "median_adv_shares": 785750.0
+    },
+    {
+      "ticker": "HWM",
+      "median_adv_shares": 2202700.0
+    },
+    {
+      "ticker": "HXL",
+      "median_adv_shares": 1116200.0
+    },
+    {
+      "ticker": "IAC",
+      "median_adv_shares": 1008300.0
+    },
+    {
+      "ticker": "IART",
+      "median_adv_shares": 834900.0
+    },
+    {
+      "ticker": "IBKR",
+      "median_adv_shares": 4650100.0
+    },
+    {
+      "ticker": "IBM",
+      "median_adv_shares": 5516600.0
+    },
+    {
+      "ticker": "ICE",
+      "median_adv_shares": 3049100.0
+    },
+    {
+      "ticker": "ICHR",
+      "median_adv_shares": 723600.0
+    },
+    {
+      "ticker": "IDXX",
+      "median_adv_shares": 551400.0
+    },
+    {
+      "ticker": "IEX",
+      "median_adv_shares": 682150.0
+    },
+    {
+      "ticker": "IFF",
+      "median_adv_shares": 1593650.0
+    },
+    {
+      "ticker": "ILMN",
+      "median_adv_shares": 1438400.0
+    },
+    {
+      "ticker": "INCY",
+      "median_adv_shares": 1447300.0
+    },
+    {
+      "ticker": "INDV",
+      "median_adv_shares": 2131000.0
+    },
+    {
+      "ticker": "INGR",
+      "median_adv_shares": 608500.0
+    },
+    {
+      "ticker": "INSP",
+      "median_adv_shares": 974650.0
+    },
+    {
+      "ticker": "INSW",
+      "median_adv_shares": 550350.0
+    },
+    {
+      "ticker": "INTC",
+      "median_adv_shares": 110219650.0
+    },
+    {
+      "ticker": "INTU",
+      "median_adv_shares": 2819450.0
+    },
+    {
+      "ticker": "INVA",
+      "median_adv_shares": 626300.0
+    },
+    {
+      "ticker": "INVH",
+      "median_adv_shares": 5730550.0
+    },
+    {
+      "ticker": "IP",
+      "median_adv_shares": 6209750.0
+    },
+    {
+      "ticker": "IQV",
+      "median_adv_shares": 1531850.0
+    },
+    {
+      "ticker": "IR",
+      "median_adv_shares": 3169950.0
+    },
+    {
+      "ticker": "IRDM",
+      "median_adv_shares": 2131050.0
+    },
+    {
+      "ticker": "IRM",
+      "median_adv_shares": 1379250.0
+    },
+    {
+      "ticker": "IRT",
+      "median_adv_shares": 2312750.0
+    },
+    {
+      "ticker": "ISRG",
+      "median_adv_shares": 1947700.0
+    },
+    {
+      "ticker": "IT",
+      "median_adv_shares": 1427950.0
+    },
+    {
+      "ticker": "ITGR",
+      "median_adv_shares": 549250.0
+    },
+    {
+      "ticker": "ITRI",
+      "median_adv_shares": 780250.0
+    },
+    {
+      "ticker": "ITT",
+      "median_adv_shares": 809350.0
+    },
+    {
+      "ticker": "ITW",
+      "median_adv_shares": 1219100.0
+    },
+    {
+      "ticker": "IVZ",
+      "median_adv_shares": 5135300.0
+    },
+    {
+      "ticker": "J",
+      "median_adv_shares": 859800.0
+    },
+    {
+      "ticker": "JAZZ",
+      "median_adv_shares": 829500.0
+    },
+    {
+      "ticker": "JBGS",
+      "median_adv_shares": 509550.0
+    },
+    {
+      "ticker": "JBHT",
+      "median_adv_shares": 863950.0
+    },
+    {
+      "ticker": "JBL",
+      "median_adv_shares": 1115100.0
+    },
+    {
+      "ticker": "JBLU",
+      "median_adv_shares": 26132600.0
+    },
+    {
+      "ticker": "JBTM",
+      "median_adv_shares": 548750.0
+    },
+    {
+      "ticker": "JCI",
+      "median_adv_shares": 3431300.0
+    },
+    {
+      "ticker": "JEF",
+      "median_adv_shares": 2405650.0
+    },
+    {
+      "ticker": "JHG",
+      "median_adv_shares": 2103000.0
+    },
+    {
+      "ticker": "JKHY",
+      "median_adv_shares": 950100.0
+    },
+    {
+      "ticker": "JNJ",
+      "median_adv_shares": 7333750.0
+    },
+    {
+      "ticker": "JPM",
+      "median_adv_shares": 8684250.0
+    },
+    {
+      "ticker": "JXN",
+      "median_adv_shares": 556600.0
+    },
+    {
+      "ticker": "KBH",
+      "median_adv_shares": 1086950.0
+    },
+    {
+      "ticker": "KBR",
+      "median_adv_shares": 1497800.0
+    },
+    {
+      "ticker": "KD",
+      "median_adv_shares": 3675200.0
+    },
+    {
+      "ticker": "KDP",
+      "median_adv_shares": 10032500.0
+    },
+    {
+      "ticker": "KEX",
+      "median_adv_shares": 663000.0
+    },
+    {
+      "ticker": "KEY",
+      "median_adv_shares": 13586200.0
+    },
+    {
+      "ticker": "KEYS",
+      "median_adv_shares": 1343250.0
+    },
+    {
+      "ticker": "KGS",
+      "median_adv_shares": 1304550.0
+    },
+    {
+      "ticker": "KHC",
+      "median_adv_shares": 14407450.0
+    },
+    {
+      "ticker": "KIM",
+      "median_adv_shares": 4530750.0
+    },
+    {
+      "ticker": "KKR",
+      "median_adv_shares": 5694300.0
+    },
+    {
+      "ticker": "KLAC",
+      "median_adv_shares": 943200.0
+    },
+    {
+      "ticker": "KLIC",
+      "median_adv_shares": 634500.0
+    },
+    {
+      "ticker": "KMB",
+      "median_adv_shares": 4389900.0
+    },
+    {
+      "ticker": "KMI",
+      "median_adv_shares": 11842500.0
+    },
+    {
+      "ticker": "KMPR",
+      "median_adv_shares": 766600.0
+    },
+    {
+      "ticker": "KMT",
+      "median_adv_shares": 1215100.0
+    },
+    {
+      "ticker": "KMX",
+      "median_adv_shares": 2824600.0
+    },
+    {
+      "ticker": "KN",
+      "median_adv_shares": 684850.0
+    },
+    {
+      "ticker": "KNF",
+      "median_adv_shares": 534400.0
+    },
+    {
+      "ticker": "KNTK",
+      "median_adv_shares": 1022400.0
+    },
+    {
+      "ticker": "KNX",
+      "median_adv_shares": 3106300.0
+    },
+    {
+      "ticker": "KO",
+      "median_adv_shares": 14680650.0
+    },
+    {
+      "ticker": "KR",
+      "median_adv_shares": 5402950.0
+    },
+    {
+      "ticker": "KRC",
+      "median_adv_shares": 1979500.0
+    },
+    {
+      "ticker": "KRG",
+      "median_adv_shares": 1811000.0
+    },
+    {
+      "ticker": "KSS",
+      "median_adv_shares": 4561600.0
+    },
+    {
+      "ticker": "KTB",
+      "median_adv_shares": 707700.0
+    },
+    {
+      "ticker": "KTOS",
+      "median_adv_shares": 3917000.0
+    },
+    {
+      "ticker": "KVUE",
+      "median_adv_shares": 19138800.0
+    },
+    {
+      "ticker": "KW",
+      "median_adv_shares": 918550.0
+    },
+    {
+      "ticker": "L",
+      "median_adv_shares": 659550.0
+    },
+    {
+      "ticker": "LAMR",
+      "median_adv_shares": 542650.0
+    },
+    {
+      "ticker": "LAUR",
+      "median_adv_shares": 1411900.0
+    },
+    {
+      "ticker": "LBRT",
+      "median_adv_shares": 3508500.0
+    },
+    {
+      "ticker": "LDOS",
+      "median_adv_shares": 989400.0
+    },
+    {
+      "ticker": "LEA",
+      "median_adv_shares": 531650.0
+    },
+    {
+      "ticker": "LEG",
+      "median_adv_shares": 2191650.0
+    },
+    {
+      "ticker": "LEN",
+      "median_adv_shares": 2651900.0
+    },
+    {
+      "ticker": "LFST",
+      "median_adv_shares": 2163500.0
+    },
+    {
+      "ticker": "LH",
+      "median_adv_shares": 552500.0
+    },
+    {
+      "ticker": "LHX",
+      "median_adv_shares": 1292000.0
+    },
+    {
+      "ticker": "LIF",
+      "median_adv_shares": 977100.0
+    },
+    {
+      "ticker": "LIN",
+      "median_adv_shares": 2176450.0
+    },
+    {
+      "ticker": "LITE",
+      "median_adv_shares": 6242750.0
+    },
+    {
+      "ticker": "LIVN",
+      "median_adv_shares": 754000.0
+    },
+    {
+      "ticker": "LKQ",
+      "median_adv_shares": 2572500.0
+    },
+    {
+      "ticker": "LLY",
+      "median_adv_shares": 2819100.0
+    },
+    {
+      "ticker": "LMT",
+      "median_adv_shares": 1368050.0
+    },
+    {
+      "ticker": "LNC",
+      "median_adv_shares": 1922650.0
+    },
+    {
+      "ticker": "LNT",
+      "median_adv_shares": 2061350.0
+    },
+    {
+      "ticker": "LNTH",
+      "median_adv_shares": 912700.0
+    },
+    {
+      "ticker": "LOW",
+      "median_adv_shares": 2689600.0
+    },
+    {
+      "ticker": "LPX",
+      "median_adv_shares": 865350.0
+    },
+    {
+      "ticker": "LRCX",
+      "median_adv_shares": 9519650.0
+    },
+    {
+      "ticker": "LRN",
+      "median_adv_shares": 647200.0
+    },
+    {
+      "ticker": "LTH",
+      "median_adv_shares": 2281800.0
+    },
+    {
+      "ticker": "LULU",
+      "median_adv_shares": 2683250.0
+    },
+    {
+      "ticker": "LUMN",
+      "median_adv_shares": 11330300.0
+    },
+    {
+      "ticker": "LUV",
+      "median_adv_shares": 7908350.0
+    },
+    {
+      "ticker": "LVS",
+      "median_adv_shares": 3855900.0
+    },
+    {
+      "ticker": "LW",
+      "median_adv_shares": 2030950.0
+    },
+    {
+      "ticker": "LXP",
+      "median_adv_shares": 504550.0
+    },
+    {
+      "ticker": "LYB",
+      "median_adv_shares": 7115500.0
+    },
+    {
+      "ticker": "LYFT",
+      "median_adv_shares": 14282350.0
+    },
+    {
+      "ticker": "LYV",
+      "median_adv_shares": 2499950.0
+    },
+    {
+      "ticker": "LZ",
+      "median_adv_shares": 2486950.0
+    },
+    {
+      "ticker": "M",
+      "median_adv_shares": 6066300.0
+    },
+    {
+      "ticker": "MA",
+      "median_adv_shares": 3397400.0
+    },
+    {
+      "ticker": "MAA",
+      "median_adv_shares": 821250.0
+    },
+    {
+      "ticker": "MAC",
+      "median_adv_shares": 2358650.0
+    },
+    {
+      "ticker": "MAN",
+      "median_adv_shares": 1022500.0
+    },
+    {
+      "ticker": "MANH",
+      "median_adv_shares": 605100.0
+    },
+    {
+      "ticker": "MAR",
+      "median_adv_shares": 1395750.0
+    },
+    {
+      "ticker": "MARA",
+      "median_adv_shares": 43251850.0
+    },
+    {
+      "ticker": "MAS",
+      "median_adv_shares": 2596700.0
+    },
+    {
+      "ticker": "MASI",
+      "median_adv_shares": 939100.0
+    },
+    {
+      "ticker": "MAT",
+      "median_adv_shares": 4315000.0
+    },
+    {
+      "ticker": "MBC",
+      "median_adv_shares": 2540300.0
+    },
+    {
+      "ticker": "MC",
+      "median_adv_shares": 1176700.0
+    },
+    {
+      "ticker": "MCD",
+      "median_adv_shares": 3351750.0
+    },
+    {
+      "ticker": "MCHP",
+      "median_adv_shares": 9365850.0
+    },
+    {
+      "ticker": "MCK",
+      "median_adv_shares": 823200.0
+    },
+    {
+      "ticker": "MCO",
+      "median_adv_shares": 1126100.0
+    },
+    {
+      "ticker": "MD",
+      "median_adv_shares": 780750.0
+    },
+    {
+      "ticker": "MDLZ",
+      "median_adv_shares": 8294150.0
+    },
+    {
+      "ticker": "MDT",
+      "median_adv_shares": 8629600.0
+    },
+    {
+      "ticker": "MDU",
+      "median_adv_shares": 1594650.0
+    },
+    {
+      "ticker": "MET",
+      "median_adv_shares": 3335350.0
+    },
+    {
+      "ticker": "META",
+      "median_adv_shares": 13318100.0
+    },
+    {
+      "ticker": "MGM",
+      "median_adv_shares": 4399850.0
+    },
+    {
+      "ticker": "MGY",
+      "median_adv_shares": 2370750.0
+    },
+    {
+      "ticker": "MHK",
+      "median_adv_shares": 919850.0
+    },
+    {
+      "ticker": "MIDD",
+      "median_adv_shares": 529750.0
+    },
+    {
+      "ticker": "MIR",
+      "median_adv_shares": 3110400.0
+    },
+    {
+      "ticker": "MKC",
+      "median_adv_shares": 3765850.0
+    },
+    {
+      "ticker": "MKSI",
+      "median_adv_shares": 1172950.0
+    },
+    {
+      "ticker": "MKTX",
+      "median_adv_shares": 503350.0
+    },
+    {
+      "ticker": "MLI",
+      "median_adv_shares": 621450.0
+    },
+    {
+      "ticker": "MLKN",
+      "median_adv_shares": 690050.0
+    },
+    {
+      "ticker": "MLM",
+      "median_adv_shares": 504500.0
+    },
+    {
+      "ticker": "MMM",
+      "median_adv_shares": 3928750.0
+    },
+    {
+      "ticker": "MMS",
+      "median_adv_shares": 720850.0
+    },
+    {
+      "ticker": "MMSI",
+      "median_adv_shares": 693100.0
+    },
+    {
+      "ticker": "MNRO",
+      "median_adv_shares": 798400.0
+    },
+    {
+      "ticker": "MNST",
+      "median_adv_shares": 4798800.0
+    },
+    {
+      "ticker": "MO",
+      "median_adv_shares": 8743900.0
+    },
+    {
+      "ticker": "MOH",
+      "median_adv_shares": 1127400.0
+    },
+    {
+      "ticker": "MORN",
+      "median_adv_shares": 513250.0
+    },
+    {
+      "ticker": "MOS",
+      "median_adv_shares": 9513150.0
+    },
+    {
+      "ticker": "MP",
+      "median_adv_shares": 5592250.0
+    },
+    {
+      "ticker": "MPC",
+      "median_adv_shares": 2439400.0
+    },
+    {
+      "ticker": "MPT",
+      "median_adv_shares": 5113050.0
+    },
+    {
+      "ticker": "MPWR",
+      "median_adv_shares": 556150.0
+    },
+    {
+      "ticker": "MRK",
+      "median_adv_shares": 8347500.0
+    },
+    {
+      "ticker": "MRNA",
+      "median_adv_shares": 6236100.0
+    },
+    {
+      "ticker": "MRP",
+      "median_adv_shares": 1269650.0
+    },
+    {
+      "ticker": "MRSH",
+      "median_adv_shares": 2825600.0
+    },
+    {
+      "ticker": "MRTN",
+      "median_adv_shares": 770650.0
+    },
+    {
+      "ticker": "MS",
+      "median_adv_shares": 5969800.0
+    },
+    {
+      "ticker": "MSCI",
+      "median_adv_shares": 548250.0
+    },
+    {
+      "ticker": "MSFT",
+      "median_adv_shares": 31382950.0
+    },
+    {
+      "ticker": "MSI",
+      "median_adv_shares": 988700.0
+    },
+    {
+      "ticker": "MSM",
+      "median_adv_shares": 618800.0
+    },
+    {
+      "ticker": "MTB",
+      "median_adv_shares": 1038550.0
+    },
+    {
+      "ticker": "MTCH",
+      "median_adv_shares": 3822200.0
+    },
+    {
+      "ticker": "MTDR",
+      "median_adv_shares": 1702700.0
+    },
+    {
+      "ticker": "MTG",
+      "median_adv_shares": 1754150.0
+    },
+    {
+      "ticker": "MTH",
+      "median_adv_shares": 897350.0
+    },
+    {
+      "ticker": "MTN",
+      "median_adv_shares": 685500.0
+    },
+    {
+      "ticker": "MTSI",
+      "median_adv_shares": 1139650.0
+    },
+    {
+      "ticker": "MTZ",
+      "median_adv_shares": 911000.0
+    },
+    {
+      "ticker": "MU",
+      "median_adv_shares": 43042750.0
+    },
+    {
+      "ticker": "MUR",
+      "median_adv_shares": 2036000.0
+    },
+    {
+      "ticker": "MWA",
+      "median_adv_shares": 994950.0
+    },
+    {
+      "ticker": "MXL",
+      "median_adv_shares": 1507050.0
+    },
+    {
+      "ticker": "NABL",
+      "median_adv_shares": 1187700.0
+    },
+    {
+      "ticker": "NATL",
+      "median_adv_shares": 937550.0
+    },
+    {
+      "ticker": "NAVI",
+      "median_adv_shares": 896350.0
+    },
+    {
+      "ticker": "NBIX",
+      "median_adv_shares": 1098850.0
+    },
+    {
+      "ticker": "NCLH",
+      "median_adv_shares": 22769850.0
+    },
+    {
+      "ticker": "NDAQ",
+      "median_adv_shares": 2937900.0
+    },
+    {
+      "ticker": "NE",
+      "median_adv_shares": 1463850.0
+    },
+    {
+      "ticker": "NEE",
+      "median_adv_shares": 8684950.0
+    },
+    {
+      "ticker": "NEM",
+      "median_adv_shares": 8356000.0
+    },
+    {
+      "ticker": "NEO",
+      "median_adv_shares": 1669000.0
+    },
+    {
+      "ticker": "NEOG",
+      "median_adv_shares": 2285850.0
+    },
+    {
+      "ticker": "NFG",
+      "median_adv_shares": 775150.0
+    },
+    {
+      "ticker": "NFLX",
+      "median_adv_shares": 35009800.0
+    },
+    {
+      "ticker": "NI",
+      "median_adv_shares": 3946700.0
+    },
+    {
+      "ticker": "NJR",
+      "median_adv_shares": 515800.0
+    },
+    {
+      "ticker": "NKE",
+      "median_adv_shares": 18600750.0
+    },
+    {
+      "ticker": "NLY",
+      "median_adv_shares": 5757600.0
+    },
+    {
+      "ticker": "NNN",
+      "median_adv_shares": 1535500.0
+    },
+    {
+      "ticker": "NOC",
+      "median_adv_shares": 743900.0
+    },
+    {
+      "ticker": "NOG",
+      "median_adv_shares": 2588750.0
+    },
+    {
+      "ticker": "NOV",
+      "median_adv_shares": 4494250.0
+    },
+    {
+      "ticker": "NOW",
+      "median_adv_shares": 21633200.0
+    },
+    {
+      "ticker": "NRG",
+      "median_adv_shares": 2605400.0
+    },
+    {
+      "ticker": "NSA",
+      "median_adv_shares": 1119950.0
+    },
+    {
+      "ticker": "NSC",
+      "median_adv_shares": 1190700.0
+    },
+    {
+      "ticker": "NSP",
+      "median_adv_shares": 856650.0
+    },
+    {
+      "ticker": "NTAP",
+      "median_adv_shares": 2085600.0
+    },
+    {
+      "ticker": "NTCT",
+      "median_adv_shares": 547500.0
+    },
+    {
+      "ticker": "NTNX",
+      "median_adv_shares": 3337600.0
+    },
+    {
+      "ticker": "NTRS",
+      "median_adv_shares": 1030250.0
+    },
+    {
+      "ticker": "NUE",
+      "median_adv_shares": 1400100.0
+    },
+    {
+      "ticker": "NVDA",
+      "median_adv_shares": 165367050.0
+    },
+    {
+      "ticker": "NVRI",
+      "median_adv_shares": 1050550.0
+    },
+    {
+      "ticker": "NVST",
+      "median_adv_shares": 2520250.0
+    },
+    {
+      "ticker": "NVT",
+      "median_adv_shares": 2116450.0
+    },
+    {
+      "ticker": "NWBI",
+      "median_adv_shares": 1063950.0
+    },
+    {
+      "ticker": "NWL",
+      "median_adv_shares": 5460250.0
+    },
+    {
+      "ticker": "NWS",
+      "median_adv_shares": 1166700.0
+    },
+    {
+      "ticker": "NWSA",
+      "median_adv_shares": 3773800.0
+    },
+    {
+      "ticker": "NXPI",
+      "median_adv_shares": 3028550.0
+    },
+    {
+      "ticker": "NXT",
+      "median_adv_shares": 1818400.0
+    },
+    {
+      "ticker": "NYT",
+      "median_adv_shares": 1920350.0
+    },
+    {
+      "ticker": "O",
+      "median_adv_shares": 5373000.0
+    },
+    {
+      "ticker": "OC",
+      "median_adv_shares": 1282700.0
+    },
+    {
+      "ticker": "ODFL",
+      "median_adv_shares": 1939200.0
+    },
+    {
+      "ticker": "OGE",
+      "median_adv_shares": 1484500.0
+    },
+    {
+      "ticker": "OGN",
+      "median_adv_shares": 4145100.0
+    },
+    {
+      "ticker": "OHI",
+      "median_adv_shares": 1963150.0
+    },
+    {
+      "ticker": "OI",
+      "median_adv_shares": 2195350.0
+    },
+    {
+      "ticker": "OII",
+      "median_adv_shares": 1053650.0
+    },
+    {
+      "ticker": "OKE",
+      "median_adv_shares": 4275400.0
+    },
+    {
+      "ticker": "OKTA",
+      "median_adv_shares": 1931700.0
+    },
+    {
+      "ticker": "OLED",
+      "median_adv_shares": 677650.0
+    },
+    {
+      "ticker": "OLLI",
+      "median_adv_shares": 1447000.0
+    },
+    {
+      "ticker": "OLN",
+      "median_adv_shares": 2542200.0
+    },
+    {
+      "ticker": "OMC",
+      "median_adv_shares": 4130200.0
+    },
+    {
+      "ticker": "ON",
+      "median_adv_shares": 9421550.0
+    },
+    {
+      "ticker": "ONB",
+      "median_adv_shares": 3098600.0
+    },
+    {
+      "ticker": "ONTO",
+      "median_adv_shares": 800300.0
+    },
+    {
+      "ticker": "OPCH",
+      "median_adv_shares": 1871300.0
+    },
+    {
+      "ticker": "OPLN",
+      "median_adv_shares": 758550.0
+    },
+    {
+      "ticker": "ORA",
+      "median_adv_shares": 710450.0
+    },
+    {
+      "ticker": "ORCL",
+      "median_adv_shares": 23021100.0
+    },
+    {
+      "ticker": "ORI",
+      "median_adv_shares": 1403700.0
+    },
+    {
+      "ticker": "ORLY",
+      "median_adv_shares": 5370450.0
+    },
+    {
+      "ticker": "OSK",
+      "median_adv_shares": 635800.0
+    },
+    {
+      "ticker": "OSW",
+      "median_adv_shares": 730200.0
+    },
+    {
+      "ticker": "OTIS",
+      "median_adv_shares": 3705900.0
+    },
+    {
+      "ticker": "OUT",
+      "median_adv_shares": 1340900.0
+    },
+    {
+      "ticker": "OVV",
+      "median_adv_shares": 3888000.0
+    },
+    {
+      "ticker": "OXY",
+      "median_adv_shares": 14607900.0
+    },
+    {
+      "ticker": "OZK",
+      "median_adv_shares": 1072200.0
+    },
+    {
+      "ticker": "P",
+      "median_adv_shares": 2568450.0
+    },
+    {
+      "ticker": "PANW",
+      "median_adv_shares": 7319000.0
+    },
+    {
+      "ticker": "PARR",
+      "median_adv_shares": 1405000.0
+    },
+    {
+      "ticker": "PATH",
+      "median_adv_shares": 29909600.0
+    },
+    {
+      "ticker": "PAYC",
+      "median_adv_shares": 1090500.0
+    },
+    {
+      "ticker": "PAYO",
+      "median_adv_shares": 3496150.0
+    },
+    {
+      "ticker": "PAYX",
+      "median_adv_shares": 3409850.0
+    },
+    {
+      "ticker": "PB",
+      "median_adv_shares": 967150.0
+    },
+    {
+      "ticker": "PBF",
+      "median_adv_shares": 3357100.0
+    },
+    {
+      "ticker": "PBH",
+      "median_adv_shares": 518250.0
+    },
+    {
+      "ticker": "PBI",
+      "median_adv_shares": 2753500.0
+    },
+    {
+      "ticker": "PCAR",
+      "median_adv_shares": 2647800.0
+    },
+    {
+      "ticker": "PCG",
+      "median_adv_shares": 21475650.0
+    },
+    {
+      "ticker": "PCRX",
+      "median_adv_shares": 561150.0
+    },
+    {
+      "ticker": "PCTY",
+      "median_adv_shares": 724000.0
+    },
+    {
+      "ticker": "PEB",
+      "median_adv_shares": 2085400.0
+    },
+    {
+      "ticker": "PECO",
+      "median_adv_shares": 747850.0
+    },
+    {
+      "ticker": "PEG",
+      "median_adv_shares": 2637750.0
+    },
+    {
+      "ticker": "PEGA",
+      "median_adv_shares": 1931300.0
+    },
+    {
+      "ticker": "PENG",
+      "median_adv_shares": 1571750.0
+    },
+    {
+      "ticker": "PENN",
+      "median_adv_shares": 3345900.0
+    },
+    {
+      "ticker": "PEP",
+      "median_adv_shares": 5874550.0
+    },
+    {
+      "ticker": "PFE",
+      "median_adv_shares": 38073350.0
+    },
+    {
+      "ticker": "PFG",
+      "median_adv_shares": 1258000.0
+    },
+    {
+      "ticker": "PFGC",
+      "median_adv_shares": 1551450.0
+    },
+    {
+      "ticker": "PFS",
+      "median_adv_shares": 929900.0
+    },
+    {
+      "ticker": "PG",
+      "median_adv_shares": 8453700.0
+    },
+    {
+      "ticker": "PGNY",
+      "median_adv_shares": 1465700.0
+    },
+    {
+      "ticker": "PGR",
+      "median_adv_shares": 2852450.0
+    },
+    {
+      "ticker": "PH",
+      "median_adv_shares": 723450.0
+    },
+    {
+      "ticker": "PHM",
+      "median_adv_shares": 1841000.0
+    },
+    {
+      "ticker": "PII",
+      "median_adv_shares": 1009100.0
+    },
+    {
+      "ticker": "PINS",
+      "median_adv_shares": 16218600.0
+    },
+    {
+      "ticker": "PIPR",
+      "median_adv_shares": 648750.0
+    },
+    {
+      "ticker": "PK",
+      "median_adv_shares": 3917550.0
+    },
+    {
+      "ticker": "PKG",
+      "median_adv_shares": 820300.0
+    },
+    {
+      "ticker": "PLAB",
+      "median_adv_shares": 781800.0
+    },
+    {
+      "ticker": "PLD",
+      "median_adv_shares": 3294550.0
+    },
+    {
+      "ticker": "PLNT",
+      "median_adv_shares": 1621300.0
+    },
+    {
+      "ticker": "PLTR",
+      "median_adv_shares": 42749500.0
+    },
+    {
+      "ticker": "PM",
+      "median_adv_shares": 4591150.0
+    },
+    {
+      "ticker": "PMT",
+      "median_adv_shares": 980850.0
+    },
+    {
+      "ticker": "PNC",
+      "median_adv_shares": 2098150.0
+    },
+    {
+      "ticker": "PNFP",
+      "median_adv_shares": 1340000.0
+    },
+    {
+      "ticker": "PNR",
+      "median_adv_shares": 1479450.0
+    },
+    {
+      "ticker": "PNW",
+      "median_adv_shares": 1160100.0
+    },
+    {
+      "ticker": "PODD",
+      "median_adv_shares": 992400.0
+    },
+    {
+      "ticker": "POOL",
+      "median_adv_shares": 735900.0
+    },
+    {
+      "ticker": "POR",
+      "median_adv_shares": 1175600.0
+    },
+    {
+      "ticker": "POST",
+      "median_adv_shares": 719550.0
+    },
+    {
+      "ticker": "POWI",
+      "median_adv_shares": 958100.0
+    },
+    {
+      "ticker": "POWL",
+      "median_adv_shares": 632000.0
+    },
+    {
+      "ticker": "PPC",
+      "median_adv_shares": 1153600.0
+    },
+    {
+      "ticker": "PPG",
+      "median_adv_shares": 1901550.0
+    },
+    {
+      "ticker": "PPL",
+      "median_adv_shares": 7294300.0
+    },
+    {
+      "ticker": "PR",
+      "median_adv_shares": 12544900.0
+    },
+    {
+      "ticker": "PRA",
+      "median_adv_shares": 790450.0
+    },
+    {
+      "ticker": "PRDO",
+      "median_adv_shares": 616250.0
+    },
+    {
+      "ticker": "PRGO",
+      "median_adv_shares": 2847650.0
+    },
+    {
+      "ticker": "PRGS",
+      "median_adv_shares": 793750.0
+    },
+    {
+      "ticker": "PRIM",
+      "median_adv_shares": 754250.0
+    },
+    {
+      "ticker": "PRKS",
+      "median_adv_shares": 954700.0
+    },
+    {
+      "ticker": "PRU",
+      "median_adv_shares": 2080300.0
+    },
+    {
+      "ticker": "PRVA",
+      "median_adv_shares": 834600.0
+    },
+    {
+      "ticker": "PSA",
+      "median_adv_shares": 986100.0
+    },
+    {
+      "ticker": "PSKY",
+      "median_adv_shares": 10730300.0
+    },
+    {
+      "ticker": "PSN",
+      "median_adv_shares": 1187800.0
+    },
+    {
+      "ticker": "PSX",
+      "median_adv_shares": 2933300.0
+    },
+    {
+      "ticker": "PTC",
+      "median_adv_shares": 1152100.0
+    },
+    {
+      "ticker": "PTCT",
+      "median_adv_shares": 1038850.0
+    },
+    {
+      "ticker": "PTEN",
+      "median_adv_shares": 9590050.0
+    },
+    {
+      "ticker": "PTGX",
+      "median_adv_shares": 697650.0
+    },
+    {
+      "ticker": "PVH",
+      "median_adv_shares": 1070850.0
+    },
+    {
+      "ticker": "PWR",
+      "median_adv_shares": 1126400.0
+    },
+    {
+      "ticker": "PYPL",
+      "median_adv_shares": 14536500.0
+    },
+    {
+      "ticker": "PZZA",
+      "median_adv_shares": 951750.0
+    },
+    {
+      "ticker": "Q",
+      "median_adv_shares": 1693900.0
+    },
+    {
+      "ticker": "QCOM",
+      "median_adv_shares": 10987950.0
+    },
+    {
+      "ticker": "QDEL",
+      "median_adv_shares": 2033250.0
+    },
+    {
+      "ticker": "QLYS",
+      "median_adv_shares": 729350.0
+    },
+    {
+      "ticker": "QNST",
+      "median_adv_shares": 707750.0
+    },
+    {
+      "ticker": "QRVO",
+      "median_adv_shares": 1123450.0
+    },
+    {
+      "ticker": "QTWO",
+      "median_adv_shares": 730150.0
+    },
+    {
+      "ticker": "RAL",
+      "median_adv_shares": 1312850.0
+    },
+    {
+      "ticker": "RAMP",
+      "median_adv_shares": 623750.0
+    },
+    {
+      "ticker": "RBA",
+      "median_adv_shares": 1121550.0
+    },
+    {
+      "ticker": "RCL",
+      "median_adv_shares": 2297700.0
+    },
+    {
+      "ticker": "RCUS",
+      "median_adv_shares": 1002150.0
+    },
+    {
+      "ticker": "RDN",
+      "median_adv_shares": 1165900.0
+    },
+    {
+      "ticker": "RDNT",
+      "median_adv_shares": 822250.0
+    },
+    {
+      "ticker": "REG",
+      "median_adv_shares": 1279150.0
+    },
+    {
+      "ticker": "REGN",
+      "median_adv_shares": 642000.0
+    },
+    {
+      "ticker": "RELY",
+      "median_adv_shares": 3272450.0
+    },
+    {
+      "ticker": "RES",
+      "median_adv_shares": 2094550.0
+    },
+    {
+      "ticker": "REXR",
+      "median_adv_shares": 2270200.0
+    },
+    {
+      "ticker": "REYN",
+      "median_adv_shares": 1013650.0
+    },
+    {
+      "ticker": "REZI",
+      "median_adv_shares": 1094500.0
+    },
+    {
+      "ticker": "RF",
+      "median_adv_shares": 11965200.0
+    },
+    {
+      "ticker": "RGEN",
+      "median_adv_shares": 937250.0
+    },
+    {
+      "ticker": "RGLD",
+      "median_adv_shares": 811200.0
+    },
+    {
+      "ticker": "RH",
+      "median_adv_shares": 1019900.0
+    },
+    {
+      "ticker": "RHI",
+      "median_adv_shares": 2602300.0
+    },
+    {
+      "ticker": "RHP",
+      "median_adv_shares": 519050.0
+    },
+    {
+      "ticker": "RITM",
+      "median_adv_shares": 7492900.0
+    },
+    {
+      "ticker": "RJF",
+      "median_adv_shares": 1305300.0
+    },
+    {
+      "ticker": "RL",
+      "median_adv_shares": 583600.0
+    },
+    {
+      "ticker": "RLI",
+      "median_adv_shares": 725500.0
+    },
+    {
+      "ticker": "RMBS",
+      "median_adv_shares": 2057800.0
+    },
+    {
+      "ticker": "RMD",
+      "median_adv_shares": 1073550.0
+    },
+    {
+      "ticker": "RNG",
+      "median_adv_shares": 1755150.0
+    },
+    {
+      "ticker": "RNST",
+      "median_adv_shares": 662450.0
+    },
+    {
+      "ticker": "ROIV",
+      "median_adv_shares": 4960200.0
+    },
+    {
+      "ticker": "ROK",
+      "median_adv_shares": 809500.0
+    },
+    {
+      "ticker": "ROL",
+      "median_adv_shares": 2651800.0
+    },
+    {
+      "ticker": "ROP",
+      "median_adv_shares": 1240400.0
+    },
+    {
+      "ticker": "ROST",
+      "median_adv_shares": 2526950.0
+    },
+    {
+      "ticker": "RPM",
+      "median_adv_shares": 870250.0
+    },
+    {
+      "ticker": "RRC",
+      "median_adv_shares": 3313150.0
+    },
+    {
+      "ticker": "RRR",
+      "median_adv_shares": 854200.0
+    },
+    {
+      "ticker": "RRX",
+      "median_adv_shares": 1009900.0
+    },
+    {
+      "ticker": "RSG",
+      "median_adv_shares": 1609100.0
+    },
+    {
+      "ticker": "RTX",
+      "median_adv_shares": 5108650.0
+    },
+    {
+      "ticker": "RUN",
+      "median_adv_shares": 8123750.0
+    },
+    {
+      "ticker": "RVTY",
+      "median_adv_shares": 1104100.0
+    },
+    {
+      "ticker": "RWT",
+      "median_adv_shares": 1166650.0
+    },
+    {
+      "ticker": "RXO",
+      "median_adv_shares": 1975400.0
+    },
+    {
+      "ticker": "RYAN",
+      "median_adv_shares": 1994900.0
+    },
+    {
+      "ticker": "RYN",
+      "median_adv_shares": 2492100.0
+    },
+    {
+      "ticker": "SABR",
+      "median_adv_shares": 5866800.0
+    },
+    {
+      "ticker": "SAIC",
+      "median_adv_shares": 517050.0
+    },
+    {
+      "ticker": "SANM",
+      "median_adv_shares": 688700.0
+    },
+    {
+      "ticker": "SARO",
+      "median_adv_shares": 3785750.0
+    },
+    {
+      "ticker": "SATS",
+      "median_adv_shares": 5318950.0
+    },
+    {
+      "ticker": "SBAC",
+      "median_adv_shares": 1037650.0
+    },
+    {
+      "ticker": "SBCF",
+      "median_adv_shares": 702650.0
+    },
+    {
+      "ticker": "SBH",
+      "median_adv_shares": 1422500.0
+    },
+    {
+      "ticker": "SBRA",
+      "median_adv_shares": 2120300.0
+    },
+    {
+      "ticker": "SBUX",
+      "median_adv_shares": 7216950.0
+    },
+    {
+      "ticker": "SCHW",
+      "median_adv_shares": 9279450.0
+    },
+    {
+      "ticker": "SCI",
+      "median_adv_shares": 1138600.0
+    },
+    {
+      "ticker": "SDGR",
+      "median_adv_shares": 1208150.0
+    },
+    {
+      "ticker": "SEDG",
+      "median_adv_shares": 3494150.0
+    },
+    {
+      "ticker": "SEIC",
+      "median_adv_shares": 857450.0
+    },
+    {
+      "ticker": "SEM",
+      "median_adv_shares": 1578950.0
+    },
+    {
+      "ticker": "SEZL",
+      "median_adv_shares": 629400.0
+    },
+    {
+      "ticker": "SF",
+      "median_adv_shares": 1287300.0
+    },
+    {
+      "ticker": "SFM",
+      "median_adv_shares": 2143200.0
+    },
+    {
+      "ticker": "SFNC",
+      "median_adv_shares": 1098050.0
+    },
+    {
+      "ticker": "SGI",
+      "median_adv_shares": 2702650.0
+    },
+    {
+      "ticker": "SHAK",
+      "median_adv_shares": 1201500.0
+    },
+    {
+      "ticker": "SHC",
+      "median_adv_shares": 2706850.0
+    },
+    {
+      "ticker": "SHO",
+      "median_adv_shares": 1587150.0
+    },
+    {
+      "ticker": "SHOO",
+      "median_adv_shares": 1025050.0
+    },
+    {
+      "ticker": "SHW",
+      "median_adv_shares": 1778050.0
+    },
+    {
+      "ticker": "SIG",
+      "median_adv_shares": 826400.0
+    },
+    {
+      "ticker": "SIGI",
+      "median_adv_shares": 517850.0
+    },
+    {
+      "ticker": "SJM",
+      "median_adv_shares": 1829050.0
+    },
+    {
+      "ticker": "SKT",
+      "median_adv_shares": 712400.0
+    },
+    {
+      "ticker": "SKY",
+      "median_adv_shares": 556650.0
+    },
+    {
+      "ticker": "SLB",
+      "median_adv_shares": 14825000.0
+    },
+    {
+      "ticker": "SLG",
+      "median_adv_shares": 1213950.0
+    },
+    {
+      "ticker": "SLGN",
+      "median_adv_shares": 760950.0
+    },
+    {
+      "ticker": "SLM",
+      "median_adv_shares": 2953200.0
+    },
+    {
+      "ticker": "SM",
+      "median_adv_shares": 5028050.0
+    },
+    {
+      "ticker": "SMCI",
+      "median_adv_shares": 28785050.0
+    },
+    {
+      "ticker": "SMG",
+      "median_adv_shares": 944550.0
+    },
+    {
+      "ticker": "SMPL",
+      "median_adv_shares": 2152950.0
+    },
+    {
+      "ticker": "SMTC",
+      "median_adv_shares": 2425950.0
+    },
+    {
+      "ticker": "SN",
+      "median_adv_shares": 1883450.0
+    },
+    {
+      "ticker": "SNDK",
+      "median_adv_shares": 16600500.0
+    },
+    {
+      "ticker": "SNDR",
+      "median_adv_shares": 889900.0
+    },
+    {
+      "ticker": "SNEX",
+      "median_adv_shares": 694100.0
+    },
+    {
+      "ticker": "SNPS",
+      "median_adv_shares": 1663250.0
+    },
+    {
+      "ticker": "SNX",
+      "median_adv_shares": 625950.0
+    },
+    {
+      "ticker": "SO",
+      "median_adv_shares": 4840500.0
+    },
+    {
+      "ticker": "SOLS",
+      "median_adv_shares": 1996400.0
+    },
+    {
+      "ticker": "SOLV",
+      "median_adv_shares": 1346700.0
+    },
+    {
+      "ticker": "SON",
+      "median_adv_shares": 959800.0
+    },
+    {
+      "ticker": "SONO",
+      "median_adv_shares": 1281350.0
+    },
+    {
+      "ticker": "SPG",
+      "median_adv_shares": 1403200.0
+    },
+    {
+      "ticker": "SPGI",
+      "median_adv_shares": 1964750.0
+    },
+    {
+      "ticker": "SPHR",
+      "median_adv_shares": 699500.0
+    },
+    {
+      "ticker": "SPNT",
+      "median_adv_shares": 672050.0
+    },
+    {
+      "ticker": "SPSC",
+      "median_adv_shares": 605900.0
+    },
+    {
+      "ticker": "SRE",
+      "median_adv_shares": 3287300.0
+    },
+    {
+      "ticker": "SRPT",
+      "median_adv_shares": 2511150.0
+    },
+    {
+      "ticker": "SSB",
+      "median_adv_shares": 811650.0
+    },
+    {
+      "ticker": "ST",
+      "median_adv_shares": 1816200.0
+    },
+    {
+      "ticker": "STAA",
+      "median_adv_shares": 951350.0
+    },
+    {
+      "ticker": "STAG",
+      "median_adv_shares": 1108300.0
+    },
+    {
+      "ticker": "STE",
+      "median_adv_shares": 777400.0
+    },
+    {
+      "ticker": "STEP",
+      "median_adv_shares": 852050.0
+    },
+    {
+      "ticker": "STLD",
+      "median_adv_shares": 1047050.0
+    },
+    {
+      "ticker": "STT",
+      "median_adv_shares": 2081950.0
+    },
+    {
+      "ticker": "STWD",
+      "median_adv_shares": 3032750.0
+    },
+    {
+      "ticker": "STX",
+      "median_adv_shares": 3586900.0
+    },
+    {
+      "ticker": "STZ",
+      "median_adv_shares": 1841800.0
+    },
+    {
+      "ticker": "SUPN",
+      "median_adv_shares": 569000.0
+    },
+    {
+      "ticker": "SW",
+      "median_adv_shares": 5187050.0
+    },
+    {
+      "ticker": "SWK",
+      "median_adv_shares": 1922700.0
+    },
+    {
+      "ticker": "SWKS",
+      "median_adv_shares": 3274100.0
+    },
+    {
+      "ticker": "SYF",
+      "median_adv_shares": 3758250.0
+    },
+    {
+      "ticker": "SYK",
+      "median_adv_shares": 2288650.0
+    },
+    {
+      "ticker": "SYNA",
+      "median_adv_shares": 715300.0
+    },
+    {
+      "ticker": "SYY",
+      "median_adv_shares": 3756700.0
+    },
+    {
+      "ticker": "T",
+      "median_adv_shares": 37009350.0
+    },
+    {
+      "ticker": "TALO",
+      "median_adv_shares": 2154700.0
+    },
+    {
+      "ticker": "TAP",
+      "median_adv_shares": 2953250.0
+    },
+    {
+      "ticker": "TDC",
+      "median_adv_shares": 1943050.0
+    },
+    {
+      "ticker": "TDS",
+      "median_adv_shares": 732250.0
+    },
+    {
+      "ticker": "TDW",
+      "median_adv_shares": 775600.0
+    },
+    {
+      "ticker": "TECH",
+      "median_adv_shares": 2217050.0
+    },
+    {
+      "ticker": "TEL",
+      "median_adv_shares": 2266050.0
+    },
+    {
+      "ticker": "TER",
+      "median_adv_shares": 3121750.0
+    },
+    {
+      "ticker": "TEX",
+      "median_adv_shares": 1257300.0
+    },
+    {
+      "ticker": "TFC",
+      "median_adv_shares": 8187450.0
+    },
+    {
+      "ticker": "TFX",
+      "median_adv_shares": 775850.0
+    },
+    {
+      "ticker": "TGT",
+      "median_adv_shares": 5066350.0
+    },
+    {
+      "ticker": "TGTX",
+      "median_adv_shares": 1828800.0
+    },
+    {
+      "ticker": "THC",
+      "median_adv_shares": 1167000.0
+    },
+    {
+      "ticker": "THO",
+      "median_adv_shares": 728500.0
+    },
+    {
+      "ticker": "TILE",
+      "median_adv_shares": 545950.0
+    },
+    {
+      "ticker": "TJX",
+      "median_adv_shares": 4461150.0
+    },
+    {
+      "ticker": "TKO",
+      "median_adv_shares": 1171200.0
+    },
+    {
+      "ticker": "TKR",
+      "median_adv_shares": 770350.0
+    },
+    {
+      "ticker": "TLN",
+      "median_adv_shares": 691800.0
+    },
+    {
+      "ticker": "TMDX",
+      "median_adv_shares": 998100.0
+    },
+    {
+      "ticker": "TMHC",
+      "median_adv_shares": 1144650.0
+    },
+    {
+      "ticker": "TMO",
+      "median_adv_shares": 2021900.0
+    },
+    {
+      "ticker": "TMUS",
+      "median_adv_shares": 5314550.0
+    },
+    {
+      "ticker": "TNDM",
+      "median_adv_shares": 1895050.0
+    },
+    {
+      "ticker": "TNL",
+      "median_adv_shares": 712400.0
+    },
+    {
+      "ticker": "TOL",
+      "median_adv_shares": 1066400.0
+    },
+    {
+      "ticker": "TPR",
+      "median_adv_shares": 1777500.0
+    },
+    {
+      "ticker": "TREX",
+      "median_adv_shares": 1789350.0
+    },
+    {
+      "ticker": "TRGP",
+      "median_adv_shares": 1317650.0
+    },
+    {
+      "ticker": "TRIP",
+      "median_adv_shares": 3405050.0
+    },
+    {
+      "ticker": "TRMB",
+      "median_adv_shares": 1804250.0
+    },
+    {
+      "ticker": "TRN",
+      "median_adv_shares": 564100.0
+    },
+    {
+      "ticker": "TRNO",
+      "median_adv_shares": 562550.0
+    },
+    {
+      "ticker": "TROW",
+      "median_adv_shares": 2205500.0
+    },
+    {
+      "ticker": "TRU",
+      "median_adv_shares": 2282650.0
+    },
+    {
+      "ticker": "TRV",
+      "median_adv_shares": 1311200.0
+    },
+    {
+      "ticker": "TSCO",
+      "median_adv_shares": 8007750.0
+    },
+    {
+      "ticker": "TSLA",
+      "median_adv_shares": 60771550.0
+    },
+    {
+      "ticker": "TSN",
+      "median_adv_shares": 2598400.0
+    },
+    {
+      "ticker": "TT",
+      "median_adv_shares": 1292900.0
+    },
+    {
+      "ticker": "TTC",
+      "median_adv_shares": 681450.0
+    },
+    {
+      "ticker": "TTD",
+      "median_adv_shares": 17555300.0
+    },
+    {
+      "ticker": "TTEK",
+      "median_adv_shares": 2766150.0
+    },
+    {
+      "ticker": "TTMI",
+      "median_adv_shares": 1886700.0
+    },
+    {
+      "ticker": "TTWO",
+      "median_adv_shares": 1785200.0
+    },
+    {
+      "ticker": "TWLO",
+      "median_adv_shares": 2100050.0
+    },
+    {
+      "ticker": "TWO",
+      "median_adv_shares": 2660150.0
+    },
+    {
+      "ticker": "TXN",
+      "median_adv_shares": 6760150.0
+    },
+    {
+      "ticker": "TXNM",
+      "median_adv_shares": 1236050.0
+    },
+    {
+      "ticker": "TXRH",
+      "median_adv_shares": 1044000.0
+    },
+    {
+      "ticker": "TXT",
+      "median_adv_shares": 1238900.0
+    },
+    {
+      "ticker": "UA",
+      "median_adv_shares": 2434797.0
+    },
+    {
+      "ticker": "UAA",
+      "median_adv_shares": 7717000.0
+    },
+    {
+      "ticker": "UAL",
+      "median_adv_shares": 7208450.0
+    },
+    {
+      "ticker": "UBER",
+      "median_adv_shares": 15941950.0
+    },
+    {
+      "ticker": "UBSI",
+      "median_adv_shares": 865850.0
+    },
+    {
+      "ticker": "UCB",
+      "median_adv_shares": 800350.0
+    },
+    {
+      "ticker": "UCTT",
+      "median_adv_shares": 974000.0
+    },
+    {
+      "ticker": "UDR",
+      "median_adv_shares": 3400450.0
+    },
+    {
+      "ticker": "UE",
+      "median_adv_shares": 846750.0
+    },
+    {
+      "ticker": "UGI",
+      "median_adv_shares": 1609850.0
+    },
+    {
+      "ticker": "UHS",
+      "median_adv_shares": 765850.0
+    },
+    {
+      "ticker": "ULS",
+      "median_adv_shares": 677650.0
+    },
+    {
+      "ticker": "ULTA",
+      "median_adv_shares": 660900.0
+    },
+    {
+      "ticker": "UMBF",
+      "median_adv_shares": 577900.0
+    },
+    {
+      "ticker": "UNFI",
+      "median_adv_shares": 600800.0
+    },
+    {
+      "ticker": "UNH",
+      "median_adv_shares": 7000350.0
+    },
+    {
+      "ticker": "UNIT",
+      "median_adv_shares": 2259750.0
+    },
+    {
+      "ticker": "UNM",
+      "median_adv_shares": 1305150.0
+    },
+    {
+      "ticker": "UNP",
+      "median_adv_shares": 2774250.0
+    },
+    {
+      "ticker": "UPBD",
+      "median_adv_shares": 784000.0
+    },
+    {
+      "ticker": "UPS",
+      "median_adv_shares": 5216050.0
+    },
+    {
+      "ticker": "UPWK",
+      "median_adv_shares": 3383400.0
+    },
+    {
+      "ticker": "URBN",
+      "median_adv_shares": 1442850.0
+    },
+    {
+      "ticker": "URI",
+      "median_adv_shares": 527300.0
+    },
+    {
+      "ticker": "USB",
+      "median_adv_shares": 9208050.0
+    },
+    {
+      "ticker": "USFD",
+      "median_adv_shares": 2165650.0
+    },
+    {
+      "ticker": "V",
+      "median_adv_shares": 6756650.0
+    },
+    {
+      "ticker": "VAC",
+      "median_adv_shares": 502250.0
+    },
+    {
+      "ticker": "VAL",
+      "median_adv_shares": 914500.0
+    },
+    {
+      "ticker": "VC",
+      "median_adv_shares": 547700.0
+    },
+    {
+      "ticker": "VCEL",
+      "median_adv_shares": 562000.0
+    },
+    {
+      "ticker": "VCTR",
+      "median_adv_shares": 569500.0
+    },
+    {
+      "ticker": "VCYT",
+      "median_adv_shares": 892000.0
+    },
+    {
+      "ticker": "VECO",
+      "median_adv_shares": 1122500.0
+    },
+    {
+      "ticker": "VEEV",
+      "median_adv_shares": 2110050.0
+    },
+    {
+      "ticker": "VFC",
+      "median_adv_shares": 6297750.0
+    },
+    {
+      "ticker": "VGNT",
+      "median_adv_shares": 1673400.0
+    },
+    {
+      "ticker": "VIAV",
+      "median_adv_shares": 5805100.0
+    },
+    {
+      "ticker": "VICI",
+      "median_adv_shares": 7850500.0
+    },
+    {
+      "ticker": "VICR",
+      "median_adv_shares": 819350.0
+    },
+    {
+      "ticker": "VIR",
+      "median_adv_shares": 1911900.0
+    },
+    {
+      "ticker": "VIRT",
+      "median_adv_shares": 1180850.0
+    },
+    {
+      "ticker": "VITL",
+      "median_adv_shares": 2981950.0
+    },
+    {
+      "ticker": "VLO",
+      "median_adv_shares": 3528400.0
+    },
+    {
+      "ticker": "VLTO",
+      "median_adv_shares": 1750450.0
+    },
+    {
+      "ticker": "VLY",
+      "median_adv_shares": 6020400.0
+    },
+    {
+      "ticker": "VMC",
+      "median_adv_shares": 1112450.0
+    },
+    {
+      "ticker": "VNO",
+      "median_adv_shares": 1840550.0
+    },
+    {
+      "ticker": "VNOM",
+      "median_adv_shares": 1811250.0
+    },
+    {
+      "ticker": "VNT",
+      "median_adv_shares": 1019700.0
+    },
+    {
+      "ticker": "VOYA",
+      "median_adv_shares": 1168850.0
+    },
+    {
+      "ticker": "VRE",
+      "median_adv_shares": 908800.0
+    },
+    {
+      "ticker": "VRRM",
+      "median_adv_shares": 1598800.0
+    },
+    {
+      "ticker": "VRSK",
+      "median_adv_shares": 1847000.0
+    },
+    {
+      "ticker": "VRSN",
+      "median_adv_shares": 799700.0
+    },
+    {
+      "ticker": "VRT",
+      "median_adv_shares": 5639950.0
+    },
+    {
+      "ticker": "VRTX",
+      "median_adv_shares": 1197100.0
+    },
+    {
+      "ticker": "VSAT",
+      "median_adv_shares": 1509300.0
+    },
+    {
+      "ticker": "VSCO",
+      "median_adv_shares": 2079100.0
+    },
+    {
+      "ticker": "VSEC",
+      "median_adv_shares": 526100.0
+    },
+    {
+      "ticker": "VSH",
+      "median_adv_shares": 2457050.0
+    },
+    {
+      "ticker": "VSNT",
+      "median_adv_shares": 1979900.0
+    },
+    {
+      "ticker": "VST",
+      "median_adv_shares": 4379250.0
+    },
+    {
+      "ticker": "VSTS",
+      "median_adv_shares": 1267050.0
+    },
+    {
+      "ticker": "VTR",
+      "median_adv_shares": 3554450.0
+    },
+    {
+      "ticker": "VTRS",
+      "median_adv_shares": 10334850.0
+    },
+    {
+      "ticker": "VVV",
+      "median_adv_shares": 1895450.0
+    },
+    {
+      "ticker": "VYX",
+      "median_adv_shares": 2230700.0
+    },
+    {
+      "ticker": "VZ",
+      "median_adv_shares": 23781400.0
+    },
+    {
+      "ticker": "WAB",
+      "median_adv_shares": 878500.0
+    },
+    {
+      "ticker": "WAFD",
+      "median_adv_shares": 603050.0
+    },
+    {
+      "ticker": "WAL",
+      "median_adv_shares": 1131100.0
+    },
+    {
+      "ticker": "WAT",
+      "median_adv_shares": 969250.0
+    },
+    {
+      "ticker": "WAY",
+      "median_adv_shares": 2228850.0
+    },
+    {
+      "ticker": "WBD",
+      "median_adv_shares": 20896150.0
+    },
+    {
+      "ticker": "WBS",
+      "median_adv_shares": 2997350.0
+    },
+    {
+      "ticker": "WCC",
+      "median_adv_shares": 548850.0
+    },
+    {
+      "ticker": "WDAY",
+      "median_adv_shares": 4647400.0
+    },
+    {
+      "ticker": "WDC",
+      "median_adv_shares": 7525400.0
+    },
+    {
+      "ticker": "WEC",
+      "median_adv_shares": 1827950.0
+    },
+    {
+      "ticker": "WELL",
+      "median_adv_shares": 2805950.0
+    },
+    {
+      "ticker": "WEN",
+      "median_adv_shares": 8109450.0
+    },
+    {
+      "ticker": "WERN",
+      "median_adv_shares": 1005550.0
+    },
+    {
+      "ticker": "WEX",
+      "median_adv_shares": 501450.0
+    },
+    {
+      "ticker": "WFC",
+      "median_adv_shares": 16866550.0
+    },
+    {
+      "ticker": "WFRD",
+      "median_adv_shares": 1361800.0
+    },
+    {
+      "ticker": "WGO",
+      "median_adv_shares": 619500.0
+    },
+    {
+      "ticker": "WH",
+      "median_adv_shares": 1176050.0
+    },
+    {
+      "ticker": "WHD",
+      "median_adv_shares": 909550.0
+    },
+    {
+      "ticker": "WHR",
+      "median_adv_shares": 2743750.0
+    },
+    {
+      "ticker": "WING",
+      "median_adv_shares": 1282850.0
+    },
+    {
+      "ticker": "WKC",
+      "median_adv_shares": 720700.0
+    },
+    {
+      "ticker": "WLK",
+      "median_adv_shares": 1093300.0
+    },
+    {
+      "ticker": "WM",
+      "median_adv_shares": 2039200.0
+    },
+    {
+      "ticker": "WMB",
+      "median_adv_shares": 6064600.0
+    },
+    {
+      "ticker": "WMG",
+      "median_adv_shares": 2125400.0
+    },
+    {
+      "ticker": "WMS",
+      "median_adv_shares": 808200.0
+    },
+    {
+      "ticker": "WMT",
+      "median_adv_shares": 17137350.0
+    },
+    {
+      "ticker": "WPC",
+      "median_adv_shares": 1116150.0
+    },
+    {
+      "ticker": "WRB",
+      "median_adv_shares": 1776300.0
+    },
+    {
+      "ticker": "WSC",
+      "median_adv_shares": 2262800.0
+    },
+    {
+      "ticker": "WSM",
+      "median_adv_shares": 1131150.0
+    },
+    {
+      "ticker": "WST",
+      "median_adv_shares": 810950.0
+    },
+    {
+      "ticker": "WT",
+      "median_adv_shares": 2717650.0
+    },
+    {
+      "ticker": "WTRG",
+      "median_adv_shares": 1779750.0
+    },
+    {
+      "ticker": "WTW",
+      "median_adv_shares": 608500.0
+    },
+    {
+      "ticker": "WU",
+      "median_adv_shares": 7431950.0
+    },
+    {
+      "ticker": "WWD",
+      "median_adv_shares": 640300.0
+    },
+    {
+      "ticker": "WWW",
+      "median_adv_shares": 961950.0
+    },
+    {
+      "ticker": "WY",
+      "median_adv_shares": 4915450.0
+    },
+    {
+      "ticker": "WYNN",
+      "median_adv_shares": 1466300.0
+    },
+    {
+      "ticker": "XEL",
+      "median_adv_shares": 4318650.0
+    },
+    {
+      "ticker": "XHR",
+      "median_adv_shares": 576400.0
+    },
+    {
+      "ticker": "XNCR",
+      "median_adv_shares": 840950.0
+    },
+    {
+      "ticker": "XOM",
+      "median_adv_shares": 19841400.0
+    },
+    {
+      "ticker": "XPO",
+      "median_adv_shares": 1276000.0
+    },
+    {
+      "ticker": "XRAY",
+      "median_adv_shares": 4408000.0
+    },
+    {
+      "ticker": "XYL",
+      "median_adv_shares": 2010500.0
+    },
+    {
+      "ticker": "XYZ",
+      "median_adv_shares": 5846200.0
+    },
+    {
+      "ticker": "YELP",
+      "median_adv_shares": 1170150.0
+    },
+    {
+      "ticker": "YETI",
+      "median_adv_shares": 1350350.0
+    },
+    {
+      "ticker": "YOU",
+      "median_adv_shares": 1459650.0
+    },
+    {
+      "ticker": "YUM",
+      "median_adv_shares": 1586300.0
+    },
+    {
+      "ticker": "ZBH",
+      "median_adv_shares": 2078100.0
+    },
+    {
+      "ticker": "ZBRA",
+      "median_adv_shares": 775000.0
+    },
+    {
+      "ticker": "ZD",
+      "median_adv_shares": 641950.0
+    },
+    {
+      "ticker": "ZION",
+      "median_adv_shares": 1461500.0
+    },
+    {
+      "ticker": "ZTS",
+      "median_adv_shares": 3790850.0
+    },
+    {
+      "ticker": "ZWS",
+      "median_adv_shares": 870600.0
+    }
+  ],
+  "below_floor": [
+    {
+      "ticker": "AAMI",
+      "median_adv_shares": 310600.0
+    },
+    {
+      "ticker": "AAT",
+      "median_adv_shares": 342850.0
+    },
+    {
+      "ticker": "ABCB",
+      "median_adv_shares": 497000.0
+    },
+    {
+      "ticker": "ABG",
+      "median_adv_shares": 234450.0
+    },
+    {
+      "ticker": "ABM",
+      "median_adv_shares": 447200.0
+    },
+    {
+      "ticker": "ACA",
+      "median_adv_shares": 289850.0
+    },
+    {
+      "ticker": "ACT",
+      "median_adv_shares": 285550.0
+    },
+    {
+      "ticker": "ADUS",
+      "median_adv_shares": 225850.0
+    },
+    {
+      "ticker": "AFG",
+      "median_adv_shares": 443850.0
+    },
+    {
+      "ticker": "AGO",
+      "median_adv_shares": 320850.0
+    },
+    {
+      "ticker": "AGX",
+      "median_adv_shares": 315350.0
+    },
+    {
+      "ticker": "AGYS",
+      "median_adv_shares": 275600.0
+    },
+    {
+      "ticker": "AIN",
+      "median_adv_shares": 236000.0
+    },
+    {
+      "ticker": "AIR",
+      "median_adv_shares": 421650.0
+    },
+    {
+      "ticker": "AIT",
+      "median_adv_shares": 246150.0
+    },
+    {
+      "ticker": "AIZ",
+      "median_adv_shares": 361100.0
+    },
+    {
+      "ticker": "ALG",
+      "median_adv_shares": 164150.0
+    },
+    {
+      "ticker": "ALRM",
+      "median_adv_shares": 433150.0
+    },
+    {
+      "ticker": "AMG",
+      "median_adv_shares": 320000.0
+    },
+    {
+      "ticker": "AMR",
+      "median_adv_shares": 249000.0
+    },
+    {
+      "ticker": "AMSF",
+      "median_adv_shares": 205250.0
+    },
+    {
+      "ticker": "AMWD",
+      "median_adv_shares": 229200.0
+    },
+    {
+      "ticker": "AN",
+      "median_adv_shares": 367150.0
+    },
+    {
+      "ticker": "ANDE",
+      "median_adv_shares": 310500.0
+    },
+    {
+      "ticker": "ANIP",
+      "median_adv_shares": 311850.0
+    },
+    {
+      "ticker": "AORT",
+      "median_adv_shares": 415350.0
+    },
+    {
+      "ticker": "APOG",
+      "median_adv_shares": 179550.0
+    },
+    {
+      "ticker": "APPF",
+      "median_adv_shares": 316150.0
+    },
+    {
+      "ticker": "ARCB",
+      "median_adv_shares": 293900.0
+    },
+    {
+      "ticker": "ASTE",
+      "median_adv_shares": 210500.0
+    },
+    {
+      "ticker": "ASTH",
+      "median_adv_shares": 427900.0
+    },
+    {
+      "ticker": "ATR",
+      "median_adv_shares": 444550.0
+    },
+    {
+      "ticker": "AWI",
+      "median_adv_shares": 416100.0
+    },
+    {
+      "ticker": "AWR",
+      "median_adv_shares": 264100.0
+    },
+    {
+      "ticker": "AX",
+      "median_adv_shares": 345550.0
+    },
+    {
+      "ticker": "AYI",
+      "median_adv_shares": 375550.0
+    },
+    {
+      "ticker": "AZO",
+      "median_adv_shares": 211450.0
+    },
+    {
+      "ticker": "AZZ",
+      "median_adv_shares": 176100.0
+    },
+    {
+      "ticker": "BANF",
+      "median_adv_shares": 120400.0
+    },
+    {
+      "ticker": "BANR",
+      "median_adv_shares": 248350.0
+    },
+    {
+      "ticker": "BCC",
+      "median_adv_shares": 379550.0
+    },
+    {
+      "ticker": "BCO",
+      "median_adv_shares": 471700.0
+    },
+    {
+      "ticker": "BCPC",
+      "median_adv_shares": 176400.0
+    },
+    {
+      "ticker": "BDC",
+      "median_adv_shares": 401650.0
+    },
+    {
+      "ticker": "BFS",
+      "median_adv_shares": 54950.0
+    },
+    {
+      "ticker": "BHE",
+      "median_adv_shares": 346200.0
+    },
+    {
+      "ticker": "BIO",
+      "median_adv_shares": 286750.0
+    },
+    {
+      "ticker": "BJRI",
+      "median_adv_shares": 361850.0
+    },
+    {
+      "ticker": "BKE",
+      "median_adv_shares": 397700.0
+    },
+    {
+      "ticker": "BLFS",
+      "median_adv_shares": 395450.0
+    },
+    {
+      "ticker": "BMI",
+      "median_adv_shares": 453650.0
+    },
+    {
+      "ticker": "BOH",
+      "median_adv_shares": 395150.0
+    },
+    {
+      "ticker": "BRC",
+      "median_adv_shares": 238600.0
+    },
+    {
+      "ticker": "CABO",
+      "median_adv_shares": 146000.0
+    },
+    {
+      "ticker": "CACI",
+      "median_adv_shares": 268350.0
+    },
+    {
+      "ticker": "CASH",
+      "median_adv_shares": 199050.0
+    },
+    {
+      "ticker": "CASY",
+      "median_adv_shares": 396350.0
+    },
+    {
+      "ticker": "CATY",
+      "median_adv_shares": 391950.0
+    },
+    {
+      "ticker": "CBT",
+      "median_adv_shares": 360500.0
+    },
+    {
+      "ticker": "CBU",
+      "median_adv_shares": 225600.0
+    },
+    {
+      "ticker": "CCS",
+      "median_adv_shares": 260750.0
+    },
+    {
+      "ticker": "CENT",
+      "median_adv_shares": 57250.0
+    },
+    {
+      "ticker": "CENTA",
+      "median_adv_shares": 285300.0
+    },
+    {
+      "ticker": "CHCO",
+      "median_adv_shares": 102900.0
+    },
+    {
+      "ticker": "CHE",
+      "median_adv_shares": 251700.0
+    },
+    {
+      "ticker": "CHEF",
+      "median_adv_shares": 420250.0
+    },
+    {
+      "ticker": "CLB",
+      "median_adv_shares": 395150.0
+    },
+    {
+      "ticker": "CLH",
+      "median_adv_shares": 483200.0
+    },
+    {
+      "ticker": "CNMD",
+      "median_adv_shares": 396100.0
+    },
+    {
+      "ticker": "CNS",
+      "median_adv_shares": 311750.0
+    },
+    {
+      "ticker": "CNXN",
+      "median_adv_shares": 69650.0
+    },
+    {
+      "ticker": "COKE",
+      "median_adv_shares": 465500.0
+    },
+    {
+      "ticker": "COLL",
+      "median_adv_shares": 488950.0
+    },
+    {
+      "ticker": "CPF",
+      "median_adv_shares": 130350.0
+    },
+    {
+      "ticker": "CPK",
+      "median_adv_shares": 127250.0
+    },
+    {
+      "ticker": "CRVL",
+      "median_adv_shares": 205850.0
+    },
+    {
+      "ticker": "CSL",
+      "median_adv_shares": 388500.0
+    },
+    {
+      "ticker": "CSR",
+      "median_adv_shares": 104150.0
+    },
+    {
+      "ticker": "CSW",
+      "median_adv_shares": 125650.0
+    },
+    {
+      "ticker": "CTS",
+      "median_adv_shares": 216200.0
+    },
+    {
+      "ticker": "CUBI",
+      "median_adv_shares": 325950.0
+    },
+    {
+      "ticker": "CVCO",
+      "median_adv_shares": 135200.0
+    },
+    {
+      "ticker": "CVSA",
+      "median_adv_shares": 300800.0
+    },
+    {
+      "ticker": "CW",
+      "median_adv_shares": 264900.0
+    },
+    {
+      "ticker": "CWEN-A",
+      "median_adv_shares": 187963.5
+    },
+    {
+      "ticker": "CWT",
+      "median_adv_shares": 421450.0
+    },
+    {
+      "ticker": "DBD",
+      "median_adv_shares": 288500.0
+    },
+    {
+      "ticker": "DCOM",
+      "median_adv_shares": 268950.0
+    },
+    {
+      "ticker": "DEA",
+      "median_adv_shares": 369500.0
+    },
+    {
+      "ticker": "DFIN",
+      "median_adv_shares": 233450.0
+    },
+    {
+      "ticker": "DGII",
+      "median_adv_shares": 261500.0
+    },
+    {
+      "ticker": "DLX",
+      "median_adv_shares": 354150.0
+    },
+    {
+      "ticker": "DORM",
+      "median_adv_shares": 254300.0
+    },
+    {
+      "ticker": "DXPE",
+      "median_adv_shares": 172650.0
+    },
+    {
+      "ticker": "DY",
+      "median_adv_shares": 415500.0
+    },
+    {
+      "ticker": "ECPG",
+      "median_adv_shares": 316900.0
+    },
+    {
+      "ticker": "EG",
+      "median_adv_shares": 341950.0
+    },
+    {
+      "ticker": "EGBN",
+      "median_adv_shares": 255100.0
+    },
+    {
+      "ticker": "EGP",
+      "median_adv_shares": 317100.0
+    },
+    {
+      "ticker": "EIG",
+      "median_adv_shares": 231000.0
+    },
+    {
+      "ticker": "EME",
+      "median_adv_shares": 356100.0
+    },
+    {
+      "ticker": "ENS",
+      "median_adv_shares": 328400.0
+    },
+    {
+      "ticker": "ENSG",
+      "median_adv_shares": 388150.0
+    },
+    {
+      "ticker": "ENVA",
+      "median_adv_shares": 217750.0
+    },
+    {
+      "ticker": "EPAC",
+      "median_adv_shares": 366850.0
+    },
+    {
+      "ticker": "ERIE",
+      "median_adv_shares": 209400.0
+    },
+    {
+      "ticker": "ESE",
+      "median_adv_shares": 283450.0
+    },
+    {
+      "ticker": "ESS",
+      "median_adv_shares": 451500.0
+    },
+    {
+      "ticker": "ETD",
+      "median_adv_shares": 358000.0
+    },
+    {
+      "ticker": "EVTC",
+      "median_adv_shares": 397450.0
+    },
+    {
+      "ticker": "EXP",
+      "median_adv_shares": 391250.0
+    },
+    {
+      "ticker": "EXPO",
+      "median_adv_shares": 457850.0
+    },
+    {
+      "ticker": "FBK",
+      "median_adv_shares": 289650.0
+    },
+    {
+      "ticker": "FBNC",
+      "median_adv_shares": 202550.0
+    },
+    {
+      "ticker": "FCFS",
+      "median_adv_shares": 323350.0
+    },
+    {
+      "ticker": "FCN",
+      "median_adv_shares": 391250.0
+    },
+    {
+      "ticker": "FDP",
+      "median_adv_shares": 260250.0
+    },
+    {
+      "ticker": "FELE",
+      "median_adv_shares": 245250.0
+    },
+    {
+      "ticker": "FICO",
+      "median_adv_shares": 317050.0
+    },
+    {
+      "ticker": "FIX",
+      "median_adv_shares": 389100.0
+    },
+    {
+      "ticker": "FIZZ",
+      "median_adv_shares": 234600.0
+    },
+    {
+      "ticker": "FSS",
+      "median_adv_shares": 435250.0
+    },
+    {
+      "ticker": "GATX",
+      "median_adv_shares": 189000.0
+    },
+    {
+      "ticker": "GBX",
+      "median_adv_shares": 315700.0
+    },
+    {
+      "ticker": "GEF",
+      "median_adv_shares": 194200.0
+    },
+    {
+      "ticker": "GFF",
+      "median_adv_shares": 358450.0
+    },
+    {
+      "ticker": "GHC",
+      "median_adv_shares": 18200.0
+    },
+    {
+      "ticker": "GIII",
+      "median_adv_shares": 450100.0
+    },
+    {
+      "ticker": "GL",
+      "median_adv_shares": 497750.0
+    },
+    {
+      "ticker": "GOLF",
+      "median_adv_shares": 311200.0
+    },
+    {
+      "ticker": "GPI",
+      "median_adv_shares": 143300.0
+    },
+    {
+      "ticker": "GRBK",
+      "median_adv_shares": 196450.0
+    },
+    {
+      "ticker": "GSHD",
+      "median_adv_shares": 399850.0
+    },
+    {
+      "ticker": "GTY",
+      "median_adv_shares": 444500.0
+    },
+    {
+      "ticker": "GWW",
+      "median_adv_shares": 230800.0
+    },
+    {
+      "ticker": "HAFC",
+      "median_adv_shares": 243800.0
+    },
+    {
+      "ticker": "HCI",
+      "median_adv_shares": 153750.0
+    },
+    {
+      "ticker": "HFWA",
+      "median_adv_shares": 253850.0
+    },
+    {
+      "ticker": "HII",
+      "median_adv_shares": 436050.0
+    },
+    {
+      "ticker": "HMN",
+      "median_adv_shares": 219650.0
+    },
+    {
+      "ticker": "HSTM",
+      "median_adv_shares": 250700.0
+    },
+    {
+      "ticker": "HTH",
+      "median_adv_shares": 315700.0
+    },
+    {
+      "ticker": "HTLD",
+      "median_adv_shares": 403700.0
+    },
+    {
+      "ticker": "HWKN",
+      "median_adv_shares": 152600.0
+    },
+    {
+      "ticker": "HZO",
+      "median_adv_shares": 327050.0
+    },
+    {
+      "ticker": "IBOC",
+      "median_adv_shares": 304450.0
+    },
+    {
+      "ticker": "IBP",
+      "median_adv_shares": 351700.0
+    },
+    {
+      "ticker": "ICUI",
+      "median_adv_shares": 271100.0
+    },
+    {
+      "ticker": "IDA",
+      "median_adv_shares": 442300.0
+    },
+    {
+      "ticker": "IDCC",
+      "median_adv_shares": 268750.0
+    },
+    {
+      "ticker": "IIIN",
+      "median_adv_shares": 157950.0
+    },
+    {
+      "ticker": "IIPR",
+      "median_adv_shares": 277250.0
+    },
+    {
+      "ticker": "INDB",
+      "median_adv_shares": 321350.0
+    },
+    {
+      "ticker": "INVX",
+      "median_adv_shares": 426600.0
+    },
+    {
+      "ticker": "IOSP",
+      "median_adv_shares": 216750.0
+    },
+    {
+      "ticker": "IPAR",
+      "median_adv_shares": 241950.0
+    },
+    {
+      "ticker": "IPGP",
+      "median_adv_shares": 419250.0
+    },
+    {
+      "ticker": "JBSS",
+      "median_adv_shares": 83500.0
+    },
+    {
+      "ticker": "JJSF",
+      "median_adv_shares": 254250.0
+    },
+    {
+      "ticker": "JLL",
+      "median_adv_shares": 399950.0
+    },
+    {
+      "ticker": "JOE",
+      "median_adv_shares": 196150.0
+    },
+    {
+      "ticker": "KAI",
+      "median_adv_shares": 165650.0
+    },
+    {
+      "ticker": "KALU",
+      "median_adv_shares": 210650.0
+    },
+    {
+      "ticker": "KFY",
+      "median_adv_shares": 486100.0
+    },
+    {
+      "ticker": "KNSL",
+      "median_adv_shares": 261400.0
+    },
+    {
+      "ticker": "KOP",
+      "median_adv_shares": 202500.0
+    },
+    {
+      "ticker": "KRYS",
+      "median_adv_shares": 245650.0
+    },
+    {
+      "ticker": "KWR",
+      "median_adv_shares": 168550.0
+    },
+    {
+      "ticker": "LAD",
+      "median_adv_shares": 326400.0
+    },
+    {
+      "ticker": "LCII",
+      "median_adv_shares": 254200.0
+    },
+    {
+      "ticker": "LECO",
+      "median_adv_shares": 308400.0
+    },
+    {
+      "ticker": "LFUS",
+      "median_adv_shares": 273250.0
+    },
+    {
+      "ticker": "LGIH",
+      "median_adv_shares": 455850.0
+    },
+    {
+      "ticker": "LGND",
+      "median_adv_shares": 213050.0
+    },
+    {
+      "ticker": "LII",
+      "median_adv_shares": 436000.0
+    },
+    {
+      "ticker": "LKFN",
+      "median_adv_shares": 157050.0
+    },
+    {
+      "ticker": "LMAT",
+      "median_adv_shares": 232400.0
+    },
+    {
+      "ticker": "LNN",
+      "median_adv_shares": 164750.0
+    },
+    {
+      "ticker": "LOPE",
+      "median_adv_shares": 230700.0
+    },
+    {
+      "ticker": "LPG",
+      "median_adv_shares": 487100.0
+    },
+    {
+      "ticker": "LQDT",
+      "median_adv_shares": 151200.0
+    },
+    {
+      "ticker": "LSTR",
+      "median_adv_shares": 445350.0
+    },
+    {
+      "ticker": "LTC",
+      "median_adv_shares": 348950.0
+    },
+    {
+      "ticker": "LZB",
+      "median_adv_shares": 376450.0
+    },
+    {
+      "ticker": "MATW",
+      "median_adv_shares": 177700.0
+    },
+    {
+      "ticker": "MATX",
+      "median_adv_shares": 240100.0
+    },
+    {
+      "ticker": "MBIN",
+      "median_adv_shares": 174750.0
+    },
+    {
+      "ticker": "MCRI",
+      "median_adv_shares": 117800.0
+    },
+    {
+      "ticker": "MCY",
+      "median_adv_shares": 210650.0
+    },
+    {
+      "ticker": "MEDP",
+      "median_adv_shares": 330650.0
+    },
+    {
+      "ticker": "MGEE",
+      "median_adv_shares": 201750.0
+    },
+    {
+      "ticker": "MHO",
+      "median_adv_shares": 223150.0
+    },
+    {
+      "ticker": "MMI",
+      "median_adv_shares": 251200.0
+    },
+    {
+      "ticker": "MOG-A",
+      "median_adv_shares": 237350.0
+    },
+    {
+      "ticker": "MRCY",
+      "median_adv_shares": 464550.0
+    },
+    {
+      "ticker": "MSA",
+      "median_adv_shares": 212400.0
+    },
+    {
+      "ticker": "MSEX",
+      "median_adv_shares": 120350.0
+    },
+    {
+      "ticker": "MSGS",
+      "median_adv_shares": 210000.0
+    },
+    {
+      "ticker": "MTD",
+      "median_adv_shares": 160050.0
+    },
+    {
+      "ticker": "MTRN",
+      "median_adv_shares": 237600.0
+    },
+    {
+      "ticker": "MTUS",
+      "median_adv_shares": 301100.0
+    },
+    {
+      "ticker": "MTX",
+      "median_adv_shares": 199350.0
+    },
+    {
+      "ticker": "MUSA",
+      "median_adv_shares": 336350.0
+    },
+    {
+      "ticker": "MYRG",
+      "median_adv_shares": 278000.0
+    },
+    {
+      "ticker": "MZTI",
+      "median_adv_shares": 309300.0
+    },
+    {
+      "ticker": "NBHC",
+      "median_adv_shares": 368300.0
+    },
+    {
+      "ticker": "NBTB",
+      "median_adv_shares": 253550.0
+    },
+    {
+      "ticker": "NDSN",
+      "median_adv_shares": 316950.0
+    },
+    {
+      "ticker": "NEU",
+      "median_adv_shares": 113650.0
+    },
+    {
+      "ticker": "NGVT",
+      "median_adv_shares": 282250.0
+    },
+    {
+      "ticker": "NHC",
+      "median_adv_shares": 103300.0
+    },
+    {
+      "ticker": "NMIH",
+      "median_adv_shares": 420000.0
+    },
+    {
+      "ticker": "NOVT",
+      "median_adv_shares": 384350.0
+    },
+    {
+      "ticker": "NPK",
+      "median_adv_shares": 88850.0
+    },
+    {
+      "ticker": "NPO",
+      "median_adv_shares": 248350.0
+    },
+    {
+      "ticker": "NSIT",
+      "median_adv_shares": 400650.0
+    },
+    {
+      "ticker": "NSSC",
+      "median_adv_shares": 407600.0
+    },
+    {
+      "ticker": "NVR",
+      "median_adv_shares": 23250.0
+    },
+    {
+      "ticker": "NWE",
+      "median_adv_shares": 423500.0
+    },
+    {
+      "ticker": "NWN",
+      "median_adv_shares": 258950.0
+    },
+    {
+      "ticker": "NX",
+      "median_adv_shares": 400050.0
+    },
+    {
+      "ticker": "NXRT",
+      "median_adv_shares": 192350.0
+    },
+    {
+      "ticker": "NXST",
+      "median_adv_shares": 352350.0
+    },
+    {
+      "ticker": "OFG",
+      "median_adv_shares": 258450.0
+    },
+    {
+      "ticker": "OGS",
+      "median_adv_shares": 465950.0
+    },
+    {
+      "ticker": "OMCL",
+      "median_adv_shares": 458500.0
+    },
+    {
+      "ticker": "OSIS",
+      "median_adv_shares": 273300.0
+    },
+    {
+      "ticker": "OTTR",
+      "median_adv_shares": 264250.0
+    },
+    {
+      "ticker": "OXM",
+      "median_adv_shares": 289750.0
+    },
+    {
+      "ticker": "PAG",
+      "median_adv_shares": 266500.0
+    },
+    {
+      "ticker": "PAHC",
+      "median_adv_shares": 313200.0
+    },
+    {
+      "ticker": "PATK",
+      "median_adv_shares": 414900.0
+    },
+    {
+      "ticker": "PDFS",
+      "median_adv_shares": 373750.0
+    },
+    {
+      "ticker": "PEN",
+      "median_adv_shares": 497200.0
+    },
+    {
+      "ticker": "PFBC",
+      "median_adv_shares": 108450.0
+    },
+    {
+      "ticker": "PHIN",
+      "median_adv_shares": 350800.0
+    },
+    {
+      "ticker": "PI",
+      "median_adv_shares": 459950.0
+    },
+    {
+      "ticker": "PJT",
+      "median_adv_shares": 344400.0
+    },
+    {
+      "ticker": "PLMR",
+      "median_adv_shares": 214800.0
+    },
+    {
+      "ticker": "PLUS",
+      "median_adv_shares": 164850.0
+    },
+    {
+      "ticker": "PLXS",
+      "median_adv_shares": 308650.0
+    },
+    {
+      "ticker": "PRAA",
+      "median_adv_shares": 409500.0
+    },
+    {
+      "ticker": "PRG",
+      "median_adv_shares": 430700.0
+    },
+    {
+      "ticker": "PRI",
+      "median_adv_shares": 189250.0
+    },
+    {
+      "ticker": "PRK",
+      "median_adv_shares": 80400.0
+    },
+    {
+      "ticker": "PRLB",
+      "median_adv_shares": 158600.0
+    },
+    {
+      "ticker": "PRSU",
+      "median_adv_shares": 225400.0
+    },
+    {
+      "ticker": "PSMT",
+      "median_adv_shares": 223000.0
+    },
+    {
+      "ticker": "R",
+      "median_adv_shares": 353000.0
+    },
+    {
+      "ticker": "RBC",
+      "median_adv_shares": 185000.0
+    },
+    {
+      "ticker": "REX",
+      "median_adv_shares": 177100.0
+    },
+    {
+      "ticker": "RGA",
+      "median_adv_shares": 307150.0
+    },
+    {
+      "ticker": "RNR",
+      "median_adv_shares": 313000.0
+    },
+    {
+      "ticker": "ROCK",
+      "median_adv_shares": 341150.0
+    },
+    {
+      "ticker": "ROG",
+      "median_adv_shares": 191450.0
+    },
+    {
+      "ticker": "RS",
+      "median_adv_shares": 303250.0
+    },
+    {
+      "ticker": "RUSHA",
+      "median_adv_shares": 398550.0
+    },
+    {
+      "ticker": "SAFE",
+      "median_adv_shares": 302850.0
+    },
+    {
+      "ticker": "SAFT",
+      "median_adv_shares": 81900.0
+    },
+    {
+      "ticker": "SAH",
+      "median_adv_shares": 319600.0
+    },
+    {
+      "ticker": "SAIA",
+      "median_adv_shares": 467750.0
+    },
+    {
+      "ticker": "SAM",
+      "median_adv_shares": 193150.0
+    },
+    {
+      "ticker": "SBSI",
+      "median_adv_shares": 90150.0
+    },
+    {
+      "ticker": "SCHL",
+      "median_adv_shares": 453250.0
+    },
+    {
+      "ticker": "SCL",
+      "median_adv_shares": 132550.0
+    },
+    {
+      "ticker": "SCSC",
+      "median_adv_shares": 209800.0
+    },
+    {
+      "ticker": "SFBS",
+      "median_adv_shares": 261250.0
+    },
+    {
+      "ticker": "SHEN",
+      "median_adv_shares": 262750.0
+    },
+    {
+      "ticker": "SITM",
+      "median_adv_shares": 386550.0
+    },
+    {
+      "ticker": "SKYW",
+      "median_adv_shares": 357150.0
+    },
+    {
+      "ticker": "SLAB",
+      "median_adv_shares": 414100.0
+    },
+    {
+      "ticker": "SLVM",
+      "median_adv_shares": 351600.0
+    },
+    {
+      "ticker": "SMP",
+      "median_adv_shares": 112550.0
+    },
+    {
+      "ticker": "SNA",
+      "median_adv_shares": 351750.0
+    },
+    {
+      "ticker": "SPXC",
+      "median_adv_shares": 453200.0
+    },
+    {
+      "ticker": "SR",
+      "median_adv_shares": 328850.0
+    },
+    {
+      "ticker": "SSD",
+      "median_adv_shares": 265800.0
+    },
+    {
+      "ticker": "SSTK",
+      "median_adv_shares": 250350.0
+    },
+    {
+      "ticker": "STBA",
+      "median_adv_shares": 246700.0
+    },
+    {
+      "ticker": "STC",
+      "median_adv_shares": 183600.0
+    },
+    {
+      "ticker": "STEL",
+      "median_adv_shares": 280650.0
+    },
+    {
+      "ticker": "STRA",
+      "median_adv_shares": 280700.0
+    },
+    {
+      "ticker": "STRL",
+      "median_adv_shares": 479400.0
+    },
+    {
+      "ticker": "SWX",
+      "median_adv_shares": 474200.0
+    },
+    {
+      "ticker": "SXI",
+      "median_adv_shares": 177650.0
+    },
+    {
+      "ticker": "SXT",
+      "median_adv_shares": 336400.0
+    },
+    {
+      "ticker": "TBBK",
+      "median_adv_shares": 465200.0
+    },
+    {
+      "ticker": "TCBI",
+      "median_adv_shares": 381900.0
+    },
+    {
+      "ticker": "TDG",
+      "median_adv_shares": 362550.0
+    },
+    {
+      "ticker": "TDY",
+      "median_adv_shares": 283500.0
+    },
+    {
+      "ticker": "TFIN",
+      "median_adv_shares": 240600.0
+    },
+    {
+      "ticker": "THG",
+      "median_adv_shares": 279850.0
+    },
+    {
+      "ticker": "THRM",
+      "median_adv_shares": 224750.0
+    },
+    {
+      "ticker": "TMP",
+      "median_adv_shares": 56100.0
+    },
+    {
+      "ticker": "TNC",
+      "median_adv_shares": 267200.0
+    },
+    {
+      "ticker": "TPL",
+      "median_adv_shares": 397800.0
+    },
+    {
+      "ticker": "TR",
+      "median_adv_shares": 121900.0
+    },
+    {
+      "ticker": "TRMK",
+      "median_adv_shares": 369500.0
+    },
+    {
+      "ticker": "TRST",
+      "median_adv_shares": 102900.0
+    },
+    {
+      "ticker": "TRUP",
+      "median_adv_shares": 373650.0
+    },
+    {
+      "ticker": "TYL",
+      "median_adv_shares": 496250.0
+    },
+    {
+      "ticker": "UFCS",
+      "median_adv_shares": 104900.0
+    },
+    {
+      "ticker": "UFPI",
+      "median_adv_shares": 389350.0
+    },
+    {
+      "ticker": "UFPT",
+      "median_adv_shares": 196200.0
+    },
+    {
+      "ticker": "UHT",
+      "median_adv_shares": 57700.0
+    },
+    {
+      "ticker": "UNF",
+      "median_adv_shares": 257750.0
+    },
+    {
+      "ticker": "USPH",
+      "median_adv_shares": 164600.0
+    },
+    {
+      "ticker": "UTHR",
+      "median_adv_shares": 478800.0
+    },
+    {
+      "ticker": "UTL",
+      "median_adv_shares": 107050.0
+    },
+    {
+      "ticker": "UVV",
+      "median_adv_shares": 173250.0
+    },
+    {
+      "ticker": "VMI",
+      "median_adv_shares": 192050.0
+    },
+    {
+      "ticker": "VRTS",
+      "median_adv_shares": 97600.0
+    },
+    {
+      "ticker": "VTOL",
+      "median_adv_shares": 197900.0
+    },
+    {
+      "ticker": "WABC",
+      "median_adv_shares": 186000.0
+    },
+    {
+      "ticker": "WD",
+      "median_adv_shares": 318550.0
+    },
+    {
+      "ticker": "WDFC",
+      "median_adv_shares": 157200.0
+    },
+    {
+      "ticker": "WINA",
+      "median_adv_shares": 57700.0
+    },
+    {
+      "ticker": "WLY",
+      "median_adv_shares": 434324.5
+    },
+    {
+      "ticker": "WOR",
+      "median_adv_shares": 174550.0
+    },
+    {
+      "ticker": "WRLD",
+      "median_adv_shares": 168400.0
+    },
+    {
+      "ticker": "WS",
+      "median_adv_shares": 261750.0
+    },
+    {
+      "ticker": "WSFS",
+      "median_adv_shares": 380250.0
+    },
+    {
+      "ticker": "WSO",
+      "median_adv_shares": 371300.0
+    },
+    {
+      "ticker": "WSR",
+      "median_adv_shares": 304450.0
+    },
+    {
+      "ticker": "WTFC",
+      "median_adv_shares": 427800.0
+    },
+    {
+      "ticker": "WTS",
+      "median_adv_shares": 219500.0
+    },
+    {
+      "ticker": "XPEL",
+      "median_adv_shares": 219000.0
+    }
+  ],
+  "fetch_failures": []
+}

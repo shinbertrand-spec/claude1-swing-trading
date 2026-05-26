@@ -64,6 +64,8 @@ def test_identify_varying_params_empty():
 
 def test_clenow_spec_yaml_is_loadable():
     """The shipped reference spec must round-trip through yaml.safe_load."""
+    from tools.quant_strategies._universe import resolve_universe_tickers
+
     spec_path = Path("tools/quant_strategies/clenow_momentum.yml")
     assert spec_path.exists(), f"spec missing: {spec_path}"
     spec = yaml.safe_load(spec_path.read_text())
@@ -71,9 +73,12 @@ def test_clenow_spec_yaml_is_loadable():
     for key in ("meta", "kind", "universe", "period", "params", "gate"):
         assert key in spec, f"spec missing top-level key: {key}"
     assert spec["kind"] == "clenow_momentum"
-    assert "tickers" in spec["universe"]
+    # Universe resolves via _universe.resolve_universe_tickers (registered name
+    # or inline list). Benchmark is a separate field handled by the runner.
     assert "benchmark" in spec["universe"]
-    assert spec["universe"]["benchmark"] in spec["universe"]["tickers"] + ["SPY"]
+    tickers = resolve_universe_tickers(spec)
+    assert len(tickers) > 0
+    assert spec["universe"]["benchmark"] in tickers + ["SPY"]
     assert "start" in spec["period"] and "end" in spec["period"]
 
 

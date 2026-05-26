@@ -36,6 +36,7 @@ from ..backtest import data_cache, metrics, simulator, walk_forward
 from ..backtest.runner import _format_report
 from ..backtest.trailing_stop import TrailConfig
 from ._kinds import KIND_REGISTRY
+from ._universe import resolve_universe_tickers
 
 
 def _expand_grid(params: dict[str, Any]) -> list[dict[str, Any]]:
@@ -140,12 +141,14 @@ def _run_one_combo(
         )
         concat_oos = []
         windows = []
+        oos_reports: list[metrics.BacktestReport] = []
         for s in specs:
             _is_sigs, is_outs, _oos_sigs, oos_outs = walk_forward.split_trades_by_window(
                 all_signals, all_outcomes, s
             )
             oos_r = metrics.evaluate(oos_outs, risk_per_trade=risk)
             is_r = metrics.evaluate(is_outs, risk_per_trade=risk)
+            oos_reports.append(oos_r)
             windows.append({
                 "spec": asdict(s),
                 "is_n": is_r.trades.n_trades,
@@ -159,6 +162,7 @@ def _run_one_combo(
         return {
             "params": params,
             "oos_report": oos_report,
+            "oos_window_reports": oos_reports,
             "windows": windows,
             "per_ticker": per_ticker,
             "n_signals": len(all_signals),
@@ -188,8 +192,9 @@ def run_spec(spec_path: str | Path, force_refetch: bool = False) -> dict[str, An
         raise ValueError(f"unknown kind {kind_name!r}; known: {sorted(KIND_REGISTRY)}")
     kind_mod = KIND_REGISTRY[kind_name]
 
-    # Universe + period.
-    tickers = list(spec["universe"]["tickers"])
+    # Universe + period. Resolves either spec["universe"]["name"] (registered
+    # universe via tools.quant_strategies._universe) or inline tickers list.
+    tickers = resolve_universe_tickers(spec)
     benchmark = spec["universe"]["benchmark"]
     if benchmark not in tickers:
         tickers.append(benchmark)
@@ -214,16 +219,36 @@ def run_spec(spec_path: str | Path, force_refetch: bool = False) -> dict[str, An
     sharpe_min = float(gate.get("sharpe_min", 1.0))
     max_dd_pct_abs = float(gate.get("max_dd_pct", 25.0))
     n_min = int(gate.get("n_min", 30))
+    min_window_sharpe = float(gate.get("min_window_sharpe", 0.5))
+    min_window_pass_rate = float(gate.get("min_window_pass_rate", 0.5))
 
     # Recompute pass/fail under spec gate (may override doctrine defaults).
+    # Tightened-gate composite: aggregate clause AND per-window clause (when
+    # rolling walk-forward is used). For single-split combos (no per-window
+    # reports), only the aggregate clause applies.
     for r in combo_results:
         rep = r["oos_report"]
-        passed = (
-            rep.returns.sharpe_annualised > sharpe_min
-            and abs(rep.returns.max_drawdown_pct) < max_dd_pct_abs
-            and rep.trades.n_trades >= n_min
-        )
-        r["gate_passed_under_spec"] = passed
+        window_reports = r.get("oos_window_reports", [])
+        if window_reports:
+            agg_gate = metrics.evaluate_aggregated_with_windows(
+                rep, window_reports,
+                sharpe_min=sharpe_min,
+                max_dd_pct=max_dd_pct_abs,
+                n_min=n_min,
+                min_window_sharpe=min_window_sharpe,
+                min_window_pass_rate=min_window_pass_rate,
+            )
+            r["aggregate_gate"] = agg_gate
+            r["gate_passed_under_spec"] = agg_gate.gate_passed
+        else:
+            # Single-split: legacy aggregate-only check.
+            passed = (
+                rep.returns.sharpe_annualised > sharpe_min
+                and abs(rep.returns.max_drawdown_pct) < max_dd_pct_abs
+                and rep.trades.n_trades >= n_min
+            )
+            r["aggregate_gate"] = None
+            r["gate_passed_under_spec"] = passed
 
     # Rank: gate-passers first, then by Sharpe.
     def _rank_key(r):
@@ -232,7 +257,11 @@ def run_spec(spec_path: str | Path, force_refetch: bool = False) -> dict[str, An
 
     ranked = sorted(combo_results, key=_rank_key)
 
-    md = _format_report_text(spec, ranked, sharpe_min, max_dd_pct_abs, n_min)
+    md = _format_report_text(
+        spec, ranked, sharpe_min, max_dd_pct_abs, n_min,
+        min_window_sharpe=min_window_sharpe,
+        min_window_pass_rate=min_window_pass_rate,
+    )
     return {
         "markdown": md,
         "combos": ranked,
@@ -247,17 +276,30 @@ def _format_report_text(
     sharpe_min: float,
     max_dd_pct_abs: float,
     n_min: int,
+    *,
+    min_window_sharpe: float = 0.5,
+    min_window_pass_rate: float = 0.5,
 ) -> str:
     meta = spec.get("meta", {})
+    wf_mode = spec.get("walk_forward", {}).get("mode", "single")
+    gate_lines = [
+        f"- Deployment gate (aggregate): Sharpe > {sharpe_min} AND |DD| < {max_dd_pct_abs}% AND n ≥ {n_min}",
+    ]
+    if wf_mode == "rolling":
+        gate_lines.append(
+            f"- Per-window clause: ≥ {min_window_pass_rate:.0%} of OOS windows with "
+            f"Sharpe > {min_window_sharpe}"
+        )
     lines: list[str] = [
         f"# Quant-strategist run — {meta.get('name', spec.get('kind', '?'))}",
         "",
         f"- Kind: **{spec['kind']}**",
         f"- Source: {meta.get('source', '_no source cited_')}",
-        f"- Universe size: {len(spec['universe']['tickers'])} tickers + {spec['universe']['benchmark']} benchmark",
+        f"- Universe: {spec['universe'].get('name', 'inline')} "
+        f"({len(resolve_universe_tickers(spec))} tickers + {spec['universe']['benchmark']} benchmark)",
         f"- Period: {spec['period']['start']} → {spec['period']['end']}",
-        f"- Walk-forward: {spec.get('walk_forward', {}).get('mode', 'single')}",
-        f"- Deployment gate (spec): Sharpe > {sharpe_min} AND |DD| < {max_dd_pct_abs}% AND n ≥ {n_min}",
+        f"- Walk-forward: {wf_mode}",
+        *gate_lines,
         f"- Param combinations evaluated: **{len(ranked)}**",
         "",
         "## Ranked combos",
@@ -303,10 +345,29 @@ def _format_report_text(
                     f"{w['oos_max_dd_pct']:+.2f}% | {gate} |"
                 )
             lines.append("")
+        top_agg = top.get("aggregate_gate")
+        if top_agg is not None:
+            lines.extend([
+                "## Top combo — tightened gate verdict",
+                "",
+                f"- Aggregate clause: Sharpe {top_agg.aggregate_sharpe:.2f} · "
+                f"|MDD| {abs(top_agg.aggregate_max_dd_pct):.2f}% · "
+                f"n {top_agg.aggregate_n_trades} → "
+                f"**{'PASSED' if top_agg.aggregate_gate_passed else 'FAILED'}**",
+                f"- Per-window clause: {top_agg.n_windows_above_floor}/"
+                f"{top_agg.n_windows} windows above Sharpe "
+                f"{top_agg.min_window_sharpe} (pass rate "
+                f"{top_agg.window_pass_rate:.2f}, required "
+                f"{top_agg.min_window_pass_rate:.2f}) → "
+                f"**{'PASSED' if top_agg.window_clause_passed else 'FAILED'}**",
+                f"- **Composite gate: {'PASSED' if top_agg.gate_passed else 'FAILED'}**",
+                *([f"- _Note: {top_agg.note}_"] if top_agg.note else []),
+                "",
+            ])
     lines.extend([
         "## Doctrine verdict",
         "",
-        "Per `swing-risk-compliance-doctrine` + `walk-forward-analysis`: a strategy ships to paper-trade (then live) only when **OOS Sharpe > spec.gate.sharpe_min AND |OOS DD| < spec.gate.max_dd_pct AND OOS n ≥ spec.gate.n_min**. Gate-passing combos are deployable candidates; gate-failing combos are research material.",
+        "Per `swing-risk-compliance-doctrine` + `walk-forward-analysis`: a strategy ships to paper-trade (then live) only when (a) the **aggregated OOS** clears `spec.gate.sharpe_min` / `spec.gate.max_dd_pct` / `spec.gate.n_min`, AND (b) for rolling walk-forward, at least `spec.gate.min_window_pass_rate` of the per-window OOS reports individually clear Sharpe > `spec.gate.min_window_sharpe`. Gate-passing combos are deployable candidates; gate-failing combos are research material.",
     ])
     return "\n".join(lines)
 
