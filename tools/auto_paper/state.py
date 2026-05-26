@@ -89,6 +89,36 @@ def _validate_against_schema(doc: dict[str, Any]) -> None:
         raise PaperAutoStateError(f"ledger schema validation failed: {exc.message}") from exc
 
 
+_KIND_REGISTRY_SETUPS = {
+    "dual_ma_trend_following",
+    "xs_short_term_reversal",
+    "connors_rsi2",
+    "clenow_momentum",
+    # _liquid_us variants — same KIND_REGISTRY kinds, different (wide-US)
+    # universe. setup_type values are spec FILENAMES so each variant
+    # carries a distinct tag for ledger-level traceability, but the
+    # trigger semantics (QuantSignal) are the same as the base kinds.
+    "clenow_momentum_liquid_us",
+    "residual_momentum_liquid_us",
+    "xs_short_term_reversal_liquid_us",
+    "ts_momentum_liquid_us",
+}
+
+
+def _trigger_for(setup_type: str) -> str:
+    """Map a setup_type to the position_state.starter.trigger enum value.
+
+    The trigger field is a leg-level tag (per swing-momentum-execution).
+    KIND_REGISTRY family (quant scanner sources) use QuantSignal; the
+    SETUP_REPLAY family preserves its original trigger names.
+    """
+    if setup_type == "EP":
+        return "EPGap"
+    if setup_type in _KIND_REGISTRY_SETUPS:
+        return "QuantSignal"
+    return "VCPBreakout"
+
+
 def write_submitted_ledger(
     *,
     ticker: str,
@@ -144,7 +174,7 @@ def write_submitted_ledger(
             "stage": "STARTER",
             "intended_full_shares": int(shares),
             "starter": {
-                "trigger": "EPGap" if setup_type == "EP" else "VCPBreakout",
+                "trigger": _trigger_for(setup_type),
                 "fill_date": _today(),
                 "shares": int(shares),
                 # On `submitted`, no fill yet — set fill_price to the limit

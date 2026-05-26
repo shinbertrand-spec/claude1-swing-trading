@@ -237,8 +237,8 @@
       "description": "Per swing-setup-library: a candidate trade is tagged with exactly one setup type plus a grade. Grading shape depends on type (SEPA-VCP uses A+/A/B/C; EP uses Super Swan / Swan / Duck / Chicken / Golden EP).",
       "properties": {
         "type": {
-          "enum": ["SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout", "Manual"],
-          "description": "Named setup tag. Manual is reserved for the portfolio-manager onboard mode (pre-framework positions imported retroactively) — risk-and-compliance morning-routine paths should never accept type=Manual at entry; only the onboard path emits it."
+          "enum": ["SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout", "Manual", "dual_ma_trend_following", "xs_short_term_reversal", "connors_rsi2", "clenow_momentum", "clenow_momentum_liquid_us", "residual_momentum_liquid_us", "xs_short_term_reversal_liquid_us", "ts_momentum_liquid_us"],
+          "description": "Named setup tag. Manual is reserved for the portfolio-manager onboard mode (pre-framework positions imported retroactively) — risk-and-compliance morning-routine paths should never accept type=Manual at entry; only the onboard path emits it. The KIND_REGISTRY family (dual_ma_trend_following, xs_short_term_reversal, connors_rsi2, clenow_momentum) was added 2026-05-26 to allow tools/auto_paper/quant_scanner.py to write submitted-state ledgers for cleared quant strategies. The _liquid_us variants (clenow_momentum_liquid_us, residual_momentum_liquid_us, xs_short_term_reversal_liquid_us, ts_momentum_liquid_us) were added 2026-05-26 evening for the wide-universe deployable family — same kinds, different universe spec, so they get distinct setup_type values for ledger-level traceability."
         },
         "grade": {
           "description": "Grade per the grading scale appropriate to the setup type. SEPA-VCP / Pullback / RSI-Div / Resistance-Break use {A+, A, B, C}. EP uses {SuperSwan, Swan, Duck, Chicken, GoldenEP}.",
@@ -386,8 +386,8 @@
       "required": ["fill_date", "shares", "fill_price"],
       "properties": {
         "trigger": {
-          "enum": ["SLTB", "MomentumBurst", "Day7Milestone", "EPGap", "VCPBreakout", "PullbackReversal", "manual"],
-          "description": "Which mechanical trigger this leg fired on. Per swing-momentum-execution."
+          "enum": ["SLTB", "MomentumBurst", "Day7Milestone", "EPGap", "VCPBreakout", "PullbackReversal", "manual", "QuantSignal"],
+          "description": "Which mechanical trigger this leg fired on. Per swing-momentum-execution. QuantSignal added 2026-05-26 for KIND_REGISTRY quant scanner entries (dual_ma / xs_reversal / connors_rsi2 / clenow_momentum)."
         },
         "fill_date": { "$ref": "#/$defs/iso_date" },
         "fill_time": { "type": "string", "description": "HH:MM ET. Optional." },

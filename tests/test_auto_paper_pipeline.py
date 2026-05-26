@@ -70,6 +70,25 @@ def paper_dirs(tmp_path, monkeypatch):
     positions_json = tmp_path / "journal" / "paper-auto" / "positions.json"
     monkeypatch.setattr(state, "PAPER_AUTO_LEDGER_DIR", str(ledger_dir))
     monkeypatch.setattr(state, "PAPER_AUTO_POSITIONS_JSON", str(positions_json))
+    # After the 2026-05-26 8y extension, no SETUP_REPLAY_REGISTRY setup is on
+    # the live deployable list (EP + SEPA-VCP both parked). The pipeline tests
+    # use EP as the candidate setup_type because it is the only currently-
+    # schema-valid name (the schema enum at ledgers/_schema/ledger.schema.json
+    # only allows SEPA-VCP / EP / Pullback-20SMA / RSI-Divergence /
+    # Resistance-Breakout / Manual for setup_classification.type). We force
+    # the deployable filter to treat EP as deployable so the tests exercise
+    # the rest of the pipeline (limit checks, broker mock, persistence).
+    # Pullback-20SMA stays not-deployable so test_rejects_non_deployable works.
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(_pipeline.config, "is_deployable", lambda t: t == "EP")
+    # Lever D — regime-conditional sizing reads SPY's live trend-template.
+    # Default tests to stage_2_confirmed (full size, no multiplier effect)
+    # so existing tests behave identically to the pre-lever-D world.
+    # Tests that exercise other regimes monkeypatch this themselves.
+    monkeypatch.setattr(
+        _pipeline, "_resolve_regime_multiplier",
+        lambda: ("stage_2_confirmed", 1.0),
+    )
     return ledger_dir, positions_json
 
 
@@ -81,7 +100,7 @@ def paper_client(paper_dirs):
 
 def _vcp_cand(**over):
     base = dict(
-        ticker="NVDA", setup_type="SEPA-VCP", setup_grade="A",
+        ticker="NVDA", setup_type="EP", setup_grade="A",
         pivot_price=850.00, limit_price=850.50, stop_price=820.00,
         target_price=910.00, shares=10, sector_etf="XLK",
     )
@@ -234,3 +253,90 @@ def test_returns_error_on_broker_place_failure(paper_client, paper_dirs):
     result = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
     assert result.status == "error"
     assert "INSUFFICIENT_FUNDS" in result.reason
+
+
+# ---------------------------------------------------------- Lever D — regime sizing
+#
+# place_candidate reads the SPY broad-market regime via
+# _resolve_regime_multiplier() and re-applies the multiplier to cand.shares
+# before the broker call. Stage 4 halts; lower regimes shrink size.
+# The paper_dirs fixture patches this to stage_2_confirmed (1.0) by default;
+# these tests override that.
+
+
+def test_regime_stage_4_halts_new_entries(paper_client, paper_dirs, monkeypatch):
+    """Stage 4 (broad market broken) → refuse entry per CLAUDE.md circuit breaker."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_resolve_regime_multiplier",
+        lambda: ("stage_4", 0.0),
+    )
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
+    assert result.status == "rejected"
+    assert "stage_4" in result.reason
+    assert "halt" in result.reason
+
+
+def test_regime_stage_3_halves_position_size(paper_client, paper_dirs, monkeypatch):
+    """Stage 3 (transitional) multiplier 0.5 → shares should be halved."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_resolve_regime_multiplier",
+        lambda: ("stage_3_transitional", 0.5),
+    )
+    cand = _vcp_cand(shares=10)
+    result = place_candidate(cand, client=paper_client, dry_run=True)
+    assert result.status == "dry_run"
+    # 10 shares × 0.5 = 5 shares
+    assert "5 NVDA" in result.reason
+
+
+def test_regime_stage_2_weakening_three_quarter_size(paper_client, paper_dirs, monkeypatch):
+    """Stage 2 weakening multiplier 0.75 → shares × 0.75 rounded down."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_resolve_regime_multiplier",
+        lambda: ("stage_2_weakening", 0.75),
+    )
+    cand = _vcp_cand(shares=12)
+    result = place_candidate(cand, client=paper_client, dry_run=True)
+    assert result.status == "dry_run"
+    # 12 shares × 0.75 = 9 shares
+    assert "9 NVDA" in result.reason
+
+
+def test_regime_stage_2_confirmed_no_size_change(paper_client, paper_dirs):
+    """Default stage_2_confirmed (1.0 multiplier) leaves shares unchanged.
+    The paper_dirs fixture patches this regime by default."""
+    cand = _vcp_cand(shares=10)
+    result = place_candidate(cand, client=paper_client, dry_run=True)
+    assert result.status == "dry_run"
+    assert "10 NVDA" in result.reason
+
+
+def test_regime_check_failure_fails_closed(paper_client, paper_dirs, monkeypatch):
+    """If regime_check raises (e.g. yfinance hiccup), refuse entry rather
+    than placing without the regime safety check."""
+    from tools.auto_paper import pipeline as _pipeline
+    def _boom():
+        raise RuntimeError("yfinance unreachable")
+    monkeypatch.setattr(_pipeline, "_resolve_regime_multiplier", _boom)
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
+    assert result.status == "rejected"
+    assert "regime_check failed" in result.reason
+    assert "fail-closed" in result.reason
+
+
+def test_regime_floor_at_one_share(paper_client, paper_dirs, monkeypatch):
+    """When the multiplier × original shares rounds to 0, floor to 1 share
+    (not 0) — entry passes the limit-checks but at minimum size."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_resolve_regime_multiplier",
+        lambda: ("stage_3_transitional", 0.5),
+    )
+    cand = _vcp_cand(shares=1)
+    result = place_candidate(cand, client=paper_client, dry_run=True)
+    # 1 × 0.5 = 0.5 → floored to 1
+    assert result.status == "dry_run"
+    assert "1 NVDA" in result.reason

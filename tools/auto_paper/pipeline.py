@@ -18,10 +18,12 @@ Session 2.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
 
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
+from ..regime_check import classify_broad
+from ..trend_template import compute_from_ticker as tt_from_ticker
 from . import config, state
 
 # Hard rules per CLAUDE.md, applied to the paper-auto track in isolation.
@@ -29,6 +31,15 @@ MAX_POSITIONS = 8
 MAX_PCT_PER_POSITION = 0.05
 MAX_PCT_PER_SECTOR = 0.20
 MIN_CASH_BUFFER_PCT = 0.15
+
+# Lever D — regime-conditional live sizing (added 2026-05-26).
+# The broad-market ticker whose trend-template stage drives the live
+# sizing multiplier. Per tools.regime_check.classify_broad:
+#   stage_2_confirmed    → 1.00× (full size)
+#   stage_2_weakening    → 0.75× (~25% size reduction)
+#   stage_3_transitional → 0.50× (half size)
+#   stage_4              → 0.00× (halt — refuse new entries)
+REGIME_BROAD_TICKER = "SPY"
 
 
 @dataclass
@@ -119,6 +130,20 @@ def _check_track_limits(
     return None
 
 
+def _resolve_regime_multiplier() -> tuple[str, float]:
+    """Lever D — read the current SPY broad-market regime and return
+    (stage_class, multiplier).
+
+    Wrapped in its own function so tests can monkeypatch it without
+    needing to stub the underlying trend-template fetch (which would
+    require synthetic OHLCV for SPY).
+    """
+    passes_7 = tt_from_ticker(
+        REGIME_BROAD_TICKER, include_rs=False,
+    ).output["trend_template_passes"]
+    return classify_broad(passes_7)
+
+
 def place_candidate(
     cand: CandidateInput,
     *,
@@ -173,6 +198,33 @@ def place_candidate(
     net_liq = float(summary.get("net_liquidation") or 0.0)
     cash = float(summary.get("cash") or 0.0)
     existing_positions = state.load_positions_json().get("positions", [])
+
+    # 4b. Lever D — regime-conditional sizing. Re-applied here even when
+    # the caller already passed a regime-aware sized candidate (quant
+    # scanner does this in Step 2b of /auto-paper). Defensive double-
+    # application is intentional: if SPY's trend-template stage degrades
+    # between scanner-time and place-time (e.g. an intraday breakdown),
+    # this is the last check before the broker call. Never widens size —
+    # only multiplies down or halts.
+    try:
+        regime_class, regime_mult = _resolve_regime_multiplier()
+    except Exception as exc:
+        # Regime check failures are rare (yfinance hiccup) — fail closed:
+        # treat as the most-conservative regime and refuse entry.
+        return _reject(
+            cand.ticker,
+            f"regime_check failed: {exc}; refusing entry (fail-closed)",
+        )
+    if regime_mult <= 0.0:
+        return _reject(
+            cand.ticker,
+            f"SPY regime is {regime_class} (multiplier 0.0) — "
+            f"halt new entries per CLAUDE.md circuit breaker",
+        )
+    if regime_mult < 1.0:
+        new_shares = max(1, int(cand.shares * regime_mult))
+        if new_shares < cand.shares:
+            cand = replace(cand, shares=new_shares)
 
     reject = _check_track_limits(
         cand=cand,
