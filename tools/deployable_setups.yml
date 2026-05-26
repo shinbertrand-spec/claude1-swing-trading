@@ -93,28 +93,45 @@ deployable:
     cleared_under_extended_history_at: 2026-05-26
     notes: "MARGINAL PASSER added 2026-05-26 to replenish the live-deployable list after the 8y extension knocked out SEPA-VCP + EP + clenow. Source: Connors, *Short Term Trading Strategies That Work* (2008); quantitativo.com 2025 re-validation. Strategy: per-day eligibility = (SPY > SPY 200d SMA) AND (per-ticker cumulative-RSI(2) < 15). The 200d regime filter is the cross-regime feature — when SPY breaks below 200d (e.g. most of 2022), no new entries fire. EXCEPT — 2022 OOS Sharpe was -21.68 anyway (DD -12.80% in that window). Despite the regime filter, whipsaw periods around the SPY 200d crossover caught the strategy long during 2022 declines. The aggregate Sharpe 1.01 + DD -18.39% pass the doctrine gate cleanly, but the per-window distribution is bimodal: weak in 2020-2023 (0.04 / 0.49 / -21.68 / 0.57) and very strong in 2024-2025 (3.67 / 3.92). Recent edge is real but the 5/6 bar achieved by dual_ma / xs_reversal is NOT met (3/6 here = exactly at the 0.5 floor). DEPLOY HALF-SIZE if wired live; revisit if 2026 OOS doesn't carry the strong 2024-2025 trend forward. Position-sizing constraint: risk_per_trade=0.2% (5x lower than discretionary) because the simulator has no concurrent-position cap; Connors' canonical caps at 3 concurrent. NOT WIRED LIVE — KIND_REGISTRY family awaiting tools/auto_paper/quant_scanner.py. Full report: journal/backtest/connors_rsi2-8y.md."
 
-# Parked because the simulator's _equity_curve has no portfolio-level
-# concurrent-position cap. The strategy clears the gate on the 88-ticker
-# universe but produces internally-inconsistent results on wider universes
-# (Sharpe 3.02 + DD -70.62% on sp500_2026q2 — see journal/backtest/dual_ma-sp500.md).
-# Re-add to deployable once tools/backtest/simulator.py enforces a
-# portfolio-level position cap in cumulative-equity computation.
-parked_by_simulator_concurrency_bug:
+# Parked because the framework's 8-concurrent-position cap binds tightly on
+# a wide universe, degrading signal capture for strategies with no top-K
+# ranking or quality filter. dual_ma fires whenever MA(short) crosses
+# above MA(long) — on sp500_2026q2 (503 tickers) it fires far more
+# overlapping signals than 8 concurrent positions can absorb. The cap
+# rejected 4701/5004 (94%) of outcomes; aggregate OOS Sharpe collapsed
+# to 0.70 (vs gate 1.0). The original deployable verdict on the 88-ticker
+# universe (Sharpe 1.84 / DD -21.98%) was honest at that scale because
+# concurrent signals stayed inside the cap; widening the universe made
+# the cap binding.
+#
+# This section originally documented the simulator concurrency bug (commit
+# e1357d5). That bug is now fixed (commit 77ad485 — _apply_concurrent_cap).
+# Post-fix re-validation kept dual_ma parked, but for the honest reason:
+# weak signal selection on wide universes, not a simulator artefact.
+#
+# Re-add to deployable only with a strategy-level fix: top-K ranking (à la
+# Clenow), regime filter, or quality gate that reduces signal density to
+# fit inside the cap. Evidence: journal/backtest/dual_ma-sp500-postfix.md.
+parked_by_concurrent_cap_reveals_weak_edge:
   - setup: dual_ma_trend_following
-    variant: "(short=50, long=200), ma_trail to 50d"
-    universe: "88-ticker SP500-leaning (last cleared); migrated to sp500_2026q2 in YAML"
+    variant: "(short=20, long=100), ma_trail to 50d (best of 4 post-fix combos)"
+    universe: "88-ticker SP500-leaning (last cleared); now sp500_2026q2 (post-fix re-test)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
-    rolling_agg_sharpe: 1.84
-    rolling_agg_max_dd_pct: -21.98
-    n: 361
-    per_window_oos_sharpe: [3.74, 1.72, -1.35, 1.78, 0.58, 2.91]    # 2020 / 2021 / 2022 / 2023 / 2024 / 2025
-    per_window_pass_rate: 0.83     # 5/6 windows clear Sharpe > 0.5 (2022 is the rate-hike fail)
+    rolling_agg_sharpe_postfix: 0.70   # 4701/5004 outcomes rejected by cap=8
+    rolling_agg_max_dd_pct_postfix: -6.04
+    n_postfix: 303
+    per_window_oos_sharpe_postfix: [0.41, 1.34, -2.32, 1.63, 0.05, -0.42]  # 2020-2025
+    per_window_pass_rate_postfix: 0.33  # 2/6 windows above Sharpe 0.5 — fails per-window clause
+    rolling_agg_sharpe_prefix_88u: 1.84   # original cleared verdict on narrow universe
+    rolling_agg_max_dd_pct_prefix_88u: -21.98
+    n_prefix_88u: 361
     cleared_at: 2026-05-25
     cleared_under_tightened_gate_at: 2026-05-26
     cleared_under_extended_history_at: 2026-05-26
     parked_by_simulator_bug_at: 2026-05-26
-    parked_reason: "Universe migration to sp500_2026q2 (503 tickers) surfaced the simulator's no-concurrent-position-cap bug. Re-test on sp500_2026q2 produced Sharpe 3.02 + DD -70.62% — internally inconsistent. The unlike sibling KIND_REGISTRY setups (xs_short_term_reversal has bottom_pct, connors_rsi2 has max_concurrent_positions), dual_ma has no per-strategy workaround for the simulator limit. Risk_per_trade 0.002 shrinkage did not compensate. Re-deploy once tools/backtest/simulator.py grows a portfolio-level position cap. Evidence: journal/backtest/dual_ma-sp500.md."
-    notes: "VARIANT FLIPPED from (50, 100) to (50, 200) under 8y extension. The 8y test re-ranked all 4 dual_ma combos: (50, 100) — previously the cleared variant — FAILS the extended gate at DD -45.53%. (50, 200) is the cleanest surviving combo. Aggregate Sharpe 1.84 (was 2.56 on 3-window), DD -21.98% (was -24.86%), n=361. 5/6 OOS windows individually clear Sharpe > 0.5; only 2022 (rate-hike bear) fails at -1.35. Source: Faber 2007 / classical dual-MA crossover. Full report: journal/backtest/dual_ma-8y.md."
+    revalidated_post_fix_at: 2026-05-26
+    parked_reason: "Universe migration to sp500_2026q2 (503 tickers) initially surfaced the simulator concurrency bug (Sharpe 3.02 + DD -70.62% internally inconsistent). The bug is now fixed (commit 77ad485). Post-fix re-validation shows the cap rejected 4701/5004 (94%) of outcomes; aggregate OOS Sharpe 0.70 (gate fails Sharpe > 1.0); per-window pass rate 2/6 (gate fails). The strategy's signal density exceeds the cap on a wide universe and there's no top-K / quality filter to prioritise the best signals. Re-deploy only with a strategy-level fix (rank by trend strength, add regime filter, etc.). Evidence: journal/backtest/dual_ma-sp500-postfix.md."
+    notes: "Pre-fix variant was (50, 200) at risk_per_trade 0.002 — the parallel session's workaround attempt for the simulator bug. Post-fix re-validation re-ranked all 4 combos: (20, 100) is now the best Sharpe (0.70) but still fails. Sharpe ordering changed because the cap binds differently for different MA-crossover signal densities. Original 88-ticker verdict (Sharpe 1.84 / DD -21.98% / n=361) remains valid for that narrower scope — the strategy still clears on a small universe. Source: Faber 2007 / classical dual-MA crossover."
 
 # Parked by the 2026-05-26 tightened gate + 8y extension.
 # Audit-trail entries — re-evaluate after additional OOS data accumulates
