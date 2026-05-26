@@ -1,12 +1,12 @@
-# Position checker — runs every 30 min during US market hours.
+# Position checker - runs every 30 min during US market hours.
 # Reads journal/positions.json, fetches live prices from Yahoo Finance,
 # and POSTs Telegram alerts for:
-#   1. STOP_PROXIMITY     — current price within 2% of stop
-#   2. CATALYST_TODAY     — any catalyst date matches today
-#   3. TRAIL_TO_BREAKEVEN — position +5% (move stop to entry)
-#   4. TRAIL_TO_PLUS5     — position +10% (move stop to +5%)
-#   5. PROFIT_TARGET_T1   — current price >= target_1 (consider trimming)
-#   6. PROFIT_TARGET_T2   — current price >= target_2 (consider closing)
+#   1. STOP_PROXIMITY     - current price within 2% of stop
+#   2. CATALYST_TODAY     - any catalyst date matches today
+#   3. TRAIL_TO_BREAKEVEN - position +5% (move stop to entry)
+#   4. TRAIL_TO_PLUS5     - position +10% (move stop to +5%)
+#   5. PROFIT_TARGET_T1   - current price >= target_1 (consider trimming)
+#   6. PROFIT_TARGET_T2   - current price >= target_2 (consider closing)
 #
 # State (alerts_sent + trail_state) is persisted back to positions.json so
 # the same alert doesn't repeat every 30 min.
@@ -23,7 +23,7 @@ $ErrorActionPreference = "Stop"
 function Test-USMarketOpen {
     $utcNow = (Get-Date).ToUniversalTime()
     # Convert to ET. EDT (Mar-Nov) = UTC-4, EST (Nov-Mar) = UTC-5.
-    # Rough approximation — doesn't handle exact DST switch dates.
+    # Rough approximation - doesn't handle exact DST switch dates.
     $month = $utcNow.Month
     $offset = if ($month -ge 3 -and $month -le 10) { -4 } else { -5 }
     $et = $utcNow.AddHours($offset)
@@ -33,7 +33,7 @@ function Test-USMarketOpen {
 }
 
 if (-not $Force -and -not (Test-USMarketOpen)) {
-    Write-Output "US market closed — skipping check."
+    Write-Output "US market closed - skipping check."
     exit 0
 }
 
@@ -44,7 +44,7 @@ if (-not (Test-Path -LiteralPath $PositionsFile)) {
 }
 $data = Get-Content -LiteralPath $PositionsFile -Raw | ConvertFrom-Json
 if (-not $data.positions -or $data.positions.Count -eq 0) {
-    Write-Output "No open positions — nothing to check."
+    Write-Output "No open positions - nothing to check."
     exit 0
 }
 
@@ -89,12 +89,12 @@ foreach ($p in $data.positions) {
 
     # 1. STOP PROXIMITY
     if ($stopDist -le 2 -and $stopDist -gt 0 -and $sent -notcontains 'STOP_PROXIMITY') {
-        Send-Alert ("*STOP PROXIMITY — {0}*`n`nCurrent: `${1:N2} (P/L: {2:+0.00;-0.00}%)`nStop: `${3:N2} (only {4:N1}% above stop)`n`nAction: re-evaluate thesis or tighten." -f $p.ticker, $live, $pctGain, $p.stop, $stopDist)
+        Send-Alert ("*STOP PROXIMITY - {0}*`n`nCurrent: `${1:N2} (P/L: {2:+0.00;-0.00}%)`nStop: `${3:N2} (only {4:N1}% above stop)`n`nAction: re-evaluate thesis or tighten." -f $p.ticker, $live, $pctGain, $p.stop, $stopDist)
         $sent += 'STOP_PROXIMITY'; $mutated = $true
     }
     # Stop breached
     if ($live -le $p.stop -and $sent -notcontains 'STOP_HIT') {
-        Send-Alert ("*STOP HIT — {0}*`n`nCurrent: `${1:N2} <= stop `${2:N2}`nLoss: {3:+0.00;-0.00}% from entry `${4:N2}`n`nFramework rule: close without waiting." -f $p.ticker, $live, $p.stop, $pctGain, $p.entry_price)
+        Send-Alert ("*STOP HIT - {0}*`n`nCurrent: `${1:N2} <= stop `${2:N2}`nLoss: {3:+0.00;-0.00}% from entry `${4:N2}`n`nFramework rule: close without waiting." -f $p.ticker, $live, $p.stop, $pctGain, $p.entry_price)
         $sent += 'STOP_HIT'; $mutated = $true
     }
 
@@ -103,7 +103,7 @@ foreach ($p in $data.positions) {
         foreach ($cat in $p.catalysts) {
             $catKey = "CATALYST_$($cat.date)"
             if ($cat.date -eq $today -and $sent -notcontains $catKey) {
-                Send-Alert ("*CATALYST TODAY — {0}*`n`nEvent: {1}`nCurrent: `${2:N2}`n`nMonitor for thesis confirmation or break." -f $p.ticker, $cat.event, $live)
+                Send-Alert ("*CATALYST TODAY - {0}*`n`nEvent: {1}`nCurrent: `${2:N2}`n`nMonitor for thesis confirmation or break." -f $p.ticker, $cat.event, $live)
                 $sent += $catKey; $mutated = $true
             }
         }
@@ -111,27 +111,27 @@ foreach ($p in $data.positions) {
 
     # 3. TRAIL TO BREAKEVEN at +5%
     if ($pctGain -ge 5 -and $p.trail_state -eq 'initial') {
-        Send-Alert ("*TRAIL STOP TO BREAKEVEN — {0}*`n`nGain: +{1:N2}%  ·  Current `${2:N2}`nMove stop from `${3:N2} to `${4:N2} (entry).`n`nFramework rule: trail to breakeven at +5%." -f $p.ticker, $pctGain, $live, $p.stop, $p.entry_price)
+        Send-Alert ("*TRAIL STOP TO BREAKEVEN - {0}*`n`nGain: +{1:N2}%  ·  Current `${2:N2}`nMove stop from `${3:N2} to `${4:N2} (entry).`n`nFramework rule: trail to breakeven at +5%." -f $p.ticker, $pctGain, $live, $p.stop, $p.entry_price)
         $p.trail_state = 'breakeven'; $mutated = $true
     }
 
     # 4. TRAIL TO +5% at +10%
     if ($pctGain -ge 10 -and $p.trail_state -in @('initial','breakeven')) {
         $newStop = [math]::Round($p.entry_price * 1.05, 2)
-        Send-Alert ("*TRAIL STOP TO +5% — {0}*`n`nGain: +{1:N2}%  ·  Current `${2:N2}`nMove stop to `${3:N2} (entry + 5%, locks in profit).`n`nFramework rule: trail to +5% at +10%." -f $p.ticker, $pctGain, $live, $newStop)
+        Send-Alert ("*TRAIL STOP TO +5% - {0}*`n`nGain: +{1:N2}%  ·  Current `${2:N2}`nMove stop to `${3:N2} (entry + 5%, locks in profit).`n`nFramework rule: trail to +5% at +10%." -f $p.ticker, $pctGain, $live, $newStop)
         $p.trail_state = 'plus5'; $mutated = $true
     }
 
     # 5. PROFIT TARGET T1
     if ($p.target_1 -and $live -ge $p.target_1 -and $sent -notcontains 'TARGET_T1') {
         $partialShares = [math]::Max(1, [math]::Floor($p.shares / 2))
-        Send-Alert ("*TARGET 1 HIT — {0}*`n`nCurrent: `${1:N2} (+{2:N2}%)`nT1: `${3:N2}`n`nFramework suggests: trim {4} of {5} shares, let runner ride to T2 `${6:N2}." -f $p.ticker, $live, $pctGain, $p.target_1, $partialShares, $p.shares, $p.target_2)
+        Send-Alert ("*TARGET 1 HIT - {0}*`n`nCurrent: `${1:N2} (+{2:N2}%)`nT1: `${3:N2}`n`nFramework suggests: trim {4} of {5} shares, let runner ride to T2 `${6:N2}." -f $p.ticker, $live, $pctGain, $p.target_1, $partialShares, $p.shares, $p.target_2)
         $sent += 'TARGET_T1'; $mutated = $true
     }
 
     # 6. PROFIT TARGET T2
     if ($p.target_2 -and $live -ge $p.target_2 -and $sent -notcontains 'TARGET_T2') {
-        Send-Alert ("*TARGET 2 HIT — {0}*`n`nCurrent: `${1:N2} (+{2:N2}%)`nT2: `${3:N2}`n`nFramework suggests: close remaining position." -f $p.ticker, $live, $pctGain, $p.target_2)
+        Send-Alert ("*TARGET 2 HIT - {0}*`n`nCurrent: `${1:N2} (+{2:N2}%)`nT2: `${3:N2}`n`nFramework suggests: close remaining position." -f $p.ticker, $live, $pctGain, $p.target_2)
         $sent += 'TARGET_T2'; $mutated = $true
     }
 
