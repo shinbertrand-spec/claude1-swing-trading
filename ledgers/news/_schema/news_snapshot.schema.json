@@ -23,6 +23,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/social_signal" }
     },
+    "x_signals": {
+      "description": "Phase 1.5+ — material X (Twitter) posts about watchlist + open-position tickers, surfaced by tools.news_research.x_scanner. Cashtag-driven (sibling to thematic x_ingest which is handle-driven). Stage 1 hard-floors + Stage 2 Haiku classifier + Stage 3 top-N-per-ticker cap. See $defs/x_signal.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/x_signal" }
+    },
     "macro_events": {
       "description": "Scheduled or breaking macro events (Fed speak, FOMC, CPI, employment). Drives broad-market push criteria.",
       "type": "array",
@@ -78,8 +83,8 @@
       "required": ["schema_version", "snapshot_id", "asof", "fetched_at", "ticker_count"],
       "properties": {
         "schema_version": {
-          "enum": ["1.0", "1.1"],
-          "description": "1.0 = original Phase 1 shape. 1.1 = adds social_signals[] + three social material_delta reasons (Phase 1.5). New snapshots should write 1.1; older snapshots remain valid at 1.0."
+          "enum": ["1.0", "1.1", "1.2"],
+          "description": "1.0 = original Phase 1 shape. 1.1 = adds social_signals[] + three social material_delta reasons (Phase 1.5). 1.2 = adds x_signals[] + three x_signal_* material_delta reasons. New snapshots should write 1.2; older snapshots remain valid at their original version."
         },
         "snapshot_id": {
           "$ref": "#/$defs/iso_timestamp",
@@ -268,9 +273,12 @@
             "position_news",
             "social_climax_open_pos",
             "social_bearish_open_pos",
-            "social_buzz_top_mover"
+            "social_buzz_top_mover",
+            "x_signal_bullish_open_pos",
+            "x_signal_bearish_open_pos",
+            "x_signal_breaking_news_watched"
           ],
-          "description": "Which row of the material-delta threshold table triggered this push. Phase 1 reasons are the first eight; Phase 1.5 adds the three social_* reasons sourced from social_signals[]."
+          "description": "Which row of the material-delta threshold table triggered this push. Phase 1 reasons are the first eight; Phase 1.5 adds the three social_* reasons sourced from social_signals[]; Phase 1.2 adds the three x_signal_* reasons sourced from x_signals[]."
         },
         "ticker": { "$ref": "#/$defs/ticker" },
         "summary": {
@@ -280,7 +288,134 @@
         "source_item_index": {
           "type": "integer",
           "minimum": 0,
-          "description": "Index back into per_ticker_items / top_movers / macro_events / social_signals. Container implied by reason: social_* reasons index into social_signals[]."
+          "description": "Index back into per_ticker_items / top_movers / macro_events / social_signals / x_signals. Container implied by reason: social_* reasons index into social_signals[]; x_signal_* reasons index into x_signals[]."
+        }
+      }
+    },
+
+    "x_signal": {
+      "type": "object",
+      "description": "Schema 1.2 — one material X (Twitter) post about a watchlist or open-position ticker, written by tools.news_research.x_scanner. Stage 1 hard-floors (engagement / author / recency / language) drop ~80% of fetched tweets pre-classifier; Stage 2 Haiku verdict lands in classifier_result; Stage 3 caps at 5 per ticker per hour. Sibling to social_signals[] (StockTwits aggregates) — both feed material_deltas[] but each is sourced + filtered independently. Counterpart to thematic x_ingest's per-post artifacts at ledgers/thematic/corpus/x/<date>/<post_id>.yml — cross_consumer_ref.thematic_ledger_path is non-null when both consumers ingested the same tweet (e.g. @leopoldasch posting $NVDA).",
+      "additionalProperties": false,
+      "required": [
+        "tweet_id", "author_username", "author_followers", "cashtag",
+        "created_at", "text", "has_media", "url", "engagement", "cross_consumer_ref"
+      ],
+      "properties": {
+        "tweet_id": {
+          "type": "string",
+          "pattern": "^[0-9]+$",
+          "description": "Twitter snowflake ID. Canonical key for deduplication."
+        },
+        "author_username": {
+          "type": "string",
+          "description": "@handle without the leading @."
+        },
+        "author_followers": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Follower count at fetch time. Used by Stage 1 hard-floor (default >= 1000)."
+        },
+        "cashtag": {
+          "type": "string",
+          "pattern": "^\\$[A-Z][A-Z0-9.\\-]{0,9}$",
+          "description": "The $TICKER that triggered the cashtag query. Example: $NVDA."
+        },
+        "created_at": {
+          "type": "string",
+          "description": "Raw createdAt from twitterapi.io (typically RFC 2822 'Wed Oct 08 20:19:20 +0000 2025', occasionally ISO-8601). Subagent normalises if needed; this preserves provenance."
+        },
+        "text": {
+          "type": "string",
+          "description": "Full tweet text (may include URLs, mentions, hashtags)."
+        },
+        "in_reply_to": {
+          "anyOf": [ { "type": "string" }, { "type": "null" } ],
+          "description": "Tweet ID of the parent post when this is a reply. Substantive thesis updates sometimes route through reply chains, so replies are kept (the query strips retweets only)."
+        },
+        "quote_post_id": {
+          "anyOf": [ { "type": "string" }, { "type": "null" } ],
+          "description": "Tweet ID of the quoted post when this is a quote-tweet."
+        },
+        "quote_post_excerpt": {
+          "anyOf": [ { "type": "string" }, { "type": "null" } ],
+          "description": "Text excerpt of the quoted post; preserves context without a second API call."
+        },
+        "has_media": {
+          "type": "boolean",
+          "description": "True when the tweet contains images / video / GIFs."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Canonical x.com URL for the post."
+        },
+        "engagement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reply_count", "retweet_count", "quote_count", "like_count", "fetched_at"],
+          "properties": {
+            "reply_count": { "type": "integer", "minimum": 0 },
+            "retweet_count": { "type": "integer", "minimum": 0 },
+            "quote_count": { "type": "integer", "minimum": 0 },
+            "like_count": { "type": "integer", "minimum": 0 },
+            "view_count": {
+              "anyOf": [ { "type": "integer", "minimum": 0 }, { "type": "null" } ],
+              "description": "Sometimes absent from the twitterapi.io response."
+            },
+            "fetched_at": { "$ref": "#/$defs/iso_timestamp" }
+          }
+        },
+        "classifier_result": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["material", "sentiment_tag", "named_themes", "classifier_model", "classified_at"],
+              "properties": {
+                "material": {
+                  "type": "boolean",
+                  "description": "Stage 2 verdict. False = drop (won't appear in x_signals[] after Stage 3 cap)."
+                },
+                "rationale": {
+                  "type": "string",
+                  "description": "One- to three-sentence subagent reasoning. Useful for forensics + scorecard tuning."
+                },
+                "sentiment_tag": {
+                  "enum": ["bullish", "bearish", "neutral", "breaking-news"],
+                  "description": "bullish / bearish drives the x_signal_*_open_pos material_delta reasons; breaking-news drives x_signal_breaking_news_watched; neutral never triggers a push."
+                },
+                "named_themes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Free-form theme tags extracted by the classifier (e.g. 'stage_2_reset', 'analyst_upgrade', 'earnings_beat'). For scorecard analysis later."
+                },
+                "classifier_model": {
+                  "type": "string",
+                  "description": "Model identifier (typically claude-haiku-4-5-20251001)."
+                },
+                "classifier_cost_usd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Per-call cost (~$0.0003 for Haiku). Optional but recommended for monthly cost tracking."
+                },
+                "classified_at": { "$ref": "#/$defs/iso_timestamp" }
+              }
+            }
+          ],
+          "description": "Stage 2 LLM verdict. Null on dry-runs OR when the subagent intentionally bypassed Stage 2 (e.g. cost-cap circuit-breaker fired)."
+        },
+        "cross_consumer_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["thematic_ledger_path"],
+          "properties": {
+            "thematic_ledger_path": {
+              "anyOf": [ { "type": "string" }, { "type": "null" } ],
+              "description": "Path to the per-post YAML in ledgers/thematic/corpus/x/<date>/<post_id>.yml when the same tweet was ALSO ingested by the thematic side (e.g. @leopoldasch posted about $NVDA). Null when no overlap. The two consumers ingest independently — this field is a cheap audit pointer, not a coupling."
+            }
+          }
         }
       }
     },

@@ -1,12 +1,21 @@
-# Social-active hour: schema 1.1 demo. Shows three social_signals[] entries
-# producing three new material_deltas[]:
-#   - NVDA (open position): climax_warning -> social_climax_open_pos
-#   - PLTR (top-mover, potential_ep): buzz_spike -> social_buzz_top_mover
-#   - TSLA (open position): bearish_pile_on -> social_bearish_open_pos
-# A fourth ticker (AAPL, open position) is in social_signals[] but classified
-# `cooling` (prior hour was climax_warning, now decaying) — informational, no push.
+# Social-active hour: schema 1.2 demo. Shows BOTH StockTwits (social_signals[])
+# AND X / twitterapi.io (x_signals[]) feeding material_deltas[] in the same hour:
+#   social_signals[]:
+#     - NVDA (open position): climax_warning -> social_climax_open_pos
+#     - PLTR (top-mover, potential_ep): buzz_spike -> social_buzz_top_mover
+#     - TSLA (open position): bearish_pile_on -> social_bearish_open_pos
+#     - AAPL: cooling (informational only, no push)
+#   x_signals[]:
+#     - NVDA (open position): @QullamagieDave bullish post
+#         -> x_signal_bullish_open_pos
+#     - PLTR (in_watchlist=false BUT flagged top-mover): @SeekingAlpha
+#         breaking-news -> x_signal_breaking_news_watched
+# Note the NVDA cross-tension: x_scanner classifier flags bullish ($1.2k likes
+# on momentum-trader's reset-pullback take) while StockTwits shows climax_warning
+# (extreme bull_share on volume spike). Both signals get pushed because they
+# carry different information — the Telegram digest surfaces both.
 meta:
-  schema_version: "1.1"
+  schema_version: "1.2"
   snapshot_id: 2026-05-24T13:00:00-04:00
   asof: 2026-05-24T13:00:00-04:00
   fetched_at: 2026-05-24T13:04:22-04:00
@@ -107,6 +116,76 @@ social_signals:
     fetched_at: 2026-05-24T13:04:18-04:00
     notes: prior hour was climax_warning (bull_share 0.88); sentiment unwinding
 
+x_signals:
+  - tweet_id: "1796543210987654321"
+    author_username: QullamagieDave
+    author_followers: 234000
+    cashtag: $NVDA
+    created_at: Sun May 24 16:18:00 +0000 2026
+    text: |-
+      $NVDA pulling back to 50-day MA on declining volume — textbook
+      stage-2 reset, not topping. Watching for VWAP reclaim into close.
+    in_reply_to: null
+    quote_post_id: null
+    quote_post_excerpt: null
+    has_media: false
+    url: https://x.com/QullamagieDave/status/1796543210987654321
+    engagement:
+      reply_count: 23
+      retweet_count: 89
+      quote_count: 12
+      like_count: 1200
+      view_count: 80000
+      fetched_at: 2026-05-24T13:04:25-04:00
+    classifier_result:
+      material: true
+      rationale: |-
+        Specific NVDA price-action commentary from established
+        momentum-trading handle (234k followers, 1200 likes). References
+        stage-2 reset pattern relevant to SEPA-VCP setup vocabulary used
+        by the Claude1 deployable setups.
+      sentiment_tag: bullish
+      named_themes: [stage_2_reset, moving_average_support]
+      classifier_model: claude-haiku-4-5-20251001
+      classifier_cost_usd: 0.0003
+      classified_at: 2026-05-24T13:04:30-04:00
+    cross_consumer_ref:
+      thematic_ledger_path: null
+  - tweet_id: "1796550000123456789"
+    author_username: SeekingAlpha
+    author_followers: 892000
+    cashtag: $PLTR
+    created_at: Sun May 24 16:42:00 +0000 2026
+    text: |-
+      BREAKING: $PLTR signs $480M Department of Defense expansion via
+      partner — third tranche of the AI Maven contract framework. Full
+      DD scope undisclosed.
+    in_reply_to: null
+    quote_post_id: null
+    quote_post_excerpt: null
+    has_media: false
+    url: https://x.com/SeekingAlpha/status/1796550000123456789
+    engagement:
+      reply_count: 312
+      retweet_count: 1450
+      quote_count: 220
+      like_count: 5800
+      view_count: 380000
+      fetched_at: 2026-05-24T13:04:36-04:00
+    classifier_result:
+      material: true
+      rationale: |-
+        Major contract win driving the +12.1% intraday move flagged in
+        top_movers[0]. Confirms the EP catalyst hypothesis — the buzz
+        spike in social_signals[1] is news-driven, not pump.
+      sentiment_tag: breaking-news
+      named_themes: [defense_contract, ai_maven, government_spending]
+      classifier_model: claude-haiku-4-5-20251001
+      classifier_cost_usd: 0.0003
+      classified_at: 2026-05-24T13:04:42-04:00
+    cross_consumer_ref:
+      thematic_ledger_path: null
+
 material_deltas:
   - reason: social_climax_open_pos
     ticker: NVDA
@@ -120,3 +199,11 @@ material_deltas:
     ticker: TSLA
     summary: TSLA bearish pile-on — bull_share 0.14, volume_z 2.6; sentiment escalating ahead of news flow.
     source_item_index: 2
+  - reason: x_signal_bullish_open_pos
+    ticker: NVDA
+    summary: "@QullamagieDave (234k followers, 1.2k likes) reads NVDA pullback as stage-2 reset, not climax — cross-tension with social_climax_open_pos."
+    source_item_index: 0
+  - reason: x_signal_breaking_news_watched
+    ticker: PLTR
+    summary: "@SeekingAlpha (892k followers, 5.8k likes) confirms PLTR top-mover catalyst — $480M DoD AI Maven contract expansion."
+    source_item_index: 1

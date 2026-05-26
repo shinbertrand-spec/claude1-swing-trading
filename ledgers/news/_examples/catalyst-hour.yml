@@ -5,8 +5,10 @@
 #   - Sector ETF move beyond ±2% (XLE)
 #   - Macro event (Fed speak) flagged for SPY/QQQ
 #   - New top-mover not in watchlist/positions tagged potential_ep
+# Schema 1.2; x_signals[] empty this hour (the catalysts above are external
+# — analyst PT, headline, sector move, macro event — not X-driven).
 meta:
-  schema_version: "1.0"
+  schema_version: "1.2"
   snapshot_id: 2026-05-19T14:00:00-04:00
   asof: 2026-05-19T14:00:00-04:00
   fetched_at: 2026-05-19T14:03:41-04:00
@@ -93,6 +95,10 @@ macro_events:
     date: 2026-05-19
     relevant_tickers: [SPY, QQQ, TLT]
     source: fed_release
+
+social_signals: []
+
+x_signals: []
 
 material_deltas:
   - reason: analyst_action_watched

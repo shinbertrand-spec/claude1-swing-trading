@@ -1,7 +1,9 @@
 # Quiet hour: no material deltas. Demonstrates the minimum-content snapshot
 # the cron writes when nothing newsworthy happened. Hourly heartbeat only.
+# Schema 1.2 — includes the empty social_signals[] + x_signals[] arrays
+# (both are absent-or-empty when nothing material surfaced this hour).
 meta:
-  schema_version: "1.0"
+  schema_version: "1.2"
   snapshot_id: 2026-05-19T15:00:00-04:00
   asof: 2026-05-19T15:00:00-04:00
   fetched_at: 2026-05-19T15:02:08-04:00
@@ -53,5 +55,9 @@ per_ticker_items:
 top_movers: []
 
 macro_events: []
+
+social_signals: []
+
+x_signals: []
 
 material_deltas: []
