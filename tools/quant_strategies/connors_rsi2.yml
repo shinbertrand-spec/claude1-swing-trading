@@ -1,0 +1,85 @@
+# Connors Cumulative RSI(2) — cross-sectional mean-reversion with 200d
+# SMA regime filter. Candidate for the 5/6-window deployment bar after
+# the 8y-extension knocked SEPA-VCP + EP + clenow out of deployable on
+# 2026-05-26.
+#
+# Source: Larry Connors, *Short Term Trading Strategies That Work*
+# (2008), Chapters on RSI(2) + cumulative RSI; re-validated in
+# quantitativo.com 2025 ("Squeezing more profits with cumulative RSI",
+# Sharpe 1.18 on US large-caps 2000-2024).
+#
+# Cross-regime hypothesis: the SPY > 200d SMA regime filter forces the
+# strategy to ZERO new entries during prolonged bear regimes (e.g. most
+# of 2022 was below SPY's 200d, the same year that killed dual_ma /
+# xs_reversal / clenow with negative OOS Sharpe). The worst-case window
+# becomes "flat" (in cash), not "deep loss" — which is the structural
+# property needed to clear the 5/6-windows-Sharpe>0.5 gate.
+
+meta:
+  name: connors_cumulative_rsi2
+  version: "1.0"
+  source: "Connors, *Short Term Trading Strategies That Work* (2008); quantitativo.com 2025 re-validation"
+  description: |
+    Per-day eligibility = (SPY > SPY 200d SMA) AND (per-ticker
+    cumulative-RSI(2) < entry_threshold). Buy at next-day Open. Exit on
+    ATR-stop hit OR max-hold days. v1 omits the canonical CRSI>65 exit
+    (would require a custom sell detector); max-hold + ATR-stop captures
+    the bulk of the 3-5 bar mean-reversion edge.
+  horizon_days: 5
+  status: v1_candidate
+
+kind: connors_rsi2
+
+universe:
+  # Registered universe — see tools/quant_strategies/_universes/sp500_leaning_88.yml.
+  # Same 88-ticker S&P-500-leaning universe as the other quant strategies.
+  # The 200d SMA regime filter operates on the benchmark (SPY).
+  name: sp500_leaning_88
+  benchmark: SPY
+
+period:
+  # 8y window matching the 2026-05-26 lever-A extension. 6 OOS windows
+  # covering COVID 2020, mania 2021, rate-hike 2022, bull 2023-2024-2025.
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  # Connors canonical: 2-period RSI summed over 2 days, threshold < 10.
+  # Grid: try a couple of thresholds + cooldowns to find the cleanest combo.
+  rsi_period: 2
+  cumulative_period: 2
+  entry_threshold: [5, 10, 15]      # GRID — looser threshold = more trades
+  cooldown_days: [3, 5]              # GRID — bars between re-entries on same ticker
+
+  # Regime filter.
+  regime_sma_period: 200
+
+  # Risk + sizing.
+  atr_period: 20
+  atr_stop_multiple: 2.0
+  max_hold_days: 5                   # typical Connors hold
+  target_r_multiple: null            # no fixed target; exit on stop / max-hold
+  # NOTE: Connors' canonical implementation caps at 3 concurrent positions
+  # to control leverage. The Phase 5 simulator allows unlimited concurrency
+  # (no portfolio-equity layer in v1), so we scale per-trade risk down ~5x
+  # to ~0.002 to approximate the same effective leverage cap (88-ticker
+  # universe × cooldown filter typically yields 5-15 concurrent signals).
+  # Sharpe is risk-adjusted so this leaves Sharpe unchanged; MDD scales
+  # linearly with risk_per_trade.
+  risk_per_trade: 0.002
+
+gate:
+  # Doctrine defaults. The composite gate (aggregate + per-window) is
+  # the deployment bar; this strategy's hypothesis is the per-window
+  # clause is the tight one and the 200d filter makes it pass.
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5
