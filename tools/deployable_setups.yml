@@ -176,7 +176,17 @@ parked_by_tightened_gate:
     per_window_pass_rate: 0.50     # 3/6 windows clear Sharpe > 0.5 (PASSES this clause)
     first_parked_at: 2026-05-26
     re_validated_under_extended_history_at: 2026-05-26
-    reason: "Re-validated under 8y extension — still FAILS. Aggregate Sharpe collapsed from 1.37 (3-window) to exactly 1.00 (6-window), failing the gate's strict Sharpe > 1.0 threshold. DD widened from -15.95% to -24.95% (basically at the 25% threshold). Per-window 2020/2021 OOS were actually positive (1.41 / 0.71) — better than 2023/2025 — but 2022 (-1.13), 2023 (-0.44), and 2025 (-1.38) all negative; only 2020 + 2024 carry the aggregate. The per-window clause now passes (3/6, exactly at the 0.5 threshold) but the aggregate clause fails on Sharpe. Full report: journal/backtest/sepa-vcp-8y.md."
+    re_validated_under_concurrent_cap_at: 2026-05-26
+    re_validation_sp500_2026q2_with_cap:    # added 2026-05-26 evening
+      universe: "sp500_2026q2 (503 tickers, cap=8 applied)"
+      rolling_agg_sharpe: 0.81
+      rolling_agg_max_dd_pct: -51.32
+      n: 1691
+      per_window_oos_sharpe: [-0.39, 1.12, -2.44, 0.23, 3.53, 1.91]
+      per_window_pass_rate: 0.50
+      cap_rejected_pct: 67   # 3481/5172 outcomes rejected
+      verdict: "STILL FAILS — Sharpe degraded 1.00 → 0.81, DD blew out -24.95% → -51.32% on wider universe. Diagnosis: SEPA-VCP fires concentrated breakout signals; cap picks 8 by (fill_date, ticker, exit_date) tie-break order, missing the best ones. Strategy needs ranking (relative-strength score, volume confirmation rank, etc.) to benefit from a wider universe. Full report: journal/backtest/sepa-vcp-sp500_2026q2-capfix.md."
+    reason: "Re-validated under 8y extension — still FAILS. Aggregate Sharpe collapsed from 1.37 (3-window) to exactly 1.00 (6-window), failing the gate's strict Sharpe > 1.0 threshold. DD widened from -15.95% to -24.95% (basically at the 25% threshold). Per-window 2020/2021 OOS were actually positive (1.41 / 0.71) — better than 2023/2025 — but 2022 (-1.13), 2023 (-0.44), and 2025 (-1.38) all negative; only 2020 + 2024 carry the aggregate. The per-window clause now passes (3/6, exactly at the 0.5 threshold) but the aggregate clause fails on Sharpe. 2026-05-26 post-cap re-validation on sp500_2026q2 confirms parking — wider universe + cap selection makes it WORSE not better (see re_validation_sp500_2026q2_with_cap above). Full report: journal/backtest/sepa-vcp-8y.md."
 
   - setup: EP
     variant: loosened + ma_trail
@@ -189,7 +199,16 @@ parked_by_tightened_gate:
     per_window_pass_rate: 0.50     # 3/6 windows clear Sharpe > 0.5 (PASSES this clause)
     first_parked_at: 2026-05-26
     re_validated_under_extended_history_at: 2026-05-26
-    reason: "Re-validated under 8y extension — FAILS dramatically. Aggregate Sharpe collapsed from 1.77 (3-window) to 0.45 (6-window). 2020 (-0.11) + 2021 (-0.68) were both losing OOS years for EP — periods of broad gap-fill behavior that EP's pivot-confirmation signal mis-fires through. n=52 (similar to the 55 from 3-window — EP just doesn't generate many signals). The per-window clause passes at 3/6 but the aggregate Sharpe failure is decisive. Sample size remains thin (n<30 in every individual window). Source: Bonde / Minervini Episodic Pivot. Full report: journal/backtest/ep-8y.md."
+    re_validated_under_concurrent_cap_at: 2026-05-26
+    re_validation_sp500_2026q2_with_cap:    # added 2026-05-26 evening
+      universe: "sp500_2026q2 (503 tickers, cap=8 applied)"
+      rolling_agg_sharpe: 0.44
+      rolling_agg_max_dd_pct: -11.38
+      n: 176
+      per_window_pass_rate: 0.67  # 4/6 windows above 0.5 (improvement; per-window CLAUSE passes)
+      cap_rejected_pct: 7    # 14/190 outcomes rejected — EP is sparse, cap barely binds
+      verdict: "STILL FAILS — wider universe increased n (52 → 176, much better sample) but per-trade Sharpe stayed identical (0.45 → 0.44). The strategy's edge per signal doesn't scale with universe size; more signals = more independent draws of the same weak edge. Per-window clause now passes 4/6 (vs prior 3/6) — additional 2023/2024 windows turn positive — but aggregate Sharpe failure is decisive. Full report: journal/backtest/ep-sp500_2026q2-capfix.md."
+    reason: "Re-validated under 8y extension — FAILS dramatically. Aggregate Sharpe collapsed from 1.77 (3-window) to 0.45 (6-window). 2020 (-0.11) + 2021 (-0.68) were both losing OOS years for EP — periods of broad gap-fill behavior that EP's pivot-confirmation signal mis-fires through. n=52 (similar to the 55 from 3-window — EP just doesn't generate many signals). The per-window clause passes at 3/6 but the aggregate Sharpe failure is decisive. Sample size remains thin (n<30 in every individual window). 2026-05-26 post-cap re-validation on sp500_2026q2 confirms parking — wider universe gave more signals but per-trade edge unchanged (see re_validation_sp500_2026q2_with_cap above). Source: Bonde / Minervini Episodic Pivot. Full report: journal/backtest/ep-8y.md."
 
   - setup: clenow_momentum
     variant: "momentum_lookback=90d, top_k=10 (and 5 other combos)"
