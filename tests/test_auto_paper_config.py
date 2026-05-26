@@ -46,14 +46,30 @@ def test_load_non_mapping(tmp_path):
 
 def test_deployable_setup_names_extracts():
     names = deployable_setup_names()
-    assert "SEPA-VCP" in names
-    assert "EP" in names
+    # After the 2026-05-26 8y extension (lever A) + connors_rsi2 replenishment +
+    # dual_ma simulator-concurrency-bug defuse, only xs_short_term_reversal and
+    # connors_rsi2 survive in deployable:. dual_ma moved to
+    # parked_by_simulator_concurrency_bug: because the simulator's _equity_curve
+    # has no portfolio-level concurrent-position cap and the strategy lacks an
+    # in-spec workaround (unlike xs_short_term_reversal's bottom_pct +
+    # connors_rsi2's max_concurrent_positions). SEPA-VCP / EP / clenow are in
+    # parked_by_tightened_gate:.
+    assert "xs_short_term_reversal" in names
+    assert "connors_rsi2" in names
+    assert "dual_ma_trend_following" not in names  # parked by simulator concurrency bug
+    assert "EP" not in names          # parked by tightened gate + 8y extension
+    assert "SEPA-VCP" not in names    # parked by tightened gate
+    assert "clenow_momentum" not in names  # parked by 8y extension (DD breach)
     assert "Pullback-20SMA" not in names
 
 
 def test_is_deployable():
-    assert is_deployable("SEPA-VCP") is True
-    assert is_deployable("EP") is True
+    assert is_deployable("xs_short_term_reversal") is True
+    assert is_deployable("connors_rsi2") is True
+    assert is_deployable("dual_ma_trend_following") is False  # parked 2026-05-26 by simulator concurrency bug
+    assert is_deployable("EP") is False           # parked 2026-05-26 by 8y extension
+    assert is_deployable("SEPA-VCP") is False     # parked 2026-05-26 by tightened gate
+    assert is_deployable("clenow_momentum") is False  # parked 2026-05-26 by 8y extension
     assert is_deployable("Pullback-20SMA") is False
     assert is_deployable("Unknown-Setup") is False
 

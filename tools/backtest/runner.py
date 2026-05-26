@@ -173,8 +173,14 @@ def run(
     force_refetch: bool = False,
     sell_policy: SellPolicy | None = None,
     pyramid_policy: pyramid_simulator.PyramidPolicy | None = None,
+    max_concurrent: int | None = metrics.DEFAULT_MAX_CONCURRENT,
 ) -> dict:
-    """Single-split end-to-end run."""
+    """Single-split end-to-end run.
+
+    ``max_concurrent`` caps the number of simultaneously-open positions
+    when computing equity-curve stats. Default 8 (CLAUDE.md hard rule).
+    Pass ``None`` to disable.
+    """
     trail_config = TrailConfig(mode=trail, ma_period=trail_ma_period)
     spec = walk_forward.single_split(start=start, end=end, is_fraction=is_fraction)
 
@@ -186,9 +192,9 @@ def run(
     is_sigs, is_outs, oos_sigs, oos_outs = walk_forward.split_trades_by_window(
         all_signals, all_outcomes, spec
     )
-    full_report = metrics.evaluate(all_outcomes, risk_per_trade=risk_per_trade)
-    is_report = metrics.evaluate(is_outs, risk_per_trade=risk_per_trade)
-    oos_report = metrics.evaluate(oos_outs, risk_per_trade=risk_per_trade)
+    full_report = metrics.evaluate(all_outcomes, risk_per_trade=risk_per_trade, max_concurrent=max_concurrent)
+    is_report = metrics.evaluate(is_outs, risk_per_trade=risk_per_trade, max_concurrent=max_concurrent)
+    oos_report = metrics.evaluate(oos_outs, risk_per_trade=risk_per_trade, max_concurrent=max_concurrent)
 
     md = "\n".join(
         [
@@ -244,6 +250,7 @@ def run_rolling(
     force_refetch: bool = False,
     sell_policy: SellPolicy | None = None,
     pyramid_policy: pyramid_simulator.PyramidPolicy | None = None,
+    max_concurrent: int | None = metrics.DEFAULT_MAX_CONCURRENT,
 ) -> dict:
     """Rolling walk-forward end-to-end run.
 
@@ -267,13 +274,15 @@ def run_rolling(
     )
 
     window_reports: list[dict] = []
+    oos_reports: list[metrics.BacktestReport] = []
     concat_oos_outs: list[simulator.TradeOutcome] = []
     for spec in specs:
         _is_sigs, is_outs, _oos_sigs, oos_outs = walk_forward.split_trades_by_window(
             all_signals, all_outcomes, spec
         )
-        oos_report = metrics.evaluate(oos_outs, risk_per_trade=risk_per_trade)
-        is_report = metrics.evaluate(is_outs, risk_per_trade=risk_per_trade)
+        oos_report = metrics.evaluate(oos_outs, risk_per_trade=risk_per_trade, max_concurrent=max_concurrent)
+        is_report = metrics.evaluate(is_outs, risk_per_trade=risk_per_trade, max_concurrent=max_concurrent)
+        oos_reports.append(oos_report)
         window_reports.append(
             {
                 "spec": asdict(spec),
@@ -288,7 +297,10 @@ def run_rolling(
         )
         concat_oos_outs.extend(oos_outs)
 
-    aggregate_oos = metrics.evaluate(concat_oos_outs, risk_per_trade=risk_per_trade)
+    aggregate_oos = metrics.evaluate(concat_oos_outs, risk_per_trade=risk_per_trade, max_concurrent=max_concurrent)
+    aggregate_gate = metrics.evaluate_aggregated_with_windows(
+        aggregate_oos, oos_reports,
+    )
 
     md_lines: list[str] = [
         f"# Phase 5 backtest — {setup} — rolling walk-forward",
@@ -318,19 +330,33 @@ def run_rolling(
         [
             "",
             _format_report(aggregate_oos, "Aggregated OOS across all windows — DEPLOYMENT GATE"),
-            "## Doctrine verdict",
+            "## Doctrine verdict (tightened gate, 2026-05-26)",
             "",
-            f"Aggregated OOS deployment gate: **{'PASSED' if aggregate_oos.deployment_gate_passed else 'FAILED'}**",
+            f"- Aggregate-clause: Sharpe {aggregate_gate.aggregate_sharpe:.2f} · "
+            f"|MDD| {abs(aggregate_gate.aggregate_max_dd_pct):.2f}% · "
+            f"n {aggregate_gate.aggregate_n_trades} → "
+            f"**{'PASSED' if aggregate_gate.aggregate_gate_passed else 'FAILED'}**",
+            f"- Per-window clause: {aggregate_gate.n_windows_above_floor}/"
+            f"{aggregate_gate.n_windows} windows above Sharpe "
+            f"{aggregate_gate.min_window_sharpe} (pass rate "
+            f"{aggregate_gate.window_pass_rate:.2f}, required "
+            f"{aggregate_gate.min_window_pass_rate:.2f}) → "
+            f"**{'PASSED' if aggregate_gate.window_clause_passed else 'FAILED'}**",
+            f"- **Composite gate: {'PASSED' if aggregate_gate.gate_passed else 'FAILED'}**",
+        ]
+        + ([f"- _Note: {aggregate_gate.note}_"] if aggregate_gate.note else [])
+        + [
             "",
-            "Per swing-risk-compliance-doctrine Phase 5 + walk-forward-analysis: a setup ships to live capital only when the **aggregated OOS** Sharpe > 1.0 AND |max drawdown| < 25% AND n ≥ 30 trades. Individual-window failures are warnings; the aggregated gate is what governs deployment.",
+            "Per swing-risk-compliance-doctrine Phase 5 + walk-forward-analysis: a setup ships to live capital only when BOTH (a) the **aggregated OOS** clears Sharpe > 1.0 AND |max drawdown| < 25% AND n >= 30 trades, AND (b) at least half of the individual OOS windows clear Sharpe > 0.5. The per-window clause catches strategies whose aggregate is carried by one outlier window.",
         ]
     )
     return {
         "markdown": "\n".join(md_lines),
         "aggregate_oos": aggregate_oos,
+        "aggregate_gate": aggregate_gate,
         "windows": window_reports,
         "per_ticker_counts": per_ticker,
-        "deployment_gate_passed": aggregate_oos.deployment_gate_passed,
+        "deployment_gate_passed": aggregate_gate.gate_passed,
     }
 
 
@@ -345,6 +371,14 @@ def main() -> None:
     p.add_argument("--max-hold-days", type=int, default=30)
     p.add_argument("--target-r-multiple", type=float, default=2.0)
     p.add_argument("--risk-per-trade", type=float, default=0.01)
+    p.add_argument(
+        "--max-concurrent",
+        type=int,
+        default=metrics.DEFAULT_MAX_CONCURRENT,
+        help="Maximum simultaneously-open positions for equity-curve stats. "
+             f"Default {metrics.DEFAULT_MAX_CONCURRENT} (CLAUDE.md hard rule). "
+             "Pass 0 to disable the cap.",
+    )
     p.add_argument("--force-refetch", action="store_true")
 
     p.add_argument("--rolling", action="store_true",
@@ -399,6 +433,8 @@ def main() -> None:
             flush=True,
         )
 
+    max_concurrent = args.max_concurrent if args.max_concurrent > 0 else None
+
     if args.rolling:
         result = run_rolling(
             setup=args.setup,
@@ -416,6 +452,7 @@ def main() -> None:
             force_refetch=args.force_refetch,
             sell_policy=sell_policy,
             pyramid_policy=pyramid_policy,
+            max_concurrent=max_concurrent,
         )
     else:
         result = run(
@@ -432,6 +469,7 @@ def main() -> None:
             force_refetch=args.force_refetch,
             sell_policy=sell_policy,
             pyramid_policy=pyramid_policy,
+            max_concurrent=max_concurrent,
         )
     print(result["markdown"])
 
