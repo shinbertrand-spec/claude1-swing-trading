@@ -1,0 +1,66 @@
+# Clenow Stocks-on-the-Move on the wide US universe.
+# Clone of clenow_momentum.yml pointing at liquid_us_2026q2 (1178 tickers,
+# S&P 1500 ∩ ADV>500K) instead of sp500_leaning_88 (87 tickers). Same
+# params + period for apples-to-apples comparison of the cap-aware
+# momentum edge across universe widths.
+
+meta:
+  name: clenow_momentum_liquid_us
+  version: "1.0"
+  source: "Clenow, *Stocks on the Move* (2015) — liquid US universe variant"
+  description: |
+    Clenow Stocks-on-the-Move applied to the liquid_us_2026q2 universe
+    (1178 tickers, S&P 1500 ∩ ADV>500K). Tests whether the momentum
+    edge transfers from S&P-mega-cap-tilted to liquid-US-wide. Clenow's
+    source universe was the S&P 1500 (Russell 1000 in some editions);
+    this variant is closer to that than the 88-ticker hand-curated
+    benchmark. Cross-sectional top-K selection becomes much more
+    selective at top_k=10/20 on a 1178-ticker universe (~1-2% selection
+    rate vs ~12-23% on sp500_leaning_88).
+
+    Concurrent-position cap (=8 by default, per CLAUDE.md hard rule) is
+    enforced at the metrics layer — Clenow's top-K may fire more
+    signals than 8 concurrent positions can absorb on the wide universe;
+    the cap reflects what the framework could actually have traded.
+  horizon_days: 60
+  status: candidate
+
+kind: clenow_momentum
+
+universe:
+  name: liquid_us_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  momentum_lookback_days: [60, 90, 120]
+  top_k: [10, 20]
+
+  regime_filter_period: 200
+
+  rebalance_period_days: 5
+
+  atr_period: 20
+  atr_stop_multiple: 3.0
+
+  max_hold_days: 5
+  target_r_multiple: null
+
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30

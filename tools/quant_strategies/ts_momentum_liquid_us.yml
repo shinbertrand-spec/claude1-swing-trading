@@ -1,0 +1,65 @@
+# Time-Series Momentum on the wide US universe.
+# Clone of ts_momentum.yml pointing at liquid_us_2026q2 (1178 tickers,
+# S&P 1500 ∩ ADV>500K) instead of sp500_leaning_88 (87 tickers). Period
+# extended to 2017-2026 to match the Clenow companion run (more OOS
+# windows = more regime coverage).
+#
+# Time-series momentum has academic support for being STRONGER on
+# smaller / less-efficient names (Moskowitz-Ooi-Pedersen 2012 finding).
+# This run tests whether that effect transfers to the cap-aware
+# backtest on a 1178-ticker universe.
+
+meta:
+  name: ts_momentum_liquid_us
+  version: "1.0"
+  source: "Moskowitz-Ooi-Pedersen 2012 — liquid US universe variant"
+  description: |
+    Time-series momentum on liquid_us_2026q2. Per-ticker absolute-
+    return-sign signal at monthly rebalance: if trailing N-day return
+    > 0, enter long. Long-only adaptation of the academic long-short
+    paper. Concurrent-position cap (=8 by default) is enforced at the
+    metrics layer — on a 1178-ticker universe a bull-market month
+    could fire hundreds of "long" signals, far exceeding what the
+    framework's 8 concurrent positions can hold.
+
+    Open question this run answers: does the academic small-cap
+    enhancement of time-series momentum survive (a) the cap binding
+    and (b) the lack of a top-K ranking? Unlike Clenow, ts_momentum
+    has no ranking — every name with positive trailing return is a
+    "long" signal. On a wide universe the cap will reject most of
+    them. Comparison vs dual_ma_trend_following (parked for the same
+    cap-binding reason) will be informative.
+  horizon_days: 21
+  status: candidate
+
+kind: ts_momentum
+
+universe:
+  name: liquid_us_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: [126, 252]
+  rebalance_period_days: 21
+  max_hold_days: 21
+  atr_period: 20
+  atr_stop_multiple: 3.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
