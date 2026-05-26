@@ -1,0 +1,83 @@
+# Residual momentum on the wide US universe.
+# Per vault concept [[residual-momentum]] and Kakushadze 2018 §3.7 — strip
+# market-beta exposure before ranking, then apply Clenow's slope × R² to
+# the cumulative residual log-return path. Top-K selection identical to
+# clenow_momentum.
+#
+# Falsifiable hypothesis (per the gate-2 shortlist note): residual
+# momentum top-K OOS Sharpe ≥ clenow_momentum_liquid_us top-K OOS Sharpe
+# on the SAME universe + same period, with materially smaller DD in
+# regime-break windows (2022 rate-hike specifically).
+#
+# Same params grid + period as clenow_momentum_liquid_us for direct
+# apples-to-apples comparison.
+
+meta:
+  name: residual_momentum_liquid_us
+  version: "1.0"
+  source: |
+    Blitz, Huij & Martens (2011) "Residual Momentum" Journal of
+    Empirical Finance; catalogued in Kakushadze & Serur (2018)
+    "151 Trading Strategies" §3.7. Adapted to liquid_us_2026q2 universe.
+  description: |
+    Cross-sectional residual momentum on liquid_us_2026q2 (1178 tickers,
+    S&P 1500 ∩ ADV>500K). Per rebalance date, regress each ticker's
+    lookback log-returns on SPY's log-returns, compute residuals,
+    construct cumulative residual log-return path, rank by slope × R²
+    on that path. Top-K selection + ATR stops + SPY 200d regime filter
+    identical to clenow_momentum_liquid_us.
+
+    The structural pitch: in a heterogeneous-beta universe (small/micro
+    caps with betas 0.4-2.0+), raw cross-sectional momentum
+    over-concentrates into high-beta names during bull regimes.
+    Residualisation strips the beta-amplified market drift; the top-K
+    is selected on idiosyncratic strength rather than beta-amplified
+    market exposure.
+
+    Critical implementation discipline (test-covered):
+    * Per-ticker beta MUST be estimated on data up to and including the
+      rebalance date — no lookahead. Verified by
+      tests/test_quant_strategies_residual_momentum.py.
+    * Single-factor (market only). Multi-factor extensions (market + SMB
+      + HML) are a future enhancement.
+  horizon_days: 60
+  status: candidate
+
+kind: residual_momentum
+
+universe:
+  name: liquid_us_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  momentum_lookback_days: [60, 90, 120]
+  top_k: [10, 20]
+
+  regime_filter_period: 200
+  rebalance_period_days: 5
+
+  atr_period: 20
+  atr_stop_multiple: 3.0
+
+  max_hold_days: 5
+  target_r_multiple: null
+
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
