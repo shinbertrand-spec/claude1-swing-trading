@@ -20,6 +20,13 @@ Modules:
   paper-trade-phase only — requires accumulated 4-quarter critic decision
   history; deferred until Loop 1 has fired across ≥4 quarters.
 
+* :mod:`tools.thematic_portfolio.drift_analysis` — Loop 6 Pass 1 (per
+  [[swing-thematic-portfolio-loop6-prediction]]). Cross-period 13F drift
+  profile per fund: new positions, exits, adds, trims, size-change
+  percentile distributions. Pure arithmetic; feeds the Loop 6 LLM
+  synthesis pass which forecasts SA LP's next-quarter 13F deltas
+  (advisory only — watchlist enrichment, never auto-execution).
+
 * :class:`Position` — shared dataclass mirroring an edgartools 13F infotable
   row. Long-book filter happens at the caller's edge; the sizer expects a
   pre-filtered long-only list.
