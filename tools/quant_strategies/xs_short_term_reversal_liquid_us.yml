@@ -1,0 +1,58 @@
+# Cross-sectional short-term reversal on the wide US universe.
+# Clone of xs_short_term_reversal.yml pointing at liquid_us_2026q2
+# (1178 tickers, S&P 1500 ∩ ADV>500K) instead of sp500_leaning_88
+# (87 tickers). Same params + period.
+#
+# Closes the 2026-05-26 "re-validate existing 3 XS setups on broader
+# universe" sequence step (Clenow + dual_ma done; this completes it
+# before residual momentum port).
+#
+# Hypothesis: bottom_n=5 is well below the concurrent-position cap (=8),
+# so the cap should not bind. Sharpe should be similar to the
+# sp500_leaning_88 deployable (1.60). Wider universe might HELP (more
+# breadth in mean-reversion candidates) or HURT (small/micro-cap
+# microstructure dominates the bottom rank — vol risk premium rather
+# than true reversal).
+
+meta:
+  name: xs_short_term_reversal_liquid_us
+  version: "1.0"
+  source: "Lehmann 1990 / Jegadeesh 1990 — liquid US universe variant"
+  description: |
+    Cross-sectional 5-day return reversal on liquid_us_2026q2. Weekly
+    rebalance into bottom-N largest 1-week losers. Long-only adaptation.
+  horizon_days: 5
+  status: candidate
+
+kind: xs_short_term_reversal
+
+universe:
+  name: liquid_us_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: 5
+  bottom_n: [5, 10, 15]
+  rebalance_period_days: 5
+  max_hold_days: 5
+  atr_period: 20
+  atr_stop_multiple: 2.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
