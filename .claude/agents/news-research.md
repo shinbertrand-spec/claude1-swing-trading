@@ -124,11 +124,12 @@ For each ticker:
 
 Universe = (tickers in `journal/watchlist.json`) ∪ (tickers in `journal/positions.json`). Different from Pass 3 — X coverage is broader because cashtag scanning is cheap, and the module's Stage 1 hard-floors handle noise reduction.
 
-**Delegate to `tools.news_research.x_scanner`. Do NOT hand-roll twitterapi.io calls.** The module wraps the shared client (`tools.x_common.twitterapi_client`), enforces the three-stage filter, computes the cross-consumer cross-reference, and emits the canonical schema. Your job is to supply the LLM classifier callable.
+**Delegate to `tools.news_research.x_scanner`. Do NOT hand-roll twitterapi.io calls.** The module wraps the shared client (`tools.x_common.twitterapi_client`), enforces the three-stage filter, computes the cross-consumer cross-reference, and emits the canonical schema. Your job is to supply the LLM classifier callable — which itself delegates to the dedicated `x-scanner-classifier` subagent (one Agent call per Stage-1 survivor).
 
 #### Invocation
 
 ```python
+import json
 from datetime import datetime, timezone
 from tools.news_research.x_scanner import (
     compose as scan_x, ClassificationVerdict,
@@ -141,8 +142,16 @@ tickers = union_tickers(
 )
 
 def classify(tweet: dict, cashtag: str) -> ClassificationVerdict | None:
-    # invoke Haiku via the Agent tool with the prompt skeleton below;
-    # parse the JSON return and build a ClassificationVerdict.
+    """Dispatch one Stage-1 survivor to the x-scanner-classifier subagent.
+
+    Builds the YAML-shaped input the subagent expects (see
+    .claude/agents/x-scanner-classifier.md § Inputs), invokes via the
+    Agent tool with subagent_type="x-scanner-classifier", parses the
+    strict JSON return, and constructs a ClassificationVerdict.
+    Returns None on parse failure — the module then carries
+    classifier_result: null and survives Stage 3 by default.
+    """
+    # See the worked invocation below.
     ...
 
 result = scan_x(
@@ -157,40 +166,70 @@ result = scan_x(
 
 1. **Stage 1 — hard floors (deterministic, free).** For each ticker, the module queries `$<TICKER> -is:retweet lang:en` via `advanced_search`, then drops every tweet whose engagement is below the floor (likes ≥ 100 OR retweets ≥ 20 OR quotes ≥ 10), whose author has < 1000 followers, whose language isn't English, OR which is older than 60 minutes from `snapshot_top_of_hour`. ~80% of fetched tweets get dropped here.
 
-2. **Stage 2 — LLM material classification (YOUR job — Haiku per call).** For every survivor, the module calls your `classifier_callable(tweet, cashtag)`. You invoke Haiku with the skeleton below. Return a `ClassificationVerdict` per the schema; the module attaches it to the signal record.
+2. **Stage 2 — LLM material classification (YOUR job — dispatch to `x-scanner-classifier`).** For every survivor, the module calls your `classifier_callable(tweet, cashtag)`. You invoke the `x-scanner-classifier` Haiku subagent with the YAML input below; it returns strict JSON which you parse into a `ClassificationVerdict`. The module attaches the verdict to the signal record.
 
 3. **Stage 3 — top-N per ticker (deterministic, free).** Drops Stage-2 non-material verdicts, then ranks survivors by total engagement (likes + retweets + quotes + replies), keeps top 5 per ticker. You don't need to do anything.
 
-#### Classifier prompt skeleton (each invocation)
+#### Dispatching the `x-scanner-classifier` subagent
+
+Per [`.claude/agents/x-scanner-classifier.md`](./x-scanner-classifier.md), the subagent takes a YAML-shaped input and returns strict JSON. Build the input from the raw tweet dict + cashtag, then dispatch:
 
 ```
-You are classifying ONE X (Twitter) post about a swing-trade ticker for material relevance.
+Agent({
+    subagent_type: "x-scanner-classifier",
+    description: "Classify $<TICKER> tweet from @<author> for materiality",
+    prompt: "
+cashtag: \"$<TICKER>\"
+author_username: <author_username>
+author_followers: <int>
+author_blue_verified: <bool or null>
+engagement:
+  like_count: <int>
+  retweet_count: <int>
+  quote_count: <int>
+  reply_count: <int>
+  view_count: <int or null>
+created_at: <createdAt>
+text: |-
+  <full tweet text>
+has_media: <bool>
+quote_post_excerpt: <quoted text or null>
+in_reply_to: <tweet_id or null>
+"
+})
+```
 
-Cashtag context: $<TICKER>
-Author: @<author_username>  (<author_followers> followers, blue_verified=<bool>)
-Engagement: likes=<n>  retweets=<n>  quotes=<n>  replies=<n>  views=<n_or_unknown>
-Created: <created_at>
+The subagent returns ONLY JSON of the shape:
 
-Tweet text:
-<text>
-
-Decide and return STRICT JSON only (no prose, no markdown fence):
-
+```json
 {
-  "material": true|false,             // true = adds non-trivial info to a swing trader's view of this ticker
+  "material": true | false,
   "sentiment_tag": "bullish" | "bearish" | "neutral" | "breaking-news",
-  "named_themes": ["short_tag_1", "short_tag_2"],   // 1-3 lowercase_snake_case tags (e.g. "stage_2_reset", "analyst_upgrade", "earnings_beat", "defense_contract", "macro_macro")
-  "rationale": "one to two sentences explaining the verdict"
+  "named_themes": ["tag_one", "tag_two"],
+  "rationale": "one to two sentences"
 }
-
-Definitions:
-- "bullish" = the post's framing is positive on the ticker (long thesis, support, breakout, beat)
-- "bearish" = the post's framing is negative on the ticker (short thesis, breakdown, concern, miss)
-- "neutral" = informational / question / context without directional take (these are usually NOT material — set material=false)
-- "breaking-news" = the post is the FIRST or one of the first to report a market-moving fact (contract win, M&A, FDA, earnings revision, etc.) — this OVERRIDES sentiment and usually sets material=true regardless of follower count
 ```
 
-Cost: ~$0.0003 per classifier call. Volume: typical hour has 2-10 Stage-1-survivors per ticker × ~15-25 tickers = 30-250 classifier calls/hour. Budget envelope is ~$0.60-$1.20/month for the classifier (per design spec § 6).
+Parse via `json.loads()` and construct the `ClassificationVerdict`:
+
+```python
+verdict_dict = json.loads(subagent_response)
+return ClassificationVerdict(
+    material=bool(verdict_dict["material"]),
+    sentiment_tag=verdict_dict["sentiment_tag"],
+    named_themes=list(verdict_dict["named_themes"]),
+    rationale=verdict_dict["rationale"],
+    classifier_model="claude-haiku-4-5-20251001",
+    classifier_cost_usd=0.0003,
+    classified_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+)
+```
+
+On JSON parse failure, missing fields, or invalid enum values: return `None`. The module records `classifier_result: null` for that signal; it then survives Stage 3 by default (treated as material=true for review), which the user sees as a degraded-classification flag in the snapshot.
+
+Full decision rules + worked examples for the subagent live in [`.claude/agents/x-scanner-classifier.md`](./x-scanner-classifier.md) — read it once if you need to understand the material / non-material thresholds or the `named_themes` vocabulary. Do NOT duplicate that guidance inline; the subagent has it.
+
+Cost: ~$0.0003 per classifier call (Haiku 4.5). Volume: typical hour has 2-10 Stage-1-survivors per ticker × ~15-25 tickers = 30-250 classifier calls/hour. Budget envelope is ~$0.60-$1.20/month for the classifier (per design spec § 6).
 
 #### What lands in `x_signals[]`
 
