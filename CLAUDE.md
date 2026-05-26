@@ -108,8 +108,7 @@ Run these checks **before** the technical check. A great chart on a broken
 company is still a no-trade.
 
 ### Required Checks (eliminate disqualified names)
-- Market cap > $2B (liquidity, less manipulation risk)
-- Average daily volume > 500K shares
+- Average daily volume > 500K shares (liquidity is the binding constraint, not market cap — sub-$2B names are eligible if they meet the volume floor)
 - No earnings within 10 trading days of entry (unless explicit earnings play)
 - No known binary events (FDA, court rulings) unless that's the thesis
 

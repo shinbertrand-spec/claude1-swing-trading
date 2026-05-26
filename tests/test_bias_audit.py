@@ -26,7 +26,9 @@ from tools.bias_audit import (
 # Synthetic ledger builders
 # ----------------------------------------------------------------------
 
-# Mid-cap ($2B - $10B), large-cap ($10B - $200B), mega-cap (>$200B)
+# Micro (<$300M), small ($300M-$2B), mid ($2B-$10B), large ($10B-$200B), mega (>$200B).
+MICRO_CAP = 100_000_000.0
+SMALL_CAP = 1_000_000_000.0
 MID_CAP = 5_000_000_000.0
 LARGE_CAP = 50_000_000_000.0
 MEGA_CAP = 500_000_000_000.0
@@ -81,9 +83,11 @@ def _seed_baseline_matching(root: Path, n: int = 50) -> None:
         ("Materials", 2, "MATR"),
         ("Real Estate", 1, "REST"),
     ]
-    # Cap split per the baseline: ~55% large, ~25% mega, ~20% mid.
+    # Cap split per the Russell-3000-ish baseline: 55% mega, 25% large, 12% mid,
+    # 7% small, 1% micro. With n=50: 28 mega, 12 large, 6 mid, 3 small, 1 micro.
     cap_seq = (
-        [LARGE_CAP] * 28 + [MEGA_CAP] * 12 + [MID_CAP] * 10
+        [MEGA_CAP] * 28 + [LARGE_CAP] * 12 + [MID_CAP] * 6
+        + [SMALL_CAP] * 3 + [MICRO_CAP] * 1
     )
     assert len(cap_seq) == n
     idx = 0
@@ -124,7 +128,10 @@ def _seed_mega_cap_skew(root: Path) -> None:
 
 
 def test_market_cap_bucket_boundaries() -> None:
-    assert _market_cap_bucket(1_999_999_999.0) is None  # below $2B floor
+    assert _market_cap_bucket(1.0) == "micro_cap"
+    assert _market_cap_bucket(299_999_999.0) == "micro_cap"
+    assert _market_cap_bucket(300_000_000.0) == "small_cap"
+    assert _market_cap_bucket(1_999_999_999.0) == "small_cap"
     assert _market_cap_bucket(2_000_000_000.0) == "mid_cap"
     assert _market_cap_bucket(9_999_999_999.0) == "mid_cap"
     assert _market_cap_bucket(10_000_000_000.0) == "large_cap"
@@ -133,6 +140,7 @@ def test_market_cap_bucket_boundaries() -> None:
     assert _market_cap_bucket(3_000_000_000_000.0) == "mega_cap"
     assert _market_cap_bucket(None) is None
     assert _market_cap_bucket(-1.0) is None
+    assert _market_cap_bucket(0.0) is None
 
 
 def test_sector_etf_map_covers_eleven_sectors() -> None:

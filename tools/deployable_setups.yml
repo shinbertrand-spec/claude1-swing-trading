@@ -1,7 +1,24 @@
 # Setups cleared for paper-trade deployment.
 #
 # A setup is on this list only after it has cleared the rolling-walk-forward
-# deployment gate (Sharpe > 1.0 AND |max DD| < 25% AND aggregated OOS n >= 30).
+# deployment gate. As of 2026-05-26 the gate has TWO clauses (both must pass):
+#
+#   1. Aggregate-OOS:  Sharpe > 1.0 AND |max DD| < 25% AND aggregated OOS n >= 30
+#   2. Per-window:     >= 50% of individual OOS windows clear Sharpe > 0.5
+#
+# Clause 2 was added 2026-05-26 to catch the SEPA-VCP failure mode: an
+# aggregate that passes (Sharpe 1.37) only because one outlier window
+# (2024 OOS Sharpe 4.27) carries two losing windows (2023 -0.44, 2025 -1.38).
+# Implementation: tools.backtest.metrics.evaluate_aggregated_with_windows.
+#
+# Backtest period was extended from 2020-2025 (3 OOS windows) to 2017-2025
+# (6 OOS windows) on 2026-05-26 (lever A of the cross-regime-robustness
+# plan). The extension covers COVID 2020 + mania 2021 + rate-hike 2022 in
+# addition to the original 2023/2024/2025 windows. Reports per setup live
+# at journal/backtest/<setup>-8y.md. The extension knocked EP and clenow
+# out of the deployable list and confirmed SEPA-VCP's parking; only
+# dual_ma_trend_following + xs_short_term_reversal survived.
+#
 # Source of truth for verdicts: project_swing_phases memory's "Final consolidated
 # verdict" table.
 #
@@ -16,21 +33,21 @@
 # subsequent windows blow up), comment it out — do NOT delete (audit trail).
 #
 # ---------------------------------------------------------------------------
-# LIVE-SIGNAL PLUMBING STATUS (as of 2026-05-26 paper-trade ship)
+# LIVE-SIGNAL PLUMBING STATUS (as of 2026-05-26 post-8y-extension)
 # ---------------------------------------------------------------------------
 # Two distinct families:
 #   - SETUP_REPLAY_REGISTRY family (per-bar detectors wired into the morning
-#     routine via tools.backtest.setup_replay): SEPA-VCP, EP. These fire
-#     candidates into tools.auto_paper.pipeline.place_candidate on each
-#     scheduled tick.
+#     routine via tools.backtest.setup_replay): NONE. SEPA-VCP and EP both
+#     wired but both parked by the tightened gate — SEPA-VCP on per-window
+#     failure, EP on aggregate-Sharpe failure under 8y history. See
+#     parked_by_tightened_gate: below.
 #   - KIND_REGISTRY family (cross-sectional / time-series backtest plugins
 #     at tools.quant_strategies._kinds): dual_ma_trend_following,
-#     xs_short_term_reversal, clenow_momentum. Backtest-only as of today —
-#     no "scan today's bar" wrapper to convert their TradeSignals into
-#     CandidateInputs. Gate-cleared but NOT firing live.
-# Tuesday 2026-05-26 paper-trade ship: SEPA-VCP + EP fire. The other three
-# remain on this list as audit-of-readiness; live wiring is a follow-up
-# session task (tools/auto_paper/quant_scanner.py or similar).
+#     xs_short_term_reversal, connors_rsi2 (added 2026-05-26 as a
+#     replenishment candidate). Wired live via tools.auto_paper.quant_scanner.
+# Effective live edge as of 2026-05-26 post-extension + lever-C wiring:
+# 3 KIND_REGISTRY setups (dual_ma, xs_reversal, connors_rsi2), all fired
+# through tools.auto_paper.quant_scanner. The SETUP_REPLAY family is empty.
 #
 # ---------------------------------------------------------------------------
 # METHODOLOGY DISCLOSURES (apply to every row below)
@@ -48,50 +65,99 @@
 # acceptable on current universe.
 
 deployable:
-  - setup: SEPA-VCP
-    variant: sell-aware
-    universe: "88-ticker SP500-leaning"
-    rolling_agg_sharpe: 1.37
-    rolling_agg_max_dd_pct: -15.95
-    n: 493
-    cleared_at: 2026-05-25
-    notes: "Half-size first month. Re-validated 3-window rolling end=2026-05-25 — aggregated still passes (Sharpe 1.37 down from 2.28, DD -15.95% up from -10.96%) but 2 of 3 OOS windows now fail individually (2023 Sharpe -0.44; 2025 Sharpe -1.38). 2024 OOS Sharpe 4.27 carries the aggregate. Track per-window 2026 OOS once data accumulates; if 2025 OOS weakness persists into 2026, re-evaluate (may need to park)."
-
-  - setup: EP
-    variant: loosened + ma_trail
-    universe: "109-ticker (88 mega-cap + 21 EP-prone growth)"
-    rolling_agg_sharpe: 1.77
-    rolling_agg_max_dd_pct: -3.64
-    n: 55
-    cleared_at: 2026-05-25
-    notes: "Half-size first month (downgraded from full-size). Re-validated 3-window rolling end=2026-05-25 — aggregated passes (Sharpe 1.77 down from 2.13, DD -3.64% basically unchanged). Quality remains best of any deployable (60% win, +0.53R expectancy, profit factor 2.56). 2025 OOS Sharpe 0.71 / n=12 fails individually; 2023 + 2024 OOS Sharpe 3.13 + 1.41 PASS on quality (n=21/22 below 30 floor per-window, but aggregated n=55 clears). DD ~4x smaller than SEPA-VCP."
-
-  - setup: dual_ma_trend_following
-    variant: "(short=50, long=100), ma_trail to 50d"
-    universe: "88-ticker SP500-leaning"
-    rolling_agg_sharpe: 2.56
-    rolling_agg_max_dd_pct: -24.86
-    n: 350
-    cleared_at: 2026-05-25
-    notes: "Full-size eligible. Re-promoted from (20,100) to (50,100) on 2026-05-25 evening after 3-window rolling extension to 2026-05-25 invalidated (20,100) [DD -33.74% in 2025]. (50,100) passes all 3 OOS windows individually — 2023 Sharpe 2.94 / 2024 Sharpe 2.52 / 2025 Sharpe 1.93. Paperswithbacktest-derived (Faber 2007 / classical dual-MA crossover)."
-
   - setup: xs_short_term_reversal
     variant: "bottom_n=5, weekly rebalance"
     universe: "88-ticker SP500-leaning"
-    rolling_agg_sharpe: 1.64
-    rolling_agg_max_dd_pct: -14.48
-    n: 754
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.60
+    rolling_agg_max_dd_pct: -24.94
+    n: 1497
+    per_window_oos_sharpe: [2.73, 1.18, -1.43, 2.98, 2.09, 1.85]   # 2020 / 2021 / 2022 / 2023 / 2024 / 2025
+    per_window_pass_rate: 0.83     # 5/6 windows clear Sharpe > 0.5 (2022 fails at -1.43)
     cleared_at: 2026-05-25
-    notes: "Half-size first month — 2023 OOS Sharpe 1.20 is just above 1.0 floor. 2024 OOS Sharpe 1.93 / 2025 OOS Sharpe 1.77 — both robust. All 3 individual years pass under 3-window rolling extension. Only bottom_n=5 cleared; bottom_n=10/15 fail on DD breach. Paperswithbacktest-derived (Lehmann 1990 / Jegadeesh 1990)."
+    cleared_under_tightened_gate_at: 2026-05-26
+    cleared_under_extended_history_at: 2026-05-26
+    notes: "Aggregate Sharpe 1.60 (was 1.64 on 3-window — virtually unchanged), DD -24.94% (was -14.48% — WIDENED nearly to the 25% threshold under 8y), n=1497. 5/6 OOS windows clear Sharpe > 0.5; only 2022 fails at -1.43 (mean reversion in bear market — same year that killed dual_ma). DD-at-threshold is the watch flag: a slightly worse year could push this over. Mean-reversion factor — uncorrelated with the parked momentum setups. Source: Lehmann 1990 / Jegadeesh 1990. NOT WIRED LIVE — KIND_REGISTRY family awaiting tools/auto_paper/quant_scanner.py. Full report: journal/backtest/xs_reversal-8y.md."
+
+  - setup: connors_rsi2
+    variant: "entry_threshold=15, cooldown_days=3, regime SPY>200d SMA"
+    universe: "88-ticker SP500-leaning"
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.01
+    rolling_agg_max_dd_pct: -18.39
+    n: 2905
+    per_window_oos_sharpe: [0.04, 0.49, -21.68, 0.57, 3.67, 3.92]   # 2020 / 2021 / 2022 / 2023 / 2024 / 2025
+    per_window_pass_rate: 0.50     # 3/6 windows clear Sharpe > 0.5 — EXACTLY at gate floor
+    cleared_at: 2026-05-26
+    cleared_under_tightened_gate_at: 2026-05-26
+    cleared_under_extended_history_at: 2026-05-26
+    notes: "MARGINAL PASSER added 2026-05-26 to replenish the live-deployable list after the 8y extension knocked out SEPA-VCP + EP + clenow. Source: Connors, *Short Term Trading Strategies That Work* (2008); quantitativo.com 2025 re-validation. Strategy: per-day eligibility = (SPY > SPY 200d SMA) AND (per-ticker cumulative-RSI(2) < 15). The 200d regime filter is the cross-regime feature — when SPY breaks below 200d (e.g. most of 2022), no new entries fire. EXCEPT — 2022 OOS Sharpe was -21.68 anyway (DD -12.80% in that window). Despite the regime filter, whipsaw periods around the SPY 200d crossover caught the strategy long during 2022 declines. The aggregate Sharpe 1.01 + DD -18.39% pass the doctrine gate cleanly, but the per-window distribution is bimodal: weak in 2020-2023 (0.04 / 0.49 / -21.68 / 0.57) and very strong in 2024-2025 (3.67 / 3.92). Recent edge is real but the 5/6 bar achieved by dual_ma / xs_reversal is NOT met (3/6 here = exactly at the 0.5 floor). DEPLOY HALF-SIZE if wired live; revisit if 2026 OOS doesn't carry the strong 2024-2025 trend forward. Position-sizing constraint: risk_per_trade=0.2% (5x lower than discretionary) because the simulator has no concurrent-position cap; Connors' canonical caps at 3 concurrent. NOT WIRED LIVE — KIND_REGISTRY family awaiting tools/auto_paper/quant_scanner.py. Full report: journal/backtest/connors_rsi2-8y.md."
+
+# Parked because the simulator's _equity_curve has no portfolio-level
+# concurrent-position cap. The strategy clears the gate on the 88-ticker
+# universe but produces internally-inconsistent results on wider universes
+# (Sharpe 3.02 + DD -70.62% on sp500_2026q2 — see journal/backtest/dual_ma-sp500.md).
+# Re-add to deployable once tools/backtest/simulator.py enforces a
+# portfolio-level position cap in cumulative-equity computation.
+parked_by_simulator_concurrency_bug:
+  - setup: dual_ma_trend_following
+    variant: "(short=50, long=200), ma_trail to 50d"
+    universe: "88-ticker SP500-leaning (last cleared); migrated to sp500_2026q2 in YAML"
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.84
+    rolling_agg_max_dd_pct: -21.98
+    n: 361
+    per_window_oos_sharpe: [3.74, 1.72, -1.35, 1.78, 0.58, 2.91]    # 2020 / 2021 / 2022 / 2023 / 2024 / 2025
+    per_window_pass_rate: 0.83     # 5/6 windows clear Sharpe > 0.5 (2022 is the rate-hike fail)
+    cleared_at: 2026-05-25
+    cleared_under_tightened_gate_at: 2026-05-26
+    cleared_under_extended_history_at: 2026-05-26
+    parked_by_simulator_bug_at: 2026-05-26
+    parked_reason: "Universe migration to sp500_2026q2 (503 tickers) surfaced the simulator's no-concurrent-position-cap bug. Re-test on sp500_2026q2 produced Sharpe 3.02 + DD -70.62% — internally inconsistent. The unlike sibling KIND_REGISTRY setups (xs_short_term_reversal has bottom_pct, connors_rsi2 has max_concurrent_positions), dual_ma has no per-strategy workaround for the simulator limit. Risk_per_trade 0.002 shrinkage did not compensate. Re-deploy once tools/backtest/simulator.py grows a portfolio-level position cap. Evidence: journal/backtest/dual_ma-sp500.md."
+    notes: "VARIANT FLIPPED from (50, 100) to (50, 200) under 8y extension. The 8y test re-ranked all 4 dual_ma combos: (50, 100) — previously the cleared variant — FAILS the extended gate at DD -45.53%. (50, 200) is the cleanest surviving combo. Aggregate Sharpe 1.84 (was 2.56 on 3-window), DD -21.98% (was -24.86%), n=361. 5/6 OOS windows individually clear Sharpe > 0.5; only 2022 (rate-hike bear) fails at -1.35. Source: Faber 2007 / classical dual-MA crossover. Full report: journal/backtest/dual_ma-8y.md."
+
+# Parked by the 2026-05-26 tightened gate + 8y extension.
+# Audit-trail entries — re-evaluate after additional OOS data accumulates
+# or after a different parametrization / variant clears the gate.
+parked_by_tightened_gate:
+  - setup: SEPA-VCP
+    variant: sell-aware
+    universe: "88-ticker SP500-leaning"
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.00
+    rolling_agg_max_dd_pct: -24.95
+    n: 938
+    per_window_oos_sharpe: [1.41, 0.71, -1.13, -0.44, 4.27, -1.38]   # 2020 / 2021 / 2022 / 2023 / 2024 / 2025
+    per_window_pass_rate: 0.50     # 3/6 windows clear Sharpe > 0.5 (PASSES this clause)
+    first_parked_at: 2026-05-26
+    re_validated_under_extended_history_at: 2026-05-26
+    reason: "Re-validated under 8y extension — still FAILS. Aggregate Sharpe collapsed from 1.37 (3-window) to exactly 1.00 (6-window), failing the gate's strict Sharpe > 1.0 threshold. DD widened from -15.95% to -24.95% (basically at the 25% threshold). Per-window 2020/2021 OOS were actually positive (1.41 / 0.71) — better than 2023/2025 — but 2022 (-1.13), 2023 (-0.44), and 2025 (-1.38) all negative; only 2020 + 2024 carry the aggregate. The per-window clause now passes (3/6, exactly at the 0.5 threshold) but the aggregate clause fails on Sharpe. Full report: journal/backtest/sepa-vcp-8y.md."
+
+  - setup: EP
+    variant: loosened + ma_trail
+    universe: "88-ticker SP500-leaning (was 109-ticker before extension)"
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 0.45
+    rolling_agg_max_dd_pct: -10.64
+    n: 52
+    per_window_oos_sharpe: [-0.11, -0.68, 1.33, 0.86, 1.52, 0.34]   # 2020 / 2021 / 2022 / 2023 / 2024 / 2025
+    per_window_pass_rate: 0.50     # 3/6 windows clear Sharpe > 0.5 (PASSES this clause)
+    first_parked_at: 2026-05-26
+    re_validated_under_extended_history_at: 2026-05-26
+    reason: "Re-validated under 8y extension — FAILS dramatically. Aggregate Sharpe collapsed from 1.77 (3-window) to 0.45 (6-window). 2020 (-0.11) + 2021 (-0.68) were both losing OOS years for EP — periods of broad gap-fill behavior that EP's pivot-confirmation signal mis-fires through. n=52 (similar to the 55 from 3-window — EP just doesn't generate many signals). The per-window clause passes at 3/6 but the aggregate Sharpe failure is decisive. Sample size remains thin (n<30 in every individual window). Source: Bonde / Minervini Episodic Pivot. Full report: journal/backtest/ep-8y.md."
 
   - setup: clenow_momentum
-    variant: "momentum_lookback=90d, top_k=10, weekly rebalance"
+    variant: "momentum_lookback=90d, top_k=10 (and 5 other combos)"
     universe: "88-ticker SP500-leaning"
-    rolling_agg_sharpe: 2.02
-    rolling_agg_max_dd_pct: -22.57
-    n: 1360
-    cleared_at: 2026-05-25
-    notes: "Half-size first month — DD -22.57% closest to threshold of any deployable. 2023 OOS Sharpe 2.64 / 2024 OOS Sharpe 2.70 PASS / 2025 OOS Sharpe 0.59 FAILS individually (DD OK). Aggregated passes; 2025 weakness mirrors SEPA-VCP's 2023 single-window pattern → half-size first month justified, not just precautionary. Only top_k=10 cleared; top_k=20 fails on DD across all 3 lookbacks. Source: Clenow, Stocks on the Move (2015)."
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.21    # for top_k=10/90d; 1.98 for top_k=20 best combo
+    rolling_agg_max_dd_pct: -35.84   # for top_k=10/90d; -45.34 for top_k=20 best combo
+    n: 2360    # for top_k=10
+    per_window_oos_sharpe_top_combo: [4.65, 3.03, -3.32, 0.59, 1.94, 2.30]   # 2020-2025 for top_k=20/90d (best Sharpe combo)
+    per_window_pass_rate: 0.83     # 5/6 — PASSES this clause; AGGREGATE DD failure is decisive
+    first_parked_at: 2026-05-26
+    re_validated_under_extended_history_at: 2026-05-26
+    reason: "ALL 6 combos in the param grid FAIL under 8y extension on DD breach. The previously-deployed (90d, top_k=10) variant: Sharpe 1.21 / DD -35.84% / n=2360. The best-Sharpe (90d, top_k=20) variant has Sharpe 1.98 but DD -45.34%. Every variant breaches the 25% DD threshold by 10-22 percentage points. The 3-window 2023-2025 test simply didn't sample the periods (2020 COVID, 2022 rate-hike) where Clenow's full-leverage momentum exposure compounds drawdowns. Per-window clause passes 5/6 (only 2022 negative at -3.32). Source: Clenow, Stocks on the Move (2015). Full report: journal/backtest/clenow-8y.md."
 
 # Retired / parked (kept for audit):
 # parked:

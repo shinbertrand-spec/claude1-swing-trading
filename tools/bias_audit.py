@@ -55,17 +55,21 @@ SECTOR_ETF_MAP: dict[str, str] = {
     "XLB": "Materials",
 }
 
-# Market-cap buckets (USD). CLAUDE.md hard rule: market_cap > $2B, so
-# small-cap is implicitly excluded from the universe.
+# Market-cap buckets (USD). Cap floor was relaxed to liquidity-only
+# (ADV > 500K shares) on 2026-05-26 — small + micro-cap names are now
+# eligible in the universe, so the audit needs buckets for them.
 MARKET_CAP_BUCKETS: tuple[tuple[str, float, float | None], ...] = (
+    ("micro_cap", 0.0, 300_000_000.0),
+    ("small_cap", 300_000_000.0, 2_000_000_000.0),
     ("mid_cap", 2_000_000_000.0, 10_000_000_000.0),
     ("large_cap", 10_000_000_000.0, 200_000_000_000.0),
     ("mega_cap", 200_000_000_000.0, None),
 )
 
-# Default baseline proportions if the caller doesn't supply a file. These
-# are rough S&P 500 weights as of 2026-Q1; refresh quarterly when the
-# baseline file is rebuilt.
+# Default baseline proportions if the caller doesn't supply a file. Rough
+# Russell 3000 weights as of 2026-Q2 (the framework's eligible universe is
+# now liquid-US wide, not S&P-only). Refresh quarterly when the baseline
+# file is rebuilt.
 DEFAULT_BASELINE: dict[str, dict[str, float]] = {
     "sector": {
         "Technology": 0.30,
@@ -81,9 +85,11 @@ DEFAULT_BASELINE: dict[str, dict[str, float]] = {
         "Materials": 0.025,
     },
     "market_cap": {
-        "mid_cap": 0.20,
-        "large_cap": 0.55,
-        "mega_cap": 0.25,
+        "micro_cap": 0.01,
+        "small_cap": 0.07,
+        "mid_cap": 0.12,
+        "large_cap": 0.25,
+        "mega_cap": 0.55,
     },
 }
 

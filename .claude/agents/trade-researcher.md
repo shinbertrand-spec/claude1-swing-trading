@@ -130,8 +130,7 @@ After writing the ledger, emit a Markdown report in this exact section order:
 - Catalyst (next 2-6 weeks): <type> on <date>, source <url>
 - Disqualifier checklist [yes/no + ledger field]:
   - Earnings within 10 trading days? <fundamentals.next_earnings_date> → <days_to_earnings>
-  - Market cap > $2B? <fundamentals.market_cap_usd>
-  - Avg daily volume > 500K? <fundamentals.avg_daily_volume_shares>
+  - Avg daily volume > 500K? <fundamentals.avg_daily_volume_shares> (liquidity-only floor; cap-agnostic — record market_cap for reference)
   - Recent dilution / SEC investigation / customer concentration? <yes/no + source>
   - Sector in weekly downtrend? <regime.sector_qualifies_for_long>
 
