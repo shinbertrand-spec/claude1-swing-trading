@@ -279,3 +279,92 @@ def test_scan_setup_spec_with_unknown_kind_surfaces_note(tmp_path, monkeypatch):
     assert report.candidates == []
     assert "not in KIND_REGISTRY" in report.note
     assert "not_a_real_kind" in report.note
+
+
+# ------------------------------------------------------- rebalance-schedule anchor (Bug 2)
+#
+# Regression coverage for the 2026-05-26 evening fix: the LIVE scanner
+# was loading only a 400-day moving window of OHLCV, so each kind's
+# precompute() computed rebalance_dates = range(start_idx, n, step) over
+# bench_dates whose [0] slid daily. The backtest anchors at
+# spec.period.start; the live scanner must match that anchor so the
+# rebalance schedule stays calendar-stable across runs.
+
+
+def test_refresh_universe_start_date_overrides_lookback(monkeypatch):
+    """When start_date is passed, it wins over lookback_days."""
+    import datetime as _dt
+    calls = []
+
+    def _fake_fetch(ticker, *, start, end, force_refetch=False):
+        calls.append((ticker, start, end))
+
+    import pandas as _pd
+    def _fake_load(ticker):
+        return _pd.DataFrame({"Open": [1.0], "High": [1.0], "Low": [1.0],
+                              "Close": [1.0], "Volume": [1]},
+                             index=_pd.date_range("2024-01-02", periods=1, freq="B"))
+
+    monkeypatch.setattr(quant_scanner.data_cache, "fetch", _fake_fetch)
+    monkeypatch.setattr(quant_scanner.data_cache, "load", _fake_load)
+
+    fixed_start = _dt.date(2017, 1, 1)
+    quant_scanner._refresh_universe(
+        ["A", "B"],
+        start_date=fixed_start,
+        lookback_days=400,  # should be ignored
+    )
+    assert len(calls) == 2
+    for _t, start, _end in calls:
+        assert start == fixed_start, (
+            f"start_date should win over lookback_days; got start={start}"
+        )
+
+
+def test_scan_setup_passes_spec_period_start_to_refresh_universe(tmp_path, monkeypatch):
+    """scan_setup must extract spec.period.start and pass it as start_date so
+    the live rebalance schedule matches the backtest anchor (Bug 2)."""
+    import datetime as _dt
+    import textwrap
+
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    yml = spec_dir / "bug2_spec.yml"
+    yml.write_text(textwrap.dedent("""
+        meta: {name: bug2_spec, version: "1.0", source: t, description: t, horizon_days: 5, status: test}
+        kind: connors_rsi2
+        universe: {tickers: [A], benchmark: SPY}
+        period: {start: "2017-01-01", end: "2026-05-25"}
+        params:
+          rsi_period: 2
+          cumulative_period: 2
+          entry_threshold: 20.0
+          cooldown_days: 3
+          regime_sma_period: 50
+          atr_period: 20
+          atr_stop_multiple: 2.0
+          max_hold_days: 5
+        execution: {trail: fixed}
+        gate: {sharpe_min: 1.0, max_dd_pct: 25.0, n_min: 30}
+    """).strip())
+    monkeypatch.setattr(quant_scanner, "SPEC_DIR", str(spec_dir))
+
+    seen_start_dates: list = []
+
+    def _fake_refresh(tickers, *, start_date=None, lookback_days=400, force_refetch=False):
+        seen_start_dates.append(start_date)
+        # Return empty universe — scan_setup will note benchmark-load failure,
+        # but the start_date capture is what we're testing.
+        return {}
+
+    monkeypatch.setattr(quant_scanner, "_refresh_universe", _fake_refresh)
+
+    row = {"setup": "bug2_spec"}
+    quant_scanner.scan_setup(
+        row,
+        account_net_liq=1_000_000.0,
+    )
+    assert seen_start_dates == [_dt.date(2017, 1, 1)], (
+        f"scan_setup should pass spec.period.start to _refresh_universe; "
+        f"got {seen_start_dates}"
+    )

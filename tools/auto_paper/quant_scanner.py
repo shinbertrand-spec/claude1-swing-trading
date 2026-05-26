@@ -120,17 +120,35 @@ def _live_params_for(row: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any
 def _refresh_universe(
     tickers: list[str],
     *,
+    start_date: Optional[date] = None,
     lookback_days: int = 400,
     force_refetch: bool = False,
 ) -> dict[str, pd.DataFrame]:
     """Pull / refresh OHLCV for every ticker; return ``{ticker: df}``.
 
-    ``lookback_days=400`` gives ~16 months of bars — enough for a 200d
-    SMA + 100d momentum lookback + a buffer. Increase via the
-    ``--lookback`` CLI override if a strategy needs more.
+    Bug-2 fix (2026-05-26): the LIVE rebalance schedule is computed by each
+    kind's ``precompute()`` as ``range(start_idx, n, step)`` over the loaded
+    bench_dates. With a moving ``lookback_days`` window, the schedule slides
+    daily and no longer matches the BACKTEST schedule (which anchors at
+    ``spec.period.start``). Callers should pass ``start_date`` =
+    ``date.fromisoformat(spec["period"]["start"])`` so the live schedule
+    matches the backtest's exactly — same rebalance dates, same selections.
+
+    Args:
+        tickers: list of tickers to fetch.
+        start_date: fixed history anchor (preferred). Wins over lookback_days
+            when both are set.
+        lookback_days: fallback when ``start_date`` is None. ``400`` gives
+            ~16 months — enough for a 200d SMA + 100d momentum lookback for
+            kinds that DON'T have a per-rebalance schedule (e.g. connors_rsi2,
+            which is per-day-eligible — no schedule drift to align).
+        force_refetch: re-pull from yfinance even if cached.
     """
     end = date.today()
-    start = end - timedelta(days=lookback_days)
+    if start_date is not None:
+        start = start_date
+    else:
+        start = end - timedelta(days=lookback_days)
     out: dict[str, pd.DataFrame] = {}
     for t in tickers:
         try:
@@ -259,13 +277,19 @@ def _candidate_from_signal(
     if shares <= 0:
         return None
 
+    # Round to US-equity tick size ($0.01). Tiger rejects orders with
+    # sub-cent precision (code=1200 "Sorry, your order price does not
+    # match the tick size: 0.01"). Caught during 2026-05-26 manual
+    # rebalance when 4-decimal limits all bounced. Stop price gets
+    # placed as a broker STP SELL at reconciliation — same tick
+    # constraint applies.
     return CandidateInput(
         ticker=ticker.upper(),
         setup_type=setup,
         setup_grade="B",
         pivot_price=pivot,
-        limit_price=round(limit_price, 4),
-        stop_price=round(stop_price, 4),
+        limit_price=round(limit_price, 2),
+        stop_price=round(stop_price, 2),
         target_price=None,
         shares=shares,
         sector_etf=_sector_etf_for(ticker),
@@ -341,8 +365,20 @@ def scan_setup(
         tickers.append(benchmark)
 
     if universe_dfs is None:
+        # Bug-2 fix: anchor live history at spec.period.start so the
+        # rebalance schedule each kind's precompute() computes matches the
+        # BACKTEST's rebalance schedule. Without this, range(start_idx, n, step)
+        # over a moving 400-day window slides daily and the schedule never
+        # aligns with the backtest's anchor — scanner queries eligibility at
+        # signal_date which is rarely a real rebalance day.
+        spec_start = spec.get("period", {}).get("start")
+        fetch_start_date = (
+            date.fromisoformat(spec_start) if isinstance(spec_start, str) else None
+        )
         universe_dfs = _refresh_universe(
-            tickers, force_refetch=force_refetch,
+            tickers,
+            start_date=fetch_start_date,
+            force_refetch=force_refetch,
         )
     if benchmark not in universe_dfs:
         return ScannerReport(
