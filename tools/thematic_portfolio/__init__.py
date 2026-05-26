@@ -27,6 +27,15 @@ Modules:
   synthesis pass which forecasts SA LP's next-quarter 13F deltas
   (advisory only — watchlist enrichment, never auto-execution).
 
+* :mod:`tools.thematic_portfolio.ensemble_lead_score` — Loop 6 Pass 3.
+  Scores tickers held by ≥ 2 ensemble funds but NOT in SA LP using the
+  v1-locked formula: ``n_holders * 0.4 + thesis_alignment * 0.4 +
+  ensemble_added * 0.2``. Coefficients and sector-bucket scores are
+  v1-locked per gate-3 decision 2.3 — no parameter sweeps until ≥ 4
+  cycles of calibration data. Output is a ranked candidate list with
+  per-component breakdown; the Loop 6 LLM pass adds color but does not
+  change the score.
+
 * :class:`Position` — shared dataclass mirroring an edgartools 13F infotable
   row. Long-book filter happens at the caller's edge; the sizer expects a
   pre-filtered long-only list.
