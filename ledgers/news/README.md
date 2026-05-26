@@ -25,7 +25,7 @@ ledgers/news/
   _examples/
     quiet-hour.yml              # No material deltas, just hourly heartbeat
     catalyst-hour.yml           # Analyst action + gap + macro event firing
-    social-active-hour.yml      # Schema 1.1: social_signals[] firing on positions + top-mover
+    social-active-hour.yml      # Schema 1.2: BOTH social_signals[] AND x_signals[] firing — full sentiment-stack demo
   _state/
     social_baseline.json        # Per-ticker rolling 24-hr StockTwits message-volume baseline (Phase 1.5)
   YYYY-MM-DD/
@@ -57,7 +57,7 @@ be added by editing the scheduled-task triggers without changing any code.
 
 ## Subagent pipeline
 
-`news-research` is a single subagent invocation that runs five sequential
+`news-research` is a single subagent invocation that runs six sequential
 internal passes:
 
 1. **Scout** — gather news / price / analyst-action for tickers in
@@ -74,19 +74,29 @@ internal passes:
    is [finviz.com/screener.ashx](https://finviz.com/screener.ashx) (filter
    `ta_change_u5` for gainers ≥ 5%); also pull headline context from
    [biztoc.com](https://biztoc.com/) and [finviz.com/news](https://finviz.com/news).
-3. **Social** (Phase 1.5) — pull StockTwits sentiment for open positions +
-   top-movers flagged `potential_ep / news_driven / gap_up / gap_down`. Spam-
-   filter, count bullish vs bearish (using StockTwits' built-in user tags),
-   compute `volume_z` vs the trailing 24-hr baseline in
+3. **Social — StockTwits** (Phase 1.5) — pull StockTwits sentiment for open
+   positions + top-movers flagged `potential_ep / news_driven / gap_up / gap_down`.
+   Spam-filter, count bullish vs bearish (using StockTwits' built-in user
+   tags), compute `volume_z` vs the trailing 24-hr baseline in
    [`_state/social_baseline.json`](_state/social_baseline.json), classify per
    the ladder (`climax_warning` / `bearish_pile_on` / `buzz_spike` / `cooling` /
    `quiet`). Informational only — never gates a trade. Cross-link target:
-   `tools.climax_top_detect` in the EOD sell pipeline (see
-   [`../../.claude/commands/eod-journal.md`](../../.claude/commands/eod-journal.md)).
-4. **Bear / skeptic** — for any item flagged `severity ≥ medium`, plus any
+   `tools.climax_top_detect` in the EOD sell pipeline.
+4. **X scanner** (schema 1.2) — invoke `tools.news_research.x_scanner` to
+   poll twitterapi.io for cashtag mentions ($TICKER) on watchlist + position
+   names. The module runs a deterministic Stage 1 hard-floor filter
+   (engagement / author followers / language / recency), invokes a
+   subagent-supplied Haiku classifier for Stage 2 (material / sentiment /
+   themes), then enforces a top-5-per-ticker cap. Output lands in
+   `x_signals[]`. Informational only — same authority as Pass 3. Sibling
+   to `tools.thematic_portfolio.corpus.x_ingest` (handle-driven); the same
+   tweet appears in BOTH artifacts when an Aschenbrenner-tier handle
+   mentions a swing-watchlist ticker, and `x_signals[].cross_consumer_ref`
+   points at the thematic ledger entry.
+5. **Bear / skeptic** — for any item flagged `severity ≥ medium`, plus any
    `buzz_spike` top-mover from Pass 3, search for disconfirming sources on
    different domains than the original.
-5. **Synth** — compose the hourly YAML snapshot + select items for the
+6. **Synth** — compose the hourly YAML snapshot + select items for the
    `material_deltas` array, which drives Telegram pushes.
 
 The orchestrator (`/news-hourly`) then diffs the new snapshot against the
@@ -102,7 +112,7 @@ prior hour's snapshot, populates `delta_vs_prior` on each
 
 | Field | Notes |
 |---|---|
-| `schema_version` | const `"1.0"` |
+| `schema_version` | `"1.0"` / `"1.1"` / `"1.2"` (current; new snapshots write 1.2) |
 | `snapshot_id` | ISO timestamp at top of hour (matches filename) |
 | `asof` / `fetched_at` | When the snapshot represents / when gather completed |
 | `ticker_count` | Distinct tickers across `per_ticker_items` + `top_movers` |
@@ -143,6 +153,33 @@ Scheduled or breaking macro events — Fed speak, FOMC release, CPI, NFP.
 `relevant_tickers[]` tells the synth pass which positions or watchlist
 names this event ought to wake up.
 
+### `x_signals[]` (schema 1.2)
+
+Material X (Twitter) posts about watchlist + position tickers, surfaced by
+[`tools.news_research.x_scanner`](../../tools/news_research/x_scanner.py).
+Cashtag-driven via twitterapi.io's `advanced_search` endpoint with a
+three-stage filter:
+
+1. **Stage 1 (deterministic):** engagement floor (likes ≥ 100 OR rts ≥ 20
+   OR quotes ≥ 10), author followers ≥ 1000, lang en, not-retweet, past-60min
+   recency.
+2. **Stage 2 (LLM):** Haiku classifier returns `material` (true/false),
+   `sentiment_tag` (bullish / bearish / neutral / breaking-news),
+   `named_themes[]`, and a rationale.
+3. **Stage 3 (deterministic):** top-5 per ticker by engagement rank,
+   dropping `material=false` first.
+
+Each entry carries `cross_consumer_ref.thematic_ledger_path` — non-null
+when the same tweet was ALSO ingested by
+[`tools.thematic_portfolio.corpus.x_ingest`](../../tools/thematic_portfolio/corpus/x_ingest.py)
+(handle-driven sibling consumer; same twitterapi.io credential, different
+query pattern).
+
+x_signals are informational only — they never gate a trade. Material
+verdicts of `bullish` / `bearish` / `breaking-news` on watched names produce
+the three `x_signal_*` material_delta reasons; `neutral` stays in
+`x_signals[]` as color but never triggers a push.
+
 ### `material_deltas[]`
 
 What gets pushed to Telegram this hour. Each entry has a `reason` keyed to
@@ -166,12 +203,16 @@ drop into the message body. Empty array = no push.
 | `social_climax_open_pos` (1.5) | `social_signals[]` entry on an open position with `classification: climax_warning` (bull_share ≥ 0.85 AND volume_z ≥ 2.0) | Any |
 | `social_bearish_open_pos` (1.5) | `social_signals[]` entry on an open position with `classification: bearish_pile_on` (bull_share ≤ 0.20 AND volume_z ≥ 2.0) | Any |
 | `social_buzz_top_mover` (1.5) | `social_signals[]` entry on a top-mover (`potential_ep`) with `classification: buzz_spike` (volume_z ≥ 3.0) | Any |
+| `x_signal_bullish_open_pos` (1.2) | `x_signals[]` entry on an open position with `classifier_result.material: true` AND `sentiment_tag: bullish` | Any |
+| `x_signal_bearish_open_pos` (1.2) | `x_signals[]` entry on an open position with `classifier_result.material: true` AND `sentiment_tag: bearish` | Any |
+| `x_signal_breaking_news_watched` (1.2) | `x_signals[]` entry on a watched ticker (watchlist / position / top-mover) with `classifier_result.material: true` AND `sentiment_tag: breaking-news` | Any |
 
 "Watched" = present in `journal/watchlist.json` or `journal/positions.json`.
 Push criteria are deliberately conservative for Phase 1; we expect to
 loosen `sector_move` and tighten `top_mover_new` after observing one full
-day's noise floor. The three `social_*` reasons are Phase 1.5 — thresholds
-will be re-tuned after the first week of StockTwits data lands.
+day's noise floor. The three `social_*` reasons are Phase 1.5; the three
+`x_signal_*` reasons are schema 1.2 — thresholds for both will be re-tuned
+after the first week of live data lands.
 
 ---
 

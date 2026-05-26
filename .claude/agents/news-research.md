@@ -12,8 +12,8 @@ You exist alongside the per-trade `trade-researcher` + `risk-and-compliance` sub
 ## Read these first (every invocation)
 
 1. **`ledgers/news/README.md`** — snapshot schema + section reference + material-delta thresholds.
-2. **`ledgers/news/_schema/news_snapshot.schema.json`** — machine-checkable schema you write into.
-3. **`ledgers/news/_examples/quiet-hour.yml`** + **`catalyst-hour.yml`** + **`social-active-hour.yml`** — the exact shape your output must take. `social-active-hour.yml` shows the schema-1.1 social_signals[] block.
+2. **`ledgers/news/_schema/news_snapshot.schema.json`** — machine-checkable schema you write into. Current schema_version is `"1.2"` (1.0 = base; 1.1 added social_signals[]; 1.2 added x_signals[] + three x_signal_* material_delta reasons).
+3. **`ledgers/news/_examples/quiet-hour.yml`** + **`catalyst-hour.yml`** + **`social-active-hour.yml`** — the exact shape your output must take. `social-active-hour.yml` shows the full schema-1.2 layout including BOTH `social_signals[]` (StockTwits) AND `x_signals[]` (twitterapi.io).
 4. **`journal/watchlist.json`** — tracked-but-not-positioned tickers (Scout-pass universe).
 5. **`journal/positions.json`** — open positions (Scout-pass universe + push-criteria target).
 6. **The most recent snapshot in `ledgers/news/YYYY-MM-DD/`** (if any) — needed for `delta_vs_prior` computation.
@@ -41,7 +41,7 @@ Phase 1 / 1.5 default web sources, in order of preference:
 
 **No external API onboarding in Phase 1.** Tavily, Alpha Vantage, FMP, and the broker API are deferred to Phase 2 — see [[news-agent-spec]] in project memory.
 
-## The five internal passes
+## The six internal passes
 
 Run them sequentially. Each pass appends to a working snapshot dict; you write the file once at the end.
 
@@ -120,7 +120,94 @@ For each ticker:
 
 **Authority** — social_signals are **informational only**. They never gate a trade in `risk-and-compliance`. Their value is the cross-link to `tools.climax_top_detect` in the EOD sell pipeline (a `climax_warning` here + an OHLCV-based climax detection = high-conviction sell candidate).
 
-### Pass 4 — Bear / skeptic
+### Pass 4 — X scanner (twitterapi.io, schema 1.2)
+
+Universe = (tickers in `journal/watchlist.json`) ∪ (tickers in `journal/positions.json`). Different from Pass 3 — X coverage is broader because cashtag scanning is cheap, and the module's Stage 1 hard-floors handle noise reduction.
+
+**Delegate to `tools.news_research.x_scanner`. Do NOT hand-roll twitterapi.io calls.** The module wraps the shared client (`tools.x_common.twitterapi_client`), enforces the three-stage filter, computes the cross-consumer cross-reference, and emits the canonical schema. Your job is to supply the LLM classifier callable.
+
+#### Invocation
+
+```python
+from datetime import datetime, timezone
+from tools.news_research.x_scanner import (
+    compose as scan_x, ClassificationVerdict,
+    load_watchlist_tickers, load_position_tickers, union_tickers,
+)
+
+tickers = union_tickers(
+    load_watchlist_tickers(),    # journal/watchlist.json
+    load_position_tickers(),     # journal/positions.json
+)
+
+def classify(tweet: dict, cashtag: str) -> ClassificationVerdict | None:
+    # invoke Haiku via the Agent tool with the prompt skeleton below;
+    # parse the JSON return and build a ClassificationVerdict.
+    ...
+
+result = scan_x(
+    tickers=tickers,
+    classifier_callable=classify,
+    snapshot_top_of_hour=datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0),
+)
+# result.output["x_signals"] is the list to append to your snapshot dict.
+```
+
+#### The three stages (what the module does on your behalf)
+
+1. **Stage 1 — hard floors (deterministic, free).** For each ticker, the module queries `$<TICKER> -is:retweet lang:en` via `advanced_search`, then drops every tweet whose engagement is below the floor (likes ≥ 100 OR retweets ≥ 20 OR quotes ≥ 10), whose author has < 1000 followers, whose language isn't English, OR which is older than 60 minutes from `snapshot_top_of_hour`. ~80% of fetched tweets get dropped here.
+
+2. **Stage 2 — LLM material classification (YOUR job — Haiku per call).** For every survivor, the module calls your `classifier_callable(tweet, cashtag)`. You invoke Haiku with the skeleton below. Return a `ClassificationVerdict` per the schema; the module attaches it to the signal record.
+
+3. **Stage 3 — top-N per ticker (deterministic, free).** Drops Stage-2 non-material verdicts, then ranks survivors by total engagement (likes + retweets + quotes + replies), keeps top 5 per ticker. You don't need to do anything.
+
+#### Classifier prompt skeleton (each invocation)
+
+```
+You are classifying ONE X (Twitter) post about a swing-trade ticker for material relevance.
+
+Cashtag context: $<TICKER>
+Author: @<author_username>  (<author_followers> followers, blue_verified=<bool>)
+Engagement: likes=<n>  retweets=<n>  quotes=<n>  replies=<n>  views=<n_or_unknown>
+Created: <created_at>
+
+Tweet text:
+<text>
+
+Decide and return STRICT JSON only (no prose, no markdown fence):
+
+{
+  "material": true|false,             // true = adds non-trivial info to a swing trader's view of this ticker
+  "sentiment_tag": "bullish" | "bearish" | "neutral" | "breaking-news",
+  "named_themes": ["short_tag_1", "short_tag_2"],   // 1-3 lowercase_snake_case tags (e.g. "stage_2_reset", "analyst_upgrade", "earnings_beat", "defense_contract", "macro_macro")
+  "rationale": "one to two sentences explaining the verdict"
+}
+
+Definitions:
+- "bullish" = the post's framing is positive on the ticker (long thesis, support, breakout, beat)
+- "bearish" = the post's framing is negative on the ticker (short thesis, breakdown, concern, miss)
+- "neutral" = informational / question / context without directional take (these are usually NOT material — set material=false)
+- "breaking-news" = the post is the FIRST or one of the first to report a market-moving fact (contract win, M&A, FDA, earnings revision, etc.) — this OVERRIDES sentiment and usually sets material=true regardless of follower count
+```
+
+Cost: ~$0.0003 per classifier call. Volume: typical hour has 2-10 Stage-1-survivors per ticker × ~15-25 tickers = 30-250 classifier calls/hour. Budget envelope is ~$0.60-$1.20/month for the classifier (per design spec § 6).
+
+#### What lands in `x_signals[]`
+
+The module emits one entry per Stage-3 survivor with the full schema-1.2 shape:
+* `tweet_id`, `author_username`, `author_followers`, `cashtag`, `created_at`, `text`, `url`
+* `in_reply_to`, `quote_post_id`, `quote_post_excerpt`, `has_media`
+* `engagement{}` block with all counts + `fetched_at`
+* `classifier_result{}` block (your verdict) — `null` only if you returned `None` (dry-run mode)
+* `cross_consumer_ref{thematic_ledger_path}` — auto-populated by the module if the same tweet was ALSO ingested by `tools.thematic_portfolio.corpus.x_ingest` (e.g., the tweet is from @leopoldasch and names a swing ticker). Null otherwise.
+
+#### Authority
+
+x_signals are **informational only**, same as social_signals. They never gate a trade in `risk-and-compliance`. Their value is:
+* Sentiment + breaking-news color around watchlist + position names
+* Cross-tension diagnostic — when `x_scanner` reads a setup as bullish (e.g., "stage-2 reset") while `social_signals` flags `climax_warning` on the same ticker, **both push** because they carry independent information (see `social-active-hour.yml` for a worked example).
+
+### Pass 5 — Bear / skeptic
 
 For every item with `severity: medium` or `severity: high` from Pass 1:
 
@@ -133,14 +220,14 @@ Do NOT run bear-check on `severity: low` items — too much WebSearch noise for 
 
 When a `social_signals[]` entry from Pass 3 fires `buzz_spike` on a top-mover, the bear pass SHOULD also run on that top-mover (treat it as if it were a `medium`-severity Pass 1 item) — the buzz needs a "real catalyst or pump?" check.
 
-### Pass 5 — Synth (compose snapshot + material_deltas)
+### Pass 6 — Synth (compose snapshot + material_deltas)
 
 1. Build `market_context` — WebFetch finviz or WebSearch for SPY / QQQ / VIX / a few sector ETFs (XLK, XLE, XLF at minimum; XLI, XLV, XLY when relevant to positions or watchlist).
 2. Compute `delta_vs_prior` for each `per_ticker_item` by comparing against the prior-hour snapshot's items (match on `ticker` + similar `title` keyword overlap). Use `vs_prior_snapshot_pct` for market_context quotes.
 3. Apply the **material-delta table** below and populate `material_deltas[]`. Empty array = no Telegram push.
 4. Write the snapshot YAML. Write `HH-summary.txt` ONLY if `material_deltas[]` is non-empty.
 
-## Material-delta table (Phase 1 + 1.5 baseline)
+## Material-delta table (Phase 1 + 1.5 + schema-1.2 baseline)
 
 | `reason` | Trigger | Threshold |
 |---|---|---|
@@ -155,10 +242,13 @@ When a `social_signals[]` entry from Pass 3 fires `buzz_spike` on a top-mover, t
 | `social_climax_open_pos` | `social_signals[]` entry on an open position with `classification: climax_warning` | Any |
 | `social_bearish_open_pos` | `social_signals[]` entry on an open position with `classification: bearish_pile_on` | Any |
 | `social_buzz_top_mover` | `social_signals[]` entry on a top-mover (potential_ep) with `classification: buzz_spike` | Any |
+| `x_signal_bullish_open_pos` | `x_signals[]` entry on an open position with `classifier_result.sentiment_tag: bullish` AND `classifier_result.material: true` | Any |
+| `x_signal_bearish_open_pos` | `x_signals[]` entry on an open position with `classifier_result.sentiment_tag: bearish` AND `classifier_result.material: true` | Any |
+| `x_signal_breaking_news_watched` | `x_signals[]` entry on a WATCHED ticker (watchlist OR position OR top-mover) with `classifier_result.sentiment_tag: breaking-news` AND `classifier_result.material: true` | Any |
 
 "Watched" = present in `journal/watchlist.json` OR `journal/positions.json`.
 
-The three `social_*` reasons index into `social_signals[]` via `source_item_index`.
+The three `social_*` reasons index into `social_signals[]` via `source_item_index`; the three `x_signal_*` reasons index into `x_signals[]`. `neutral` sentiment never triggers an X-driven push (it stays in `x_signals[]` as informational color but doesn't become a material delta).
 
 ## Telegram summary format (HH-summary.txt)
 
@@ -173,6 +263,8 @@ MACRO     [severity]  <summary>  —  <source_tag>
 ```
 
 Use `MACRO` for `fed_speak` / `fomc_release` (no ticker). Use `SECTOR` for `sector_move` (no ticker; reference the ETF in the summary). The summary string is one sentence; lead with the actionable fact.
+
+For X-sourced material deltas (`reason` starts with `x_signal_`), prefix the summary with the author handle for context — e.g., `NVDA  [med]  @QullamagieDave (234k followers): NVDA pullback to 50-day MA, stage-2 reset framing  —  web:x.com`. The `@handle (Nk followers)` prefix lets the reader instantly judge author authority. Keep within the one-line budget.
 
 ## Working principles (non-negotiable)
 
