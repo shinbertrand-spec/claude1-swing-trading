@@ -21,96 +21,10 @@ meta:
 kind: ts_momentum
 
 universe:
-  # Same 88-ticker SP500-leaning universe + SPY benchmark used by the
-  # other quant-strategist candidates for like-for-like comparison.
-  tickers:
-    - AAPL
-    - ABBV
-    - ADBE
-    - AMD
-    - AMT
-    - AMZN
-    - APD
-    - ASML
-    - AVGO
-    - AXP
-    - BABA
-    - BAC
-    - BKNG
-    - BLK
-    - CAT
-    - CEG
-    - CMCSA
-    - COIN
-    - COP
-    - COST
-    - CRM
-    - CVX
-    - DIS
-    - DUK
-    - EQIX
-    - ETN
-    - FCX
-    - FDX
-    - GE
-    - GOOGL
-    - GS
-    - HD
-    - HON
-    - HUBB
-    - ISRG
-    - JNJ
-    - JPM
-    - KLAC
-    - KO
-    - LIN
-    - LLY
-    - LMT
-    - LULU
-    - MA
-    - MCD
-    - META
-    - MO
-    - MRK
-    - MRVL
-    - MS
-    - MSFT
-    - MU
-    - NBIS
-    - NEE
-    - NFLX
-    - NKE
-    - NUE
-    - NVDA
-    - ORCL
-    - OXY
-    - PDD
-    - PEP
-    - PG
-    - PLD
-    - PLTR
-    - QCOM
-    - QQQ
-    - RBLX
-    - SBUX
-    - SCHW
-    - SLB
-    - SO
-    - T
-    - TLN
-    - TMO
-    - TMUS
-    - TSLA
-    - UNH
-    - UPS
-    - V
-    - VRT
-    - VRTX
-    - VST
-    - WCC
-    - WMT
-    - XLK
-    - XOM
+  # Registered universe — see tools/quant_strategies/_universes/sp500_leaning_88.yml.
+  # Same 88-ticker SP500-leaning universe + SPY benchmark used by the other
+  # quant-strategist candidates for like-for-like comparison.
+  name: sp500_leaning_88
   benchmark: SPY
 
 period:

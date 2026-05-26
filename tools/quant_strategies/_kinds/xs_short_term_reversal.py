@@ -54,10 +54,20 @@ def precompute(
     universe_dfs: dict[str, pd.DataFrame],
     params: dict,
 ) -> CrossSectionalState:
-    """Build bottom-N ranking state for each rebalance date."""
+    """Build bottom-N ranking state for each rebalance date.
+
+    Selection size accepts either form (``bottom_pct`` wins when both are
+    set so a wider-universe migration only needs the spec to add
+    ``bottom_pct`` without removing ``bottom_n``):
+
+    * ``bottom_pct: 0.05`` — pick the bottom 5% of the candidate pool
+      (count derived as ``max(1, int(n_candidates * bottom_pct))``).
+      Use this on universes that change size (e.g. S&P 500 vs the 88
+      mega-cap pool) — keeps the strategy's selectivity ratio stable.
+    * ``bottom_n: 5`` — absolute count. Use only on fixed universes.
+    """
     benchmark = params["benchmark"]
     lookback = int(params["lookback_days"])
-    bottom_n = int(params["bottom_n"])
     rebalance_period = int(params["rebalance_period_days"])
 
     if benchmark not in universe_dfs:
@@ -73,6 +83,17 @@ def precompute(
     rebalance_dates = [bench_dates[i] for i in range(start_idx, len(bench_dates), rebalance_period)]
 
     candidate_tickers = [t for t in universe_dfs if t != benchmark]
+
+    # Resolve selection size from params.
+    if "bottom_pct" in params and params["bottom_pct"] is not None:
+        bottom_pct = float(params["bottom_pct"])
+        if not 0.0 < bottom_pct <= 1.0:
+            raise ValueError(f"bottom_pct must be in (0, 1]; got {bottom_pct}")
+        bottom_n = max(1, int(len(candidate_tickers) * bottom_pct))
+    elif "bottom_n" in params and params["bottom_n"] is not None:
+        bottom_n = int(params["bottom_n"])
+    else:
+        raise ValueError("xs_short_term_reversal needs bottom_pct or bottom_n in params")
     bottom_n_by_date: dict[pd.Timestamp, set[str]] = {}
     for d in rebalance_dates:
         scores: list[tuple[float, str]] = []

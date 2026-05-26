@@ -20,98 +20,18 @@ meta:
 kind: dual_ma_trend_following
 
 universe:
-  tickers:
-    - AAPL
-    - ABBV
-    - ADBE
-    - AMD
-    - AMT
-    - AMZN
-    - APD
-    - ASML
-    - AVGO
-    - AXP
-    - BABA
-    - BAC
-    - BKNG
-    - BLK
-    - CAT
-    - CEG
-    - CMCSA
-    - COIN
-    - COP
-    - COST
-    - CRM
-    - CVX
-    - DIS
-    - DUK
-    - EQIX
-    - ETN
-    - FCX
-    - FDX
-    - GE
-    - GOOGL
-    - GS
-    - HD
-    - HON
-    - HUBB
-    - ISRG
-    - JNJ
-    - JPM
-    - KLAC
-    - KO
-    - LIN
-    - LLY
-    - LMT
-    - LULU
-    - MA
-    - MCD
-    - META
-    - MO
-    - MRK
-    - MRVL
-    - MS
-    - MSFT
-    - MU
-    - NBIS
-    - NEE
-    - NFLX
-    - NKE
-    - NUE
-    - NVDA
-    - ORCL
-    - OXY
-    - PDD
-    - PEP
-    - PG
-    - PLD
-    - PLTR
-    - QCOM
-    - QQQ
-    - RBLX
-    - SBUX
-    - SCHW
-    - SLB
-    - SO
-    - T
-    - TLN
-    - TMO
-    - TMUS
-    - TSLA
-    - UNH
-    - UPS
-    - V
-    - VRT
-    - VRTX
-    - VST
-    - WCC
-    - WMT
-    - XLK
-    - XOM
+  # Registered universe — see tools/quant_strategies/_universes/sp500_2026q2.yml.
+  # Migrated 2026-05-26 from the 88-ticker hand-curated set to current S&P 500
+  # constituents (~503 names) for AUM-capacity prep.
+  name: sp500_2026q2
   benchmark: SPY
 
 period:
-  start: "2020-01-01"
+  # Extended 2026-05-26 from start=2020-01-01 to start=2017-01-01 (lever A
+  # of the cross-regime-robustness plan). With 3y IS + 1y OOS + 1y step
+  # over ~9 years this yields 6 OOS windows: 2020 (COVID), 2021 (mania),
+  # 2022 (rate-hike), 2023, 2024, 2025 — vs the prior 3-window setup.
+  start: "2017-01-01"
   end: "2026-05-25"
 
 walk_forward:
@@ -126,7 +46,13 @@ params:
   atr_period: 20
   atr_stop_multiple: 3.0          # same as Clenow v1
   max_hold_days: 60               # multi-week — matches Clenow horizon
-  risk_per_trade: 0.01
+  # Scaled 2026-05-26 from 0.01 (88-ticker tuning) to 0.002 (sp500_2026q2 ~503
+  # tickers) to preserve effective concurrent-position leverage. The simulator
+  # has no portfolio-level position cap (each ticker simulates independently),
+  # so risk_per_trade must shrink in inverse proportion to universe size or
+  # cumulative-equity DD diverges as the universe widens. Same precedent as
+  # connors_rsi2 at 0.002 noted at deployable_setups.yml § parked rows.
+  risk_per_trade: 0.002
 
 execution:
   trail: ma_trail                 # trail stop to long-MA — faithful to dual-MA philosophy

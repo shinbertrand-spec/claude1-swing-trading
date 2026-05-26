@@ -121,3 +121,70 @@ def test_replay_no_signal_for_ticker_not_in_bottom_n():
     state = precompute(universe, params)
     up_signals = replay(universe["UP"], "UP", params, state)
     assert up_signals == []
+
+
+def test_precompute_with_bottom_pct_picks_proportional_count():
+    """bottom_pct=0.20 on a 10-name universe → bottom 2 picks per rebalance."""
+    universe = {"SPY": _df_constant_drift(60, 100.0, 0.0)}
+    # 10 names with descending drift: T0 = strongest uptrend → T9 = strongest downtrend.
+    for i in range(10):
+        drift = 0.005 - i * 0.001  # +0.005, +0.004, ..., -0.004
+        universe[f"T{i}"] = _df_constant_drift(60, 100.0, drift)
+
+    params = _params()
+    params.pop("bottom_n")
+    params["bottom_pct"] = 0.20  # 20% of 10 = 2
+    state = precompute(universe, params)
+    assert len(state.rebalance_dates) > 0
+    # Bottom-2 on a 10-name pool should be T8 + T9 (most negative drift).
+    for d in state.rebalance_dates:
+        picked = state.bottom_n_by_date[d]
+        assert picked == {"T8", "T9"}, f"unexpected bottom-2: {picked}"
+
+
+def test_precompute_bottom_pct_wins_when_both_set():
+    """bottom_pct takes precedence over bottom_n during migration."""
+    universe = {"SPY": _df_constant_drift(60, 100.0, 0.0)}
+    for i in range(10):
+        universe[f"T{i}"] = _df_constant_drift(60, 100.0, 0.005 - i * 0.001)
+    params = _params()
+    params["bottom_n"] = 5
+    params["bottom_pct"] = 0.10  # 10% of 10 = 1 ticker
+    state = precompute(universe, params)
+    for d in state.rebalance_dates:
+        picked = state.bottom_n_by_date[d]
+        assert len(picked) == 1, f"bottom_pct should win → 1 pick; got {picked}"
+
+
+def test_precompute_bottom_pct_rounds_down_minimum_one():
+    """Very small bottom_pct still picks at least 1 ticker."""
+    universe = {"SPY": _df_constant_drift(60, 100.0, 0.0)}
+    for i in range(10):
+        universe[f"T{i}"] = _df_constant_drift(60, 100.0, 0.005 - i * 0.001)
+    params = _params()
+    params.pop("bottom_n")
+    params["bottom_pct"] = 0.01  # 1% of 10 = 0.1 → max(1, 0) = 1
+    state = precompute(universe, params)
+    for d in state.rebalance_dates:
+        assert len(state.bottom_n_by_date[d]) == 1
+
+
+def test_precompute_invalid_bottom_pct_raises():
+    """Out-of-range bottom_pct is rejected."""
+    import pytest
+    universe = {"SPY": _df_constant_drift(60, 100.0, 0.0), "X": _df_constant_drift(60, 100.0, 0.0)}
+    params = _params()
+    params.pop("bottom_n")
+    for bad in (0.0, -0.1, 1.5):
+        params["bottom_pct"] = bad
+        with pytest.raises(ValueError, match="bottom_pct"):
+            precompute(universe, params)
+
+
+def test_precompute_missing_both_sizing_params_raises():
+    import pytest
+    universe = {"SPY": _df_constant_drift(60, 100.0, 0.0), "X": _df_constant_drift(60, 100.0, 0.0)}
+    params = _params()
+    params.pop("bottom_n")
+    with pytest.raises(ValueError, match="bottom_pct or bottom_n"):
+        precompute(universe, params)

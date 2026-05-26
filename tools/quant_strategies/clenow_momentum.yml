@@ -19,101 +19,18 @@ meta:
 kind: clenow_momentum
 
 universe:
-  # Same 88-ticker S&P-500-leaning universe used in the 2026-05-24
-  # setup-sweep. Benchmark must be in the list (cross-sectional ranker
-  # excludes it; regime filter uses its SMA).
-  tickers:
-    - AAPL
-    - ABBV
-    - ADBE
-    - AMD
-    - AMT
-    - AMZN
-    - APD
-    - ASML
-    - AVGO
-    - AXP
-    - BABA
-    - BAC
-    - BKNG
-    - BLK
-    - CAT
-    - CEG
-    - CMCSA
-    - COIN
-    - COP
-    - COST
-    - CRM
-    - CVX
-    - DIS
-    - DUK
-    - EQIX
-    - ETN
-    - FCX
-    - FDX
-    - GE
-    - GOOGL
-    - GS
-    - HD
-    - HON
-    - HUBB
-    - ISRG
-    - JNJ
-    - JPM
-    - KLAC
-    - KO
-    - LIN
-    - LLY
-    - LMT
-    - LULU
-    - MA
-    - MCD
-    - META
-    - MO
-    - MRK
-    - MRVL
-    - MS
-    - MSFT
-    - MU
-    - NBIS
-    - NEE
-    - NFLX
-    - NKE
-    - NUE
-    - NVDA
-    - ORCL
-    - OXY
-    - PDD
-    - PEP
-    - PG
-    - PLD
-    - PLTR
-    - QCOM
-    - QQQ
-    - RBLX
-    - SBUX
-    - SCHW
-    - SLB
-    - SO
-    - T
-    - TLN
-    - TMO
-    - TMUS
-    - TSLA
-    - UNH
-    - UPS
-    - V
-    - VRT
-    - VRTX
-    - VST
-    - WCC
-    - WMT
-    - XLK
-    - XOM
+  # Registered universe — see tools/quant_strategies/_universes/sp500_leaning_88.yml.
+  # Same 88-ticker S&P-500-leaning universe used in the 2026-05-24 setup-sweep.
+  # The cross-sectional ranker excludes the benchmark; regime filter uses its SMA.
+  name: sp500_leaning_88
   benchmark: SPY
 
 period:
-  start: "2020-01-01"
+  # Extended 2026-05-26 from start=2020-01-01 to start=2017-01-01 (lever A
+  # of the cross-regime-robustness plan). With 3y IS + 1y OOS + 1y step
+  # over ~9 years this yields 6 OOS windows: 2020 (COVID), 2021 (mania),
+  # 2022 (rate-hike), 2023, 2024, 2025 — vs the prior 3-window setup.
+  start: "2017-01-01"
   end: "2026-05-25"
 
 walk_forward:
