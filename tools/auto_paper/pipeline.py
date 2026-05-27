@@ -24,7 +24,7 @@ from typing import Any, Optional
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..regime_check import classify_broad
 from ..trend_template import compute_from_ticker as tt_from_ticker
-from . import config, state
+from . import config, screener, state
 
 # Hard rules per CLAUDE.md, applied to the paper-auto track in isolation.
 MAX_POSITIONS = 8
@@ -66,9 +66,18 @@ class PlacementResult:
     broker_order_id: Optional[int] = None
     ledger_path: Optional[str] = None
     cost_estimate_usd: Optional[float] = None
+    screener_trace: Optional[dict[str, Any]] = None  # set when screener ran
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _run_screener(ticker: str, claimed_sector_etf: Optional[str]):
+    """Indirection so tests can monkeypatch the network-touching screener
+    call without stubbing every internal helper. Returns a
+    :class:`tools.auto_paper.screener.ScreenerResult`.
+    """
+    return screener.screen(ticker, claimed_sector_etf=claimed_sector_etf)
 
 
 def _reject(ticker: str, reason: str) -> PlacementResult:
@@ -177,6 +186,45 @@ def place_candidate(
             f"paper-auto ledger already exists at {state.ledger_path(cand.ticker)}",
         )
 
+    # 2b. Pre-placement screener — strategy-blind disqualifiers (litigation,
+    # dilution, earnings forward 10d) + sector correction. Runs before
+    # broker client construction so a screener-block costs zero broker
+    # round-trips. Hard-block reasons surface in PlacementResult.reason
+    # with a "screener:" prefix so the auto-paper summary can group them.
+    screener_trace_dict: Optional[dict[str, Any]] = None
+    try:
+        screener_result = _run_screener(cand.ticker, cand.sector_etf)
+    except Exception as exc:
+        # Fail-OPEN on screener crash — the screener's individual checks
+        # already fail-open on their own network/API errors; a top-level
+        # exception here is unexpected and should not block placement.
+        # The crash is recorded in screener_trace so the operator can audit.
+        screener_result = None
+        screener_trace_dict = {"crashed": True, "error": str(exc)}
+
+    if screener_result is not None:
+        screener_trace_dict = screener_result.to_dict()
+        # Sector correction — patch the candidate before any sector-cap
+        # accounting downstream. The original claimed sector lives in the
+        # screener trace evidence so the operator can see what changed.
+        if screener_result.corrected_sector_etf is not None:
+            cand = replace(cand, sector_etf=screener_result.corrected_sector_etf)
+        if screener_result.blocked:
+            blocking = ", ".join(screener_result.blocking_checks)
+            # First failing check's reason is the human-readable summary.
+            first_block = next(
+                (c for c in screener_result.checks if not c.passed
+                 and c.check in {"litigation", "dilution", "earnings_blackout"}),
+                None,
+            )
+            detail = first_block.reason if first_block else "see screener_trace"
+            return PlacementResult(
+                ticker=cand.ticker,
+                status="rejected",
+                reason=f"screener:{blocking} — {detail}",
+                screener_trace=screener_trace_dict,
+            )
+
     # 3. Construct / verify the client (paper-only)
     try:
         c = client or TigerClient()  # refuses live by default
@@ -246,6 +294,7 @@ def place_candidate(
                 f"(stop ${cand.stop_price:.2f}; ~${cost_estimate:,.2f})"
             ),
             cost_estimate_usd=cost_estimate,
+            screener_trace=screener_trace_dict,
         )
 
     # 5. Place the limit order
@@ -328,4 +377,5 @@ def place_candidate(
         broker_order_id=order_id,
         ledger_path=path,
         cost_estimate_usd=cost_estimate,
+        screener_trace=screener_trace_dict,
     )

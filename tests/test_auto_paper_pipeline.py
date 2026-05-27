@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tools.auto_paper import screener as _screener_mod
 from tools.auto_paper import state
 from tools.auto_paper.pipeline import (
     CandidateInput,
@@ -89,6 +90,24 @@ def paper_dirs(tmp_path, monkeypatch):
         _pipeline, "_resolve_regime_multiplier",
         lambda: ("stage_2_confirmed", 1.0),
     )
+    # Screener — replace the network-touching call with a "clean" stub that
+    # passes every check + returns no sector correction. Tests that exercise
+    # screener-block paths re-monkeypatch this themselves.
+    def _clean_screener(ticker, claimed_sector_etf):
+        return _screener_mod.ScreenerResult(
+            ticker=ticker,
+            blocked=False,
+            blocking_checks=[],
+            corrected_sector_etf=None,
+            checks=[
+                _screener_mod.CheckResult(check="litigation", passed=True),
+                _screener_mod.CheckResult(check="dilution", passed=True),
+                _screener_mod.CheckResult(check="earnings_blackout", passed=True),
+                _screener_mod.CheckResult(check="sector_lookup", passed=True),
+            ],
+            computed_at="2026-05-27T00:00:00+00:00",
+        )
+    monkeypatch.setattr(_pipeline, "_run_screener", _clean_screener)
     return ledger_dir, positions_json
 
 
@@ -340,3 +359,147 @@ def test_regime_floor_at_one_share(paper_client, paper_dirs, monkeypatch):
     # 1 × 0.5 = 0.5 → floored to 1
     assert result.status == "dry_run"
     assert "1 NVDA" in result.reason
+
+
+# ---------------------------------------------------------- Phase 1 screener
+#
+# The screener (litigation, dilution, earnings-forward-10d, sector lookup)
+# runs after the deployable filter and before broker construction. The
+# paper_dirs fixture patches _run_screener to a "clean" stub by default;
+# these tests override that to exercise block + correction paths.
+
+
+def _screener_blocked(*, blocking, corrected_sector=None, first_reason="active class action found"):
+    """Build a ScreenerResult that triggers a screener-block path."""
+    check_passes = {
+        "litigation": "litigation" not in blocking,
+        "dilution": "dilution" not in blocking,
+        "earnings_blackout": "earnings_blackout" not in blocking,
+    }
+    return _screener_mod.ScreenerResult(
+        ticker="ANY",
+        blocked=len(blocking) > 0,
+        blocking_checks=list(blocking),
+        corrected_sector_etf=corrected_sector,
+        checks=[
+            _screener_mod.CheckResult(
+                check="litigation",
+                passed=check_passes["litigation"],
+                reason=(first_reason if not check_passes["litigation"] else None),
+            ),
+            _screener_mod.CheckResult(
+                check="dilution",
+                passed=check_passes["dilution"],
+                reason=(first_reason if not check_passes["dilution"] else None),
+            ),
+            _screener_mod.CheckResult(
+                check="earnings_blackout",
+                passed=check_passes["earnings_blackout"],
+                reason=(first_reason if not check_passes["earnings_blackout"] else None),
+            ),
+            _screener_mod.CheckResult(check="sector_lookup", passed=True),
+        ],
+        computed_at="2026-05-27T00:00:00+00:00",
+    )
+
+
+def test_screener_litigation_blocks_placement(paper_client, paper_dirs, monkeypatch):
+    """The GO regression case: active class action → screener:litigation block."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_run_screener",
+        lambda t, sec: _screener_blocked(
+            blocking=["litigation"],
+            first_reason="Active litigation / SEC concern detected - 3 headline(s)",
+        ),
+    )
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
+    assert result.status == "rejected"
+    assert result.reason.startswith("screener:litigation")
+    assert "Active litigation" in result.reason
+    # Broker should NOT have been called
+    place_calls = [c for c in paper_client._tc.calls if c[0] == "place_order"]
+    assert len(place_calls) == 0
+    # screener_trace is attached to the rejection
+    assert result.screener_trace is not None
+    assert result.screener_trace["blocked"] is True
+
+
+def test_screener_sector_correction_applied(paper_client, paper_dirs, monkeypatch):
+    """Mismatched sector (XLK claimed, XLP actual) is corrected pre-placement.
+    The corrected sector is what lands in positions.json."""
+    from tools.auto_paper import pipeline as _pipeline
+    def _stub(ticker, claimed):
+        return _screener_mod.ScreenerResult(
+            ticker=ticker,
+            blocked=False,
+            blocking_checks=[],
+            corrected_sector_etf="XLP",  # the correction
+            checks=[
+                _screener_mod.CheckResult(check="litigation", passed=True),
+                _screener_mod.CheckResult(check="dilution", passed=True),
+                _screener_mod.CheckResult(check="earnings_blackout", passed=True),
+                _screener_mod.CheckResult(
+                    check="sector_lookup", passed=True,
+                    reason="sector mismatch: claimed=XLK, actual=XLP",
+                    evidence={
+                        "yfinance_sector": "Consumer Defensive",
+                        "claimed_sector_etf": "XLK",
+                        "actual_sector_etf": "XLP",
+                        "mismatch": True,
+                    },
+                ),
+            ],
+            computed_at="2026-05-27T00:00:00+00:00",
+        )
+    monkeypatch.setattr(_pipeline, "_run_screener", _stub)
+    cand = _vcp_cand(sector_etf="XLK")  # wrong
+    result = place_candidate(cand, client=paper_client, dry_run=False)
+    assert result.status == "placed"
+    pj = state.load_positions_json()
+    assert pj["positions"][0]["sector"] == "XLP"  # corrected
+    # The trace records the correction
+    assert result.screener_trace["corrected_sector_etf"] == "XLP"
+
+
+def test_screener_dilution_blocks_placement(paper_client, paper_dirs, monkeypatch):
+    """Recent dilutive offering surfaces as screener:dilution block."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_run_screener",
+        lambda t, sec: _screener_blocked(
+            blocking=["dilution"],
+            first_reason="Recent dilutive-raise announcement - 1 headline(s)",
+        ),
+    )
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
+    assert result.status == "rejected"
+    assert result.reason.startswith("screener:dilution")
+
+
+def test_screener_crash_fails_open(paper_client, paper_dirs, monkeypatch):
+    """A top-level screener exception (rare) should NOT block placement.
+    The crash is logged in screener_trace for operator audit."""
+    from tools.auto_paper import pipeline as _pipeline
+    def _crash(t, sec):
+        raise RuntimeError("DNS failure on finviz")
+    monkeypatch.setattr(_pipeline, "_run_screener", _crash)
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
+    assert result.status == "placed"
+    assert result.screener_trace == {"crashed": True, "error": "DNS failure on finviz"}
+
+
+def test_screener_multiple_blocks_reason_lists_all(paper_client, paper_dirs, monkeypatch):
+    """When >1 check fires, all blocking_checks appear in the reason string."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_run_screener",
+        lambda t, sec: _screener_blocked(
+            blocking=["litigation", "earnings_blackout"],
+            first_reason="Active litigation detected",
+        ),
+    )
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
+    assert result.status == "rejected"
+    # Both surface in the human-readable reason
+    assert "litigation" in result.reason and "earnings_blackout" in result.reason

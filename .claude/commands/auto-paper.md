@@ -135,12 +135,18 @@ For each candidate that passes Step 2:
    The pipeline enforces:
    - Deployable-setup filter (already applied; defensive double-check)
    - Refuses if a paper-auto ledger already exists for this ticker
+   - **Phase 1 screener (`tools.auto_paper.screener`)** — strategy-blind disqualifier checks added 2026-05-27:
+     - Active securities class action / SEC investigation (finviz news scan) → BLOCK
+     - Recent dilutive raise (finviz news scan) → BLOCK
+     - Earnings within forward 10-trading-day window → BLOCK
+     - Sector lookup (yfinance GICS sector → SPDR ETF) → CORRECT (not a block)
+     Hard-block hits surface as `status: "rejected"` with `reason: "screener:<check> — <detail>"`. Sector mismatches patch `cand.sector_etf` in place before sector-cap accounting. Catches what the walk-forward backtest's sanitized universe could not see (e.g. the GO active-class-action case from 2026-05-26).
    - Track-level hard rules (5% / 20% / 8 / 15%) against paper-auto track only
    - Calls `TigerClient.place_limit_buy` (or skips if `dry_run=True`)
    - Writes `ledgers/paper-auto/<TICKER>.yml` with `state: submitted`
    - Appends to `journal/paper-auto/positions.json`
 
-   Capture `result.status`, `result.broker_order_id`, `result.ledger_path`, `result.reason`.
+   Capture `result.status`, `result.broker_order_id`, `result.ledger_path`, `result.reason`. The screener trace lives at `result.screener_trace` for placed-OR-rejected candidates — surface litigation hits in the summary as `screener: <ticker> — <first matching headline>`.
 
 ## Step 3b — Quant candidates: straight to pipeline
 
@@ -154,6 +160,7 @@ result = place_candidate(cand, client=c, dry_run=<args.dry_run>)
 These candidates are PRE-SIZED by the scanner — do NOT re-size, do NOT deep-dive, do NOT run the 5-gate. The pipeline still applies its standard checks:
 - Deployable-setup filter (defensive)
 - Existing-ledger refusal
+- **Phase 1 screener** — strategy-blind disqualifiers (litigation / dilution / earnings-blackout / sector correction). Per the 2026-05-27 retrospective: quant picks bypassed the 5-gate's litigation check and a class-action-defendant landed in the paper-auto track. The screener is the targeted patch — it runs even on quant candidates, because litigation and dilution are not in any OHLCV signal class. Strategy-relative checks (Stage 2 requirement, fundamental momentum thresholds, setup pattern detection) intentionally still bypass — those are baked into the quant signal definition.
 - Track-level hard rules (5% / 20% / 8 / 15%)
 - Regime-conditional sizing multiplier (lever D — pipeline now re-applies regime stage to the scanner's already-sized share count; this is intentional double-application for safety)
 - Broker call + ledger write
@@ -177,6 +184,7 @@ Output (and reply via Telegram if invoked from a Telegram session):
 | NVDA   | placed | order #10001, 12 sh @ $850.50, stop $810.00, ledger paper-auto/NVDA.yml |
 | AAPL   | rejected | setup_type 'Pullback-20SMA' not on deployable list |
 | MSFT   | blocked | 5-gate: trace_audit BLOCK on uncited claim |
+| GO     | rejected | screener:litigation — Active class action detected (4 headline(s)) |
 | GOOGL  | dry_run | would place limit-buy 8 GOOGL @ $401.50 (~$3,212) |
 | TSLA   | error  | place_limit_buy: INSUFFICIENT_FUNDS |
 | ...
