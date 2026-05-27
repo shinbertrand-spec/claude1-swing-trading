@@ -63,13 +63,47 @@ entry-point list.
 
 ### Risk Management
 - If a position drops **8% from entry**, close it without waiting — no
-  averaging down
+  averaging down (**human-discretionary track only** — see per-track note below)
 - If a position drops **5% from entry AND the technical setup breaks** (e.g.,
   loses 20-day MA, breaks support), close it
 - Trail stops to breakeven once a position is **+5%**; trail to +5% once at
   **+10%**
 - Never place trades when market status is "closed"
 - Never hold through earnings unless that was the explicit thesis
+
+#### Per-track stop discipline (paper-auto carve-out, codified 2026-05-27)
+
+The 8%-hard-stop rule above applies to the **human-discretionary track**
+(`journal/positions.json` + `ledgers/positions/<TICKER>.yml`) — where stops
+are set by the trade-researcher / risk-and-compliance flow using
+`tools.stop_sizer` with the Minervini 8% cap as a binding constraint.
+
+The **paper-auto quant track** (`journal/paper-auto/positions.json` +
+`ledgers/paper-auto/<TICKER>.yml`) uses **ATR-based stops per backtest
+fidelity**. Typical stop distances on this track are 11–34% wide — wider
+than the 8% cap because high-volatility names structurally require stops
+beyond 1×ATR to avoid being noise-stopped, and the walk-forward backtest
+validated the strategy's Sharpe / |MDD| metrics at these natural widths.
+Tightening to 8% would invalidate the deployment-gate evidence that
+justified placing the trade in the first place.
+
+The trade-off this carve-out accepts:
+- Worst-case loss per paper-auto position can be 2–4× the 8% rule.
+- The per-position 5% net-liq cap (separate hard rule, unchanged) bounds
+  the dollar damage of any single such loss.
+- The deployment gate's rolling-walk-forward |MDD| < 25% is the
+  cross-instance discipline that replaces the per-position 8% discipline.
+
+Trail-to-breakeven and trail-to-+5% (the +5% / +10% lines above) apply
+to both tracks via `tools.auto_paper.stop_ratchet` (Session 5 enhancement),
+which operates on whatever the current stop is — independent of initial
+stop width.
+
+If a future quant strategy emerges where ATR stops AND walk-forward
+deployment gates AND per-position 5% cap together cannot bound risk
+acceptably, the right response is to tighten the deployment gate (e.g.
+require |MDD| < 15% instead of 25%), not to retroactively impose the 8%
+cap on a strategy the backtest never tested at that stop width.
 
 ### Discipline
 - Always write a journal entry, even on days with no trades
