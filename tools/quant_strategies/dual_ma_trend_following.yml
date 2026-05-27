@@ -46,12 +46,16 @@ params:
   atr_period: 20
   atr_stop_multiple: 3.0          # same as Clenow v1
   max_hold_days: 60               # multi-week — matches Clenow horizon
-  # Scaled 2026-05-26 from 0.01 (88-ticker tuning) to 0.002 (sp500_2026q2 ~503
-  # tickers) to preserve effective concurrent-position leverage. The simulator
-  # has no portfolio-level position cap (each ticker simulates independently),
-  # so risk_per_trade must shrink in inverse proportion to universe size or
-  # cumulative-equity DD diverges as the universe widens. Same precedent as
-  # connors_rsi2 at 0.002 noted at deployable_setups.yml § parked rows.
+  # 2026-05-27: with the portfolio-level concurrent-position cap now permanent
+  # (tools.backtest.metrics.DEFAULT_MAX_CONCURRENT = 8, commit 77ad485), the
+  # original "no cap → shrink risk to compensate" rationale is obsolete. 0.002
+  # is retained as defense-in-depth — second risk-bound on top of the cap.
+  # Empirical cap-sweep on 2026-05-27 (backtest_results/dual_ma_trend_following_sp500_2026q2_capped.md)
+  # shows: at risk_per_trade=0.002 with cap ∈ {5,8,10,20}, |MDD| stays in
+  # [3.4%, 10.7%]. Linear scaling estimate at 0.01 puts |MDD| at cap=10 in the
+  # -30% to -40% range — busts the doctrine |MDD| < 25% gate. Sharpe is
+  # scale-invariant, so the relaxation would buy no edge improvement.
+  # Promotion path: see promotion_path block at the bottom of this file.
   risk_per_trade: 0.002
 
 execution:
@@ -62,3 +66,51 @@ gate:
   sharpe_min: 1.0
   max_dd_pct: 25.0
   n_min: 30
+
+# ---------------------------------------------------------------------------
+# Promotion path (off the parked list)
+# ---------------------------------------------------------------------------
+# As of 2026-05-27 post-sim-fix re-validation, this strategy is parked in
+# tools/deployable_setups.yml § parked_by_concurrent_cap_reveals_weak_edge.
+# The honest diagnosis: dual_ma's signal density on a wide universe (503
+# tickers, ~5000 raw signals over 9y) far exceeds what an 8-concurrent cap
+# can absorb without quality-ranking. The cap rejects ~94% of signals
+# by (fill_date, ticker, exit_date) tie-break — alphabetical-by-ticker on
+# same-day collisions — making the resulting top combo partially a
+# tie-break artefact rather than a signal-quality selection.
+#
+# To earn a deployable verdict, dual_ma needs ONE of:
+#
+#   1. Top-K ranking by trend strength. Rank candidate signals by
+#      (price - MA(long)) / ATR, or by the exponential-regression slope×R²
+#      used by clenow_momentum. Take only the top K (≈ cap=8) per day.
+#      This makes the cap NON-binding and the verdict tie-break-free.
+#
+#   2. Regime + volume filter. Restrict entries to days where SPY > 200d SMA
+#      (already used by connors_rsi2) AND the candidate's average dollar
+#      volume on the prior 20d exceeds a floor. Reduces signal count
+#      structurally so the cap rarely binds.
+#
+#   3. Quality gate: only fire on the crossover when MA(short)/MA(long)
+#      slope ratio exceeds a threshold (filter weak crossovers near
+#      equilibrium that contribute most of the noise).
+#
+# Empirical evidence at 2026-05-27 cap-sweep: at cap=20 the gate technically
+# passes (Sharpe 1.28, |MDD| 10.67%, n=706) but 3/6 windows are at the per-
+# window floor and 2022/2023 are both negative. The pass is fragile. Any of
+# (1)-(3) above should both lift the aggregate Sharpe and improve per-window
+# robustness. (1) is the cleanest precedent — see clenow_momentum_liquid_us.yml
+# and ts_momentum_liquid_us.yml (the latter is also parked-equivalent for
+# the same "needs top-K" reason).
+#
+# Out-of-scope for this YAML; tracked here so the next quant-strategist
+# iteration has the design context without rediscovering it.
+promotion_path:
+  status: parked
+  parked_at: 2026-05-27
+  reason: "signal_density_exceeds_cap_without_ranking"
+  candidate_fixes:
+    - top_k_by_trend_strength
+    - regime_plus_volume_filter
+    - crossover_quality_gate
+  evidence: "backtest_results/dual_ma_trend_following_sp500_2026q2_capped.md"

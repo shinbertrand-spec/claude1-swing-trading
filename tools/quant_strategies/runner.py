@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import sys
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -91,6 +92,8 @@ def _run_one_combo(
     params: dict[str, Any],
     universe_dfs: dict,
     kind_mod,
+    max_concurrent_override: int | None = None,
+    max_concurrent_override_set: bool = False,
 ) -> dict[str, Any]:
     """Run a single param-combo end-to-end: precompute → replay → simulator → metrics."""
     benchmark = params.get("benchmark") or spec["universe"]["benchmark"]
@@ -132,6 +135,10 @@ def _run_one_combo(
     end_d = date.fromisoformat(spec["period"]["end"])
     risk = float(params.get("risk_per_trade", 0.01))
 
+    mc_kwargs: dict[str, Any] = (
+        {"max_concurrent": max_concurrent_override} if max_concurrent_override_set else {}
+    )
+
     if wf.get("mode") == "rolling":
         specs = walk_forward.rolling_splits(
             start=start_d, end=end_d,
@@ -146,8 +153,8 @@ def _run_one_combo(
             _is_sigs, is_outs, _oos_sigs, oos_outs = walk_forward.split_trades_by_window(
                 all_signals, all_outcomes, s
             )
-            oos_r = metrics.evaluate(oos_outs, risk_per_trade=risk)
-            is_r = metrics.evaluate(is_outs, risk_per_trade=risk)
+            oos_r = metrics.evaluate(oos_outs, risk_per_trade=risk, **mc_kwargs)
+            is_r = metrics.evaluate(is_outs, risk_per_trade=risk, **mc_kwargs)
             oos_reports.append(oos_r)
             windows.append({
                 "spec": asdict(s),
@@ -158,7 +165,7 @@ def _run_one_combo(
                 "oos_gate": oos_r.deployment_gate_passed,
             })
             concat_oos.extend(oos_outs)
-        oos_report = metrics.evaluate(concat_oos, risk_per_trade=risk)
+        oos_report = metrics.evaluate(concat_oos, risk_per_trade=risk, **mc_kwargs)
         return {
             "params": params,
             "oos_report": oos_report,
@@ -173,7 +180,7 @@ def _run_one_combo(
         _is_sigs, _is_outs, _oos_sigs, oos_outs = walk_forward.split_trades_by_window(
             all_signals, all_outcomes, s
         )
-        oos_report = metrics.evaluate(oos_outs, risk_per_trade=risk)
+        oos_report = metrics.evaluate(oos_outs, risk_per_trade=risk, **mc_kwargs)
         return {
             "params": params,
             "oos_report": oos_report,
@@ -183,7 +190,12 @@ def _run_one_combo(
         }
 
 
-def run_spec(spec_path: str | Path, force_refetch: bool = False) -> dict[str, Any]:
+def run_spec(
+    spec_path: str | Path,
+    force_refetch: bool = False,
+    max_concurrent_override: int | None = None,
+    max_concurrent_override_set: bool = False,
+) -> dict[str, Any]:
     """Load YAML spec, expand grid, run every combo, return ranked report."""
     spec_path = Path(spec_path)
     spec = yaml.safe_load(spec_path.read_text())
@@ -211,7 +223,11 @@ def run_spec(spec_path: str | Path, force_refetch: bool = False) -> dict[str, An
     combo_results = []
     for i, params in enumerate(combos, 1):
         print(f"# Combo {i}/{len(combos)}: {params}", flush=True)
-        result = _run_one_combo(spec, params, universe_dfs, kind_mod)
+        result = _run_one_combo(
+            spec, params, universe_dfs, kind_mod,
+            max_concurrent_override=max_concurrent_override,
+            max_concurrent_override_set=max_concurrent_override_set,
+        )
         combo_results.append(result)
 
     # Apply deployment-gate thresholds from spec (defaults to doctrine).
@@ -389,12 +405,36 @@ def main() -> None:
     p.add_argument("--spec", required=True, help="Path to strategy YAML spec")
     p.add_argument("--out", default=None, help="Write Markdown report to this path (default: stdout only)")
     p.add_argument("--force-refetch", action="store_true")
+    p.add_argument(
+        "--max-concurrent", type=int, default=None,
+        help="Override metrics.DEFAULT_MAX_CONCURRENT (8). Pass 0 to disable cap.",
+    )
     args = p.parse_args()
 
-    result = run_spec(args.spec, force_refetch=args.force_refetch)
-    print(result["markdown"])
+    if args.max_concurrent is None:
+        mc_override = None
+        mc_override_set = False
+    elif args.max_concurrent == 0:
+        mc_override = None  # None disables the cap inside metrics.evaluate
+        mc_override_set = True
+    else:
+        mc_override = args.max_concurrent
+        mc_override_set = True
+
+    result = run_spec(
+        args.spec,
+        force_refetch=args.force_refetch,
+        max_concurrent_override=mc_override,
+        max_concurrent_override_set=mc_override_set,
+    )
     if args.out:
         Path(args.out).write_text(result["markdown"], encoding="utf-8")
+    try:
+        print(result["markdown"])
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write(result["markdown"].encode("utf-8", errors="replace"))
+        sys.stdout.buffer.write(b"\n")
+    if args.out:
         print(f"\n# Report written to {args.out}", flush=True)
 
 
