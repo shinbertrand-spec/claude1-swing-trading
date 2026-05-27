@@ -148,9 +148,68 @@ For each candidate that passes Step 2:
 
    Capture `result.status`, `result.broker_order_id`, `result.ledger_path`, `result.reason`. The screener trace lives at `result.screener_trace` for placed-OR-rejected candidates — surface litigation hits in the summary as `screener: <ticker> — <first matching headline>`.
 
-## Step 3b — Quant candidates: straight to pipeline
+## Step 3b — Quant candidates: shell-ledger + skeptic, then pipeline
 
-For each `CandidateInput` from each `ScannerReport.candidates` (collected in Step 2b):
+For each `CandidateInput` from each `ScannerReport.candidates` (collected in Step 2b), the flow is now three sub-steps:
+
+### Step 3b.1 — Pre-screen via Phase 1 screener (deterministic)
+
+The pipeline runs `tools.auto_paper.screener.screen` internally; the screener catches litigation / dilution / forward-earnings before any broker call. If you want to surface screener-block reasons cleanly in the summary, you can also call screener directly before invoking the pipeline:
+
+```python
+from tools.auto_paper.screener import screen
+screen_result = screen(cand.ticker, claimed_sector_etf=cand.sector_etf)
+if screen_result.blocked:
+    # Surface in summary; skip Step 3b.2 + 3b.3
+    continue
+if screen_result.corrected_sector_etf:
+    # Pipeline does this internally too, but recording the corrected sector
+    # here lets you display the correction in the summary.
+    cand = replace(cand, sector_etf=screen_result.corrected_sector_etf)
+```
+
+### Step 3b.2 — Build shell ledger + invoke trade-skeptic (Phase 2, log-only)
+
+For each candidate that survived the screener, build a shell candidate ledger so the **trade-skeptic** subagent can run normally. The skeptic constructs the invalidation thesis — the strongest case AGAINST taking this long — surfacing strategy-blind failure modes the quant signal can't see (e.g. above-avg volume on the pullback = distribution character; gap-driven move that the ATR stop can't survive; correlated-loss compounding with other paper-auto positions).
+
+```python
+from tools.auto_paper.shell_ledger import (
+    ShellLedgerInput, build_quant_shell_ledger,
+    write_shell_ledger, write_bull_stub_report,
+)
+from datetime import date
+
+inp = ShellLedgerInput(
+    ticker=cand.ticker,
+    setup_type=cand.setup_type,
+    setup_grade=cand.setup_grade,
+    pivot_price=cand.pivot_price,
+    stop_price=cand.stop_price,
+    sector_etf=cand.sector_etf,
+    screener_output=screen_result.to_dict() if screen_result else None,
+)
+ledger_dict, traces = build_quant_shell_ledger(inp, today=date.today())
+ledger_path = write_shell_ledger(
+    ledger_dict, ticker=cand.ticker, ledger_date=date.today(),
+)
+bull_md = write_bull_stub_report(inp=inp, ledger_path=ledger_path)
+```
+
+Then invoke the `trade-skeptic` subagent via the Agent tool. Pass the path to the just-written ledger + bull stub:
+
+> "Skeptic pass on `{ledger_path}`. This is a paper-auto quant pick — the bull case is the statistical edge captured in the strategy's walk-forward backtest (see `tools/deployable_setups.yml`), not a discretionary narrative. The bull stub at `{bull_md_path}` documents this. Your job is to surface the invalidation thesis — strategy-blind failure modes the quant signal can't detect. Write your bear thesis to `{ledger_path with -bear.md}` per the standard contract, and append bear-side trace_refs to the ledger."
+
+Parse the structured `invalidation_thesis` JSON fragment from the skeptic's bear report. **Phase 2 v2 is log-only** — the skeptic's verdict (INVALIDATION_STRONG / PARTIAL / WEAK) is recorded in the placement summary but does NOT block placement. Surface in the Step 4 summary:
+
+```
+SKEPTIC: <verdict> — <one-line invalidation thesis>
+  Risk triggers: <count>
+  Path: <bear_md_path>
+```
+
+Skip silently when the skeptic can't be invoked (sub-agent unavailable, network errors). Failure-to-skeptic does NOT block placement in Phase 2.
+
+### Step 3b.3 — Place via pipeline
 
 ```python
 from tools.auto_paper.pipeline import place_candidate
@@ -167,7 +226,12 @@ These candidates are PRE-SIZED by the scanner — do NOT re-size, do NOT deep-di
 
 Capture `result.status`, `result.broker_order_id`, `result.ledger_path`, `result.reason` per the same pattern as Step 3.
 
-Surface in the summary table with a `source: quant_scanner` annotation so Bertrand can distinguish quant-fired placements from morning-scan-fired ones.
+Surface in the summary table with a `source: quant_scanner` annotation so Bertrand can distinguish quant-fired placements from morning-scan-fired ones. Include the skeptic verdict from Step 3b.2 as an additional column / annotation.
+
+### Phase progression (skeptic verdict integration)
+
+- **Phase 2 v2 (CURRENT)** — skeptic runs, writes bear report + appends bear trace_refs, verdict surfaces in summary. Does NOT block placement. Window for Bertrand to manually review picks where the skeptic verdict is INVALIDATION_STRONG and early-exit via `/auto-paper-monitor` if warranted.
+- **Phase 3 (DEFERRED)** — wire the skeptic verdict into `tools.debate_synthesis` Gate 6, producing a `SwingVerdict` (ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT). REJECT blocks placement; other verdicts pass through but inform sizing or downstream monitoring. Requires retrospective A/B simulation per `wiki/notes/swing-cherrypick-h1-design-spec.md` § A.4 before going live.
 
 ## Step 4 — Summary report
 
@@ -180,13 +244,14 @@ Output (and reply via Telegram if invoked from a Telegram session):
 
 ### Outcomes
 
-| Ticker | Status | Detail |
-| NVDA   | placed | order #10001, 12 sh @ $850.50, stop $810.00, ledger paper-auto/NVDA.yml |
-| AAPL   | rejected | setup_type 'Pullback-20SMA' not on deployable list |
-| MSFT   | blocked | 5-gate: trace_audit BLOCK on uncited claim |
-| GO     | rejected | screener:litigation — Active class action detected (4 headline(s)) |
-| GOOGL  | dry_run | would place limit-buy 8 GOOGL @ $401.50 (~$3,212) |
-| TSLA   | error  | place_limit_buy: INSUFFICIENT_FUNDS |
+| Ticker | Status | Skeptic | Detail |
+| NVDA   | placed | INVALIDATION_WEAK | order #10001, 12 sh @ $850.50, stop $810.00, ledger paper-auto/NVDA.yml |
+| AAPL   | rejected | — | setup_type 'Pullback-20SMA' not on deployable list |
+| MSFT   | blocked | — | 5-gate: trace_audit BLOCK on uncited claim |
+| GO     | rejected | — | screener:litigation — Active class action detected (4 headline(s)) |
+| VRT    | placed | INVALIDATION_PARTIAL | order #10003, 152 sh @ $328.10; bear flags above-avg volume on pullback |
+| GOOGL  | dry_run | INVALIDATION_WEAK | would place limit-buy 8 GOOGL @ $401.50 (~$3,212) |
+| TSLA   | error | — | place_limit_buy: INSUFFICIENT_FUNDS |
 | ...
 
 ### Track state after this run
