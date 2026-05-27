@@ -82,13 +82,13 @@ Universe = (tickers in `journal/positions.json`) ∪ (tickers in `top_movers[]` 
 
 For each ticker:
 
-1. **Use `Bash + curl`, NOT WebFetch.** StockTwits' Cloudflare edge 403s WebFetch's default user-agent (verified 2026-05-24). Use:
+1. **Use `Bash + curl`, NOT WebFetch.** StockTwits' Cloudflare edge 403s WebFetch's default user-agent (verified 2026-05-24). Pipe the response directly into a pipeline; **do NOT write the raw JSON to disk**. If you must use `-o` for any reason, use `ledgers/news/_state/_tmp/<ticker>_st.json` (the directory is gitignored) and delete it before exiting the pass. Never use `-o C:\...` paths from the Bash tool on Windows — the colon mangles to a private-use Unicode codepoint and leaves orphan files at repo root.
 
    ```
-   curl -sS -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" -H "Accept: application/json" "https://api.stocktwits.com/api/2/streams/symbol/<TICKER>.json"
+   curl -sS -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" -H "Accept: application/json" "https://api.stocktwits.com/api/2/streams/symbol/<TICKER>.json" | python -c "import sys,json; d=json.load(sys.stdin); ..."
    ```
 
-   The response is JSON with `messages[]` (default 30 per call — no pagination needed for an hourly sample).
+   The response is JSON with `messages[]` (default 30 per call — no pagination needed for an hourly sample). Process in-pipe and discard the body once `bull_share` / `volume_z` / classification are extracted.
 
    Per-message structure (verified shape):
    - `entities.sentiment` is **either `null`** (user did not tag) **OR a dict `{"basic": "Bullish" | "Bearish"}`**. Drop null-sentiment messages from ratio computation — they carry no signal.
