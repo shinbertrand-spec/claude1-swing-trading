@@ -159,12 +159,19 @@ function New-AutoPaperPrincipal {
 }
 
 function New-AutoPaperSettings {
+    # Per-task time limit. 2026-05-27: raised the Entry task to 60 min after
+    # the Phase 3 v1 multi-rater swing-critic panel (shadow mode, commit dc25fe3)
+    # pushed /auto-paper's wall-clock past the prior 20-min cap and Windows
+    # Task Scheduler killed the run mid-flight (SCHED_S_TASK_TERMINATED, 267014).
+    # Monitor and Reconcile stay at 20 min — both complete inside the prior
+    # envelope on observed runs.
+    param([int]$MinutesLimit = 20)
     return New-ScheduledTaskSettingsSet `
         -AllowStartIfOnBatteries `
         -DontStopIfGoingOnBatteries `
         -StartWhenAvailable `
         -WakeToRun `
-        -ExecutionTimeLimit (New-TimeSpan -Minutes 20)
+        -ExecutionTimeLimit (New-TimeSpan -Minutes $MinutesLimit)
 }
 
 function Get-WeekdayNamesShifted {
@@ -187,7 +194,8 @@ function Register-AutoPaperTaskOnce {
         [string]$LocalTime,
         [string]$Description,
         [int]   $DayOffset = 0,
-        [string]$DiscordChannel = ""
+        [string]$DiscordChannel = "",
+        [int]   $MinutesLimit = 20
     )
 
     $days = Get-WeekdayNamesShifted -Offset $DayOffset
@@ -209,7 +217,7 @@ function Register-AutoPaperTaskOnce {
         -Action $action `
         -Trigger $trigger `
         -Principal (New-AutoPaperPrincipal) `
-        -Settings (New-AutoPaperSettings) `
+        -Settings (New-AutoPaperSettings -MinutesLimit $MinutesLimit) `
         -Description $Description | Out-Null
 
     $dayList = ($days -join ",")
@@ -231,7 +239,8 @@ function Register-AutoPaperTaskRepeating {
         [int]   $RepeatMinutes,
         [string]$Description,
         [int]   $DayOffset = 0,
-        [string]$DiscordChannel = ""
+        [string]$DiscordChannel = "",
+        [int]   $MinutesLimit = 20
     )
 
     $startDt = [DateTime]::Parse($StartLocalTime)
@@ -266,7 +275,7 @@ function Register-AutoPaperTaskRepeating {
         -Action $action `
         -Trigger $trigger `
         -Principal (New-AutoPaperPrincipal) `
-        -Settings (New-AutoPaperSettings) `
+        -Settings (New-AutoPaperSettings -MinutesLimit $MinutesLimit) `
         -Description $Description | Out-Null
 
     $dayList = ($days -join ",")
@@ -286,6 +295,7 @@ Register-AutoPaperTaskOnce `
     -LocalTime $EntryLocalTime `
     -DayOffset $EntryDayOffset `
     -DiscordChannel $EntryDiscordChannel `
+    -MinutesLimit 60 `
     -Description "Claude Code autonomous paper-trade entry: picks from morning-scan candidates, places via Tiger paper API"
 
 Register-AutoPaperTaskRepeating `
