@@ -47,6 +47,7 @@ import yaml
 from tools.auto_paper import config
 from tools.auto_paper.pipeline import CandidateInput
 from tools.backtest import data_cache
+from tools.contract import TraceEntry
 from tools.quant_strategies._kinds import KIND_REGISTRY
 from tools.quant_strategies._universe import resolve_universe_tickers
 from tools import position_sizer
@@ -235,6 +236,8 @@ def _candidate_from_signal(
     account_net_liq: float,
     regime_class: str,
     cash_available: Optional[float],
+    n_eligible_total: Optional[int] = None,
+    signal_date: Optional[Any] = None,
 ) -> Optional[CandidateInput]:
     """Compose a sized :class:`CandidateInput` for ``ticker``.
 
@@ -277,6 +280,41 @@ def _candidate_from_signal(
     if shares <= 0:
         return None
 
+    # Phase 3 plumbing — capture eligibility evidence so the
+    # `swing-critic-quant-insight` critic has rank-within-rebalance
+    # context. Light-touch v1: the kind-state structures only preserve
+    # the *set* of eligible tickers (not the sorted ranking), so we
+    # capture n_eligible_total (sparseness indicator) and leave
+    # signal_rank + signal_percentile as None. Future enhancement:
+    # extend each kind's State dataclass with sorted scores so this can
+    # become a real rank.
+    reasoning_trace: list[dict[str, Any]] = []
+    if n_eligible_total is not None:
+        trace_entry = TraceEntry(
+            tool="tools/auto_paper/quant_scanner.py:eligibility_evidence",
+            inputs={
+                "ticker": ticker.upper(),
+                "setup": setup,
+                "signal_date": (
+                    signal_date.isoformat() if hasattr(signal_date, "isoformat")
+                    else str(signal_date) if signal_date is not None else None
+                ),
+            },
+            output={
+                "n_eligible_total": n_eligible_total,
+                "ticker_in_eligible": True,
+                "signal_rank": None,        # not preserved by kind-state shapes (v1 limitation)
+                "signal_percentile": None,  # ditto
+                "sparseness_flag": (
+                    "sparse" if n_eligible_total <= 2
+                    else "moderate" if n_eligible_total <= 5
+                    else "dense"
+                ),
+                "source": f"tools.quant_strategies._kinds.{setup}.precompute state",
+            },
+        )
+        reasoning_trace.append(trace_entry.to_dict())
+
     # Round to US-equity tick size ($0.01). Tiger rejects orders with
     # sub-cent precision (code=1200 "Sorry, your order price does not
     # match the tick size: 0.01"). Caught during 2026-05-26 manual
@@ -293,6 +331,7 @@ def _candidate_from_signal(
         target_price=None,
         shares=shares,
         sector_etf=_sector_etf_for(ticker),
+        reasoning_trace=reasoning_trace,
     )
 
 
@@ -400,6 +439,7 @@ def scan_setup(
 
     eligible = _eligible_tickers_on(state, signal_date)
     eligible -= {benchmark}
+    n_eligible_total = len(eligible)
 
     candidates: list[CandidateInput] = []
     for t in sorted(eligible):
@@ -412,6 +452,8 @@ def scan_setup(
             account_net_liq=account_net_liq,
             regime_class=regime_class,
             cash_available=cash_available,
+            n_eligible_total=n_eligible_total,
+            signal_date=signal_date,
         )
         if cand is not None:
             candidates.append(cand)

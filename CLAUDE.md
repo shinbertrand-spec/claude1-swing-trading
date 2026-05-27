@@ -409,6 +409,40 @@ Six specialized subagents handle the heavy lifting. All use the fact-ledger
    weekly rebalance, top-K rank by 90-day exponential regression slope × R²).
    Cross-sectional mean-reversion (Alvarez/Chan) queued as v1.1.
 
+7. **Swing-critic panel** (shipped 2026-05-27, Phase 3 v1 in shadow mode) —
+   multi-rater adversarial panel that fires on every quant-scanner paper-auto
+   candidate (and is available for human-discretionary picks via the same
+   contract). Mirrors the thematic-portfolio critic stack pattern but for
+   swing trades. Per-critic personas at `.claude/agents/swing-critics/`:
+   - **`risk-manager`** — concentration / correlation / gap risk / liquidity
+   - **`setup-quality-hawk`** — Minervini-style chart confluence; distribution character
+   - **`macro-skeptic`** — Fed/yield curve / sector rotation / regime fit
+   - **`quant-insight`** — specialist; rank within rebalance + sparseness (quant picks only)
+   - Plus opportunistic reuse of `thematic-critic-patel` + `thematic-critic-rasgon`
+     on swing semi names (`sector_etf ∈ {XLK, XSD}` AND industry contains
+     "Semiconductor").
+
+   All critics emit a uniform JSON envelope: `risks[]` + `confidence_adjustment`
+   ∈ {hold, minus_20, minus_50, structural_risk} + rationale. The Python
+   aggregator at `tools/auto_paper/critic_panel.py` (`aggregate_panel`) applies
+   deterministic priority rules → `PanelVerdict`:
+
+   1. ANY `structural_risk` → action=`defer`, sizing_multiplier=0.0 (don't place)
+   2. ANY `minus_50` → action=`half_size_review`, sizing_multiplier=0.5
+   3. ≥2 `minus_20` → action=`reduce_20`, sizing_multiplier=0.8
+   4. Otherwise → action=`preserve`, sizing_multiplier=1.0
+
+   Phase 3 v1 runs in **shadow mode by default** (~2 weeks 2026-05-27 →
+   2026-06-10): panel computes verdict, surfaces in Telegram summary, persists
+   to `ledgers/swing-critics/YYYY-MM-DD/<TICKER>/` and to the calibration log at
+   `ledgers/swing-critics/_calibration/`, but `pipeline.place_candidate` ignores
+   `sizing_multiplier` when `apply_panel_sizing=False`. Once calibration
+   correlates panel verdicts with realized P&L, flip the flag to live.
+   Phase 3 v2 (~2026-06-10) makes the sizing modifier load-bearing.
+
+   Cost: ~$40-60/month Anthropic API for 3 core critics × ~6 candidates/day ×
+   22 trading days. Wall-clock: ~30s parallelized per candidate (Haiku 4.5).
+
 `trade-researcher`, `trade-skeptic`, and `portfolio-manager` write ledger YAML
 files (`Write`/`Edit`). `trade-skeptic` appends bear-side trace entries to the
 existing candidate ledger and writes its bear Markdown report alongside the bull

@@ -55,6 +55,12 @@ class CandidateInput:
     shares: int
     sector_etf: Optional[str] = None
     reasoning_trace: list[dict[str, Any]] = field(default_factory=list)
+    # Phase 3 multi-rater panel — orchestrator sets these after the
+    # critic panel runs. sizing_multiplier is in [0.0, 1.0] (0.0=defer);
+    # panel_verdict is the full PanelVerdict.to_dict() blob for ledger
+    # persistence + Telegram summary.
+    sizing_multiplier: float = 1.0
+    panel_verdict: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -67,6 +73,8 @@ class PlacementResult:
     ledger_path: Optional[str] = None
     cost_estimate_usd: Optional[float] = None
     screener_trace: Optional[dict[str, Any]] = None  # set when screener ran
+    panel_verdict: Optional[dict[str, Any]] = None   # mirrors CandidateInput.panel_verdict
+    panel_sizing_applied: bool = False               # True iff sizing_multiplier was applied to shares
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -158,6 +166,7 @@ def place_candidate(
     *,
     client: TigerClient | None = None,
     dry_run: bool = False,
+    apply_panel_sizing: bool = False,
 ) -> PlacementResult:
     """Place one vetted candidate on the paper-auto track.
 
@@ -168,6 +177,12 @@ def place_candidate(
             paper-routed client.
         dry_run: when True, runs all checks but does NOT call Tiger and
             does NOT write any file. Returns status="dry_run".
+        apply_panel_sizing: when True, multiply ``cand.shares`` by
+            ``cand.sizing_multiplier`` before track-limit checks (Phase 3
+            critic-panel sizing). When False (default — **shadow mode**),
+            the multiplier is logged in PlacementResult but NOT applied.
+            Per Phase 3 scope (2026-05-27), shadow mode runs for 1-2 weeks
+            while calibration data accumulates.
 
     Returns:
         :class:`PlacementResult` describing the outcome.
@@ -274,6 +289,39 @@ def place_candidate(
         if new_shares < cand.shares:
             cand = replace(cand, shares=new_shares)
 
+    # 4c. Phase 3 critic-panel sizing modifier — applied AFTER lever-D, BEFORE
+    # track-limit check. Composition order matters: if the panel says half-size,
+    # we apply that first, then the track-limit check operates on the reduced
+    # share count (which is more likely to fit under the 5%/20%/15% caps).
+    #
+    # The `defer` action (sizing_multiplier=0.0) short-circuits to rejection —
+    # the panel said "don't take this trade today; manual review tomorrow."
+    #
+    # Shadow mode (apply_panel_sizing=False, default): we log the multiplier
+    # but do NOT modify shares. Per Phase 3 scope (2026-05-27): the panel runs
+    # in shadow for 1-2 weeks while calibration data accumulates before the
+    # sizing modifier goes live.
+    panel_sizing_applied = False
+    if apply_panel_sizing and cand.panel_verdict is not None:
+        sm = float(cand.sizing_multiplier)
+        if sm <= 0.0:
+            return PlacementResult(
+                ticker=cand.ticker,
+                status="rejected",
+                reason=(
+                    f"panel:defer — critic panel recommends DEFER "
+                    f"(sizing_multiplier=0.0); manual review tomorrow"
+                ),
+                screener_trace=screener_trace_dict,
+                panel_verdict=cand.panel_verdict,
+                panel_sizing_applied=True,
+            )
+        if sm < 1.0:
+            new_shares = max(1, int(cand.shares * sm))
+            if new_shares < cand.shares:
+                cand = replace(cand, shares=new_shares)
+                panel_sizing_applied = True
+
     reject = _check_track_limits(
         cand=cand,
         account_net_liq=net_liq,
@@ -295,6 +343,8 @@ def place_candidate(
             ),
             cost_estimate_usd=cost_estimate,
             screener_trace=screener_trace_dict,
+            panel_verdict=cand.panel_verdict,
+            panel_sizing_applied=panel_sizing_applied,
         )
 
     # 5. Place the limit order
@@ -378,4 +428,6 @@ def place_candidate(
         ledger_path=path,
         cost_estimate_usd=cost_estimate,
         screener_trace=screener_trace_dict,
+        panel_verdict=cand.panel_verdict,
+        panel_sizing_applied=panel_sizing_applied,
     )

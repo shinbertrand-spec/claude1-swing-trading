@@ -209,11 +209,146 @@ SKEPTIC: <verdict> — <one-line invalidation thesis>
 
 Skip silently when the skeptic can't be invoked (sub-agent unavailable, network errors). Failure-to-skeptic does NOT block placement in Phase 2.
 
-### Step 3b.3 — Place via pipeline
+### Step 3b.4 — Multi-rater critic panel (Phase 3, shadow mode)
+
+After the trade-skeptic pass, run the swing-critic adversarial panel for an independent set of ratings. The panel is **shadow-mode-by-default until 2026-06-10** — verdicts surface in the summary but do not modify sizing. After 1-2 weeks of calibration data, lift shadow with `apply_panel_sizing=True` and the sizing multiplier becomes load-bearing.
+
+The panel composes:
+
+- 3 core critics on EVERY candidate (`risk-manager`, `setup-quality-hawk`, `macro-skeptic`)
+- 1 specialist critic when `candidate.source == "quant_scanner"` (`quant-insight`)
+- Patel + Rasgon (reused from thematic-critics) when `candidate.sector_etf in {XLK, XSD}` AND industry contains "Semiconductor"
+
+Fire critics IN PARALLEL via Agent tool calls (single message, multiple tool blocks). Each critic emits a JSON envelope per `.claude/agents/swing-critics/_template.md`. Build the panel input dict from `cand`, the shell ledger, the screener trace, and the current paper-auto track state:
+
+```python
+from tools.auto_paper.critic_panel import (
+    CriticVote, aggregate_panel,
+    save_critic_vote, save_panel_verdict, append_calibration_log,
+)
+from datetime import date
+
+# Build the panel input dict (passed verbatim to each critic via Agent prompt)
+panel_input = {
+    "candidate": {
+        "ticker": cand.ticker, "setup_type": cand.setup_type,
+        "setup_grade": cand.setup_grade,
+        "pivot_price": cand.pivot_price, "stop_price": cand.stop_price,
+        "stop_distance_pct": (cand.pivot_price - cand.stop_price) / cand.pivot_price,
+        "sector_etf": cand.sector_etf,
+        "sector_industry": screen_result.checks[3].evidence.get("yfinance_industry"),
+        "shares": cand.shares,
+        "source": "quant_scanner",
+    },
+    "ledger_context": {
+        "ledger_path": str(ledger_path),
+        "bull_report_path": str(bull_md),
+        "bear_report_path": str(bear_md_path) if bear_md_path else None,
+        "regime_summary": ledger_dict.get("regime", {}),
+        "atr_14": ledger_dict.get("technical", {}).get("atr_14"),
+        "next_earnings_date": ledger_dict.get("fundamentals", {}).get("next_earnings_date"),
+        "screener_summary": {
+            "blocked": False,
+            "corrected_sector_etf": screen_result.corrected_sector_etf,
+            "blocking_checks": [],
+        },
+        # signal_rank/signal_percentile come from the quant_scanner
+        # reasoning_trace evidence entry (light-touch v1 — see plumbing
+        # in tools/auto_paper/quant_scanner.py:_candidate_from_signal).
+        "signal_rank": None,         # not preserved by kind-state shapes (v1 limit)
+        "signal_percentile": None,
+        "signal_score": None,
+        "n_eligible_total": next(
+            (e["output"]["n_eligible_total"] for e in cand.reasoning_trace
+             if e.get("tool") == "tools/auto_paper/quant_scanner.py:eligibility_evidence"),
+            None,
+        ),
+    },
+    "portfolio_context": {
+        "existing_positions": existing_positions,    # from state.load_positions_json()
+        "net_liquidation": net_liq,
+        "cash_buffer_pct": cash / net_liq,
+        "position_count": len(existing_positions),
+    },
+    "panel_metadata": {
+        "panel_call_id": f"{datetime.utcnow().strftime('%Y-%m-%dT%H-%M')}__{cand.ticker}",
+        "panel_firing_date": date.today().isoformat(),
+        "shadow_mode": True,
+    },
+}
+
+# Dispatch 3 core critics in parallel
+# (and quant_insight if quant_scanner candidate; and Patel/Rasgon if semi name)
+critics_to_fire = ["risk-manager", "setup-quality-hawk", "macro-skeptic"]
+if cand.source == "quant_scanner":
+    critics_to_fire.append("quant-insight")
+sector = panel_input["candidate"].get("sector_etf")
+industry = panel_input["candidate"].get("sector_industry", "")
+if sector in {"XLK", "XSD"} and "Semiconductor" in (industry or ""):
+    critics_to_fire.extend(["thematic-critic-patel", "thematic-critic-rasgon"])
+
+# IN A SINGLE MESSAGE, fire all critics in parallel via Agent tool calls.
+# Each agent prompt: "Apply the swing-critic invocation contract to this
+# input dict: <panel_input as JSON>. Emit ONLY the JSON envelope per the
+# template's output schema."
+
+# Parse each critic's terminal JSON fragment into CriticVote
+votes = [CriticVote.from_dict(parsed) for parsed in critic_outputs]
+```
+
+Then aggregate and persist:
+
+```python
+verdict = aggregate_panel(
+    votes,
+    ticker=cand.ticker,
+    panel_call_id=panel_input["panel_metadata"]["panel_call_id"],
+    shadow_mode=True,   # FLIP TO FALSE WHEN LIFTING SHADOW (≥ 2026-06-10)
+)
+
+# Persist per-critic + aggregated
+for v in votes:
+    save_critic_vote(v)
+save_panel_verdict(verdict)
+
+# Attach to cand so the pipeline can log it (and apply sizing when live)
+cand = replace(cand,
+    sizing_multiplier=verdict.sizing_multiplier,
+    panel_verdict=verdict.to_dict(),
+)
+```
+
+Surface in the Step 4 summary (new Panel column):
+```
+PANEL: <action> (multiplier=<sizing_multiplier>) — <rationale>
+  Critics: <N_total> total; <N_minus_20> minus_20; <N_minus_50> minus_50; <N_structural> structural_risk
+  Voters: <critic_name>(<vote>), ...
+```
+
+Skip silently if any individual critic fails to respond — the aggregator handles partial votes gracefully so long as ≥1 vote came back. If ALL critics fail (network outage), surface "panel: unavailable" in the summary and proceed with `cand.sizing_multiplier=1.0` (full size, like pre-Phase-3 behavior).
+
+### Step 3b.5 — Place via pipeline
 
 ```python
 from tools.auto_paper.pipeline import place_candidate
-result = place_candidate(cand, client=c, dry_run=<args.dry_run>)
+# apply_panel_sizing=False while in shadow mode; flip to True after 2026-06-10
+# (or sooner if calibration data supports lifting per Phase 3 plan).
+result = place_candidate(
+    cand, client=c, dry_run=<args.dry_run>,
+    apply_panel_sizing=False,
+)
+```
+
+After placement (or rejection), append the calibration-log entry so the
+panel-vs-realized-outcome correlation can be computed by `/auto-paper-perf`:
+
+```python
+from tools.auto_paper.critic_panel import append_calibration_log
+append_calibration_log(
+    verdict,
+    placement_status=result.status,
+    placement_shares=cand.shares if result.status == "placed" else None,
+)
 ```
 
 These candidates are PRE-SIZED by the scanner — do NOT re-size, do NOT deep-dive, do NOT run the 5-gate. The pipeline still applies its standard checks:
@@ -228,10 +363,13 @@ Capture `result.status`, `result.broker_order_id`, `result.ledger_path`, `result
 
 Surface in the summary table with a `source: quant_scanner` annotation so Bertrand can distinguish quant-fired placements from morning-scan-fired ones. Include the skeptic verdict from Step 3b.2 as an additional column / annotation.
 
-### Phase progression (skeptic verdict integration)
+### Phase progression (panel + skeptic integration)
 
-- **Phase 2 v2 (CURRENT)** — skeptic runs, writes bear report + appends bear trace_refs, verdict surfaces in summary. Does NOT block placement. Window for Bertrand to manually review picks where the skeptic verdict is INVALIDATION_STRONG and early-exit via `/auto-paper-monitor` if warranted.
-- **Phase 3 (DEFERRED)** — wire the skeptic verdict into `tools.debate_synthesis` Gate 6, producing a `SwingVerdict` (ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT). REJECT blocks placement; other verdicts pass through but inform sizing or downstream monitoring. Requires retrospective A/B simulation per `wiki/notes/swing-cherrypick-h1-design-spec.md` § A.4 before going live.
+- **Phase 1 (SHIPPED 2026-05-27, e20e809)** — strategy-blind disqualifier screener in `tools.auto_paper.pipeline.place_candidate`. Hard-blocks on litigation / dilution / earnings-within-10d; corrects sector tag.
+- **Phase 2 (SHIPPED 2026-05-27, 6bea735)** — shell-ledger builder + `trade-skeptic` invocation on every quant pick. Skeptic verdict surfaces in summary, does NOT block placement.
+- **Phase 3 v1 (SHIPPED 2026-05-27, shadow mode)** — multi-rater swing-critic panel (3 core + quant-insight specialist + Patel/Rasgon on semis). Aggregator emits `sizing_multiplier`; pipeline accepts but does not yet apply per `apply_panel_sizing=False` default. Shadow mode runs ~2 weeks while calibration log accumulates.
+- **Phase 3 v2 (PENDING ~2026-06-10)** — lift shadow mode. Flip `apply_panel_sizing=True` in Step 3b.5; sizing multiplier becomes load-bearing. Decision criteria: panel-verdict-vs-realized-outcome correlation analysis from `ledgers/swing-critics/_calibration/`.
+- **Phase 4 (DEFERRED)** — compose panel verdict with Gate 6 SwingVerdict (currently parallel; could be unified). N-bear extension to `debate_synthesis`. Requires retrospective A/B simulation per `wiki/notes/swing-cherrypick-h1-design-spec.md` § A.4 before going live.
 
 ## Step 4 — Summary report
 
@@ -244,15 +382,18 @@ Output (and reply via Telegram if invoked from a Telegram session):
 
 ### Outcomes
 
-| Ticker | Status | Skeptic | Detail |
-| NVDA   | placed | INVALIDATION_WEAK | order #10001, 12 sh @ $850.50, stop $810.00, ledger paper-auto/NVDA.yml |
-| AAPL   | rejected | — | setup_type 'Pullback-20SMA' not on deployable list |
-| MSFT   | blocked | — | 5-gate: trace_audit BLOCK on uncited claim |
-| GO     | rejected | — | screener:litigation — Active class action detected (4 headline(s)) |
-| VRT    | placed | INVALIDATION_PARTIAL | order #10003, 152 sh @ $328.10; bear flags above-avg volume on pullback |
-| GOOGL  | dry_run | INVALIDATION_WEAK | would place limit-buy 8 GOOGL @ $401.50 (~$3,212) |
-| TSLA   | error | — | place_limit_buy: INSUFFICIENT_FUNDS |
+| Ticker | Status | Skeptic | Panel | Detail |
+| NVDA   | placed | INVALIDATION_WEAK | preserve (1.0×) | order #10001, 12 sh @ $850.50, stop $810.00, ledger paper-auto/NVDA.yml |
+| AAPL   | rejected | — | — | setup_type 'Pullback-20SMA' not on deployable list |
+| MSFT   | blocked | — | — | 5-gate: trace_audit BLOCK on uncited claim |
+| GO     | rejected | — | — | screener:litigation — Active class action detected (4 headline(s)) |
+| VRT    | placed (shadow: 0.8×) | INVALIDATION_PARTIAL | reduce_20 (0.8×) | order #10003, 152 sh @ $328.10; panel: 2 minus_20 — risk_manager flags VRT overlap, setup_hawk flags distribution-character volume |
+| INTU   | placed (shadow: 0.5×) | INVALIDATION_PARTIAL | half_size_review (0.5×) | order #10004, 155 sh @ $309.85; panel: macro_skeptic minus_50 — Stage 4 post-earnings dislocation |
+| GOOGL  | dry_run | INVALIDATION_WEAK | preserve (1.0×) | would place limit-buy 8 GOOGL @ $401.50 (~$3,212) |
+| TSLA   | error | — | — | place_limit_buy: INSUFFICIENT_FUNDS |
 | ...
+
+(Shadow-mode notation: `placed (shadow: 0.8×)` means the panel recommended 80% sizing but the pipeline placed at full size because `apply_panel_sizing=False`. The Panel column shows what WOULD have been applied — visible for calibration without affecting trades.)
 
 ### Track state after this run
 - Paper-auto positions: N / 8

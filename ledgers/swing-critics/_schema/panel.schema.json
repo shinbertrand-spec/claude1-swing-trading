@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude1.local/schemas/swing-critic-panel.schema.json",
+  "title": "Swing-critic panel verdict",
+  "description": "Aggregated multi-rater panel result for one swing-trade candidate. Output of tools.auto_paper.critic_panel.aggregate_panel. Mirrors PanelVerdict dataclass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ticker",
+    "action",
+    "sizing_multiplier",
+    "n_critics_total",
+    "n_critics_hold",
+    "n_critics_minus_20",
+    "n_critics_minus_50",
+    "n_critics_structural_risk",
+    "structural_risk_critics",
+    "minus_50_critics",
+    "minus_20_critics",
+    "rationale",
+    "total_cost_usd",
+    "shadow_mode",
+    "computed_at",
+    "panel_call_id"
+  ],
+  "properties": {
+    "ticker": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9.\\-]{0,9}$"
+    },
+    "action": {
+      "enum": ["preserve", "reduce_20", "half_size_review", "defer"]
+    },
+    "sizing_multiplier": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Multiplier applied to CandidateInput.shares when apply_panel_sizing=True. preserve=1.0, reduce_20=0.8, half_size_review=0.5, defer=0.0."
+    },
+    "n_critics_total": { "type": "integer", "minimum": 1 },
+    "n_critics_hold": { "type": "integer", "minimum": 0 },
+    "n_critics_minus_20": { "type": "integer", "minimum": 0 },
+    "n_critics_minus_50": { "type": "integer", "minimum": 0 },
+    "n_critics_structural_risk": { "type": "integer", "minimum": 0 },
+    "structural_risk_critics": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "minus_50_critics": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "minus_20_critics": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rationale": { "type": "string" },
+    "total_cost_usd": {
+      "type": "number",
+      "minimum": 0.0
+    },
+    "shadow_mode": { "type": "boolean" },
+    "computed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "panel_call_id": { "type": "string" }
+  }
+}

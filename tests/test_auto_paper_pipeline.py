@@ -503,3 +503,129 @@ def test_screener_multiple_blocks_reason_lists_all(paper_client, paper_dirs, mon
     assert result.status == "rejected"
     # Both surface in the human-readable reason
     assert "litigation" in result.reason and "earnings_blackout" in result.reason
+
+
+# ---------------------------------------------------------- Phase 3 panel sizing
+#
+# The Phase 3 multi-rater critic panel produces a PanelVerdict per candidate.
+# Its sizing_multiplier (0.0/0.5/0.8/1.0) is threaded onto CandidateInput by
+# the /auto-paper skill orchestrator. place_candidate applies it ONLY when
+# apply_panel_sizing=True (Phase 3 lives after shadow-mode lifts ~2026-06-10).
+# Default is shadow mode — multiplier logged but not applied.
+
+
+def _panel_verdict_dict(*, action, multiplier):
+    """Build a minimal PanelVerdict-shaped dict for the panel_verdict field."""
+    return {
+        "ticker": "NVDA",
+        "action": action,
+        "sizing_multiplier": multiplier,
+        "n_critics_total": 3,
+        "n_critics_hold": 0 if action != "preserve" else 3,
+        "n_critics_minus_20": 2 if action == "reduce_20" else 0,
+        "n_critics_minus_50": 1 if action == "half_size_review" else 0,
+        "n_critics_structural_risk": 1 if action == "defer" else 0,
+        "structural_risk_critics": ["risk_manager"] if action == "defer" else [],
+        "minus_50_critics": ["setup_quality_hawk"] if action == "half_size_review" else [],
+        "minus_20_critics": (
+            ["risk_manager", "macro_skeptic"] if action == "reduce_20" else []
+        ),
+        "rationale": f"test verdict {action}",
+        "total_cost_usd": 0.30,
+        "shadow_mode": True,
+        "computed_at": "2026-05-27T22-15:00+00:00",
+        "panel_call_id": "test-panel",
+    }
+
+
+def test_panel_shadow_mode_logs_but_does_not_apply(paper_client, paper_dirs):
+    """Default apply_panel_sizing=False. Multiplier is recorded in result
+    but cand.shares is unchanged."""
+    cand = CandidateInput(
+        ticker="NVDA", setup_type="EP", setup_grade="A",
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        target_price=910.00, shares=10, sector_etf="XLK",
+        sizing_multiplier=0.5,  # would halve if applied
+        panel_verdict=_panel_verdict_dict(action="half_size_review", multiplier=0.5),
+    )
+    result = place_candidate(cand, client=paper_client, dry_run=True)
+    assert result.status == "dry_run"
+    # SHADOW MODE: shares should be UNCHANGED in the dry-run reason.
+    assert "10 NVDA" in result.reason
+    # Panel verdict is logged on the result
+    assert result.panel_verdict is not None
+    assert result.panel_verdict["action"] == "half_size_review"
+    assert result.panel_sizing_applied is False
+
+
+def test_panel_live_mode_reduce_20_shrinks_shares(paper_client, paper_dirs):
+    """apply_panel_sizing=True + reduce_20 → shares × 0.8 floored."""
+    cand = CandidateInput(
+        ticker="NVDA", setup_type="EP", setup_grade="A",
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        target_price=910.00, shares=10, sector_etf="XLK",
+        sizing_multiplier=0.8,
+        panel_verdict=_panel_verdict_dict(action="reduce_20", multiplier=0.8),
+    )
+    result = place_candidate(
+        cand, client=paper_client, dry_run=True, apply_panel_sizing=True,
+    )
+    assert result.status == "dry_run"
+    # 10 × 0.8 = 8 shares
+    assert "8 NVDA" in result.reason
+    assert result.panel_sizing_applied is True
+
+
+def test_panel_live_mode_half_size_halves_shares(paper_client, paper_dirs):
+    """apply_panel_sizing=True + half_size_review → shares × 0.5 floored."""
+    cand = CandidateInput(
+        ticker="NVDA", setup_type="EP", setup_grade="A",
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        target_price=910.00, shares=10, sector_etf="XLK",
+        sizing_multiplier=0.5,
+        panel_verdict=_panel_verdict_dict(action="half_size_review", multiplier=0.5),
+    )
+    result = place_candidate(
+        cand, client=paper_client, dry_run=True, apply_panel_sizing=True,
+    )
+    assert result.status == "dry_run"
+    # 10 × 0.5 = 5 shares
+    assert "5 NVDA" in result.reason
+    assert result.panel_sizing_applied is True
+
+
+def test_panel_live_mode_defer_rejects(paper_client, paper_dirs):
+    """apply_panel_sizing=True + sizing_multiplier=0.0 → rejected."""
+    cand = CandidateInput(
+        ticker="NVDA", setup_type="EP", setup_grade="A",
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        target_price=910.00, shares=10, sector_etf="XLK",
+        sizing_multiplier=0.0,
+        panel_verdict=_panel_verdict_dict(action="defer", multiplier=0.0),
+    )
+    result = place_candidate(
+        cand, client=paper_client, dry_run=False, apply_panel_sizing=True,
+    )
+    assert result.status == "rejected"
+    assert "panel:defer" in result.reason
+    assert result.panel_verdict["action"] == "defer"
+    # Broker should NOT have been called
+    place_calls = [c for c in paper_client._tc.calls if c[0] == "place_order"]
+    assert len(place_calls) == 0
+
+
+def test_panel_no_verdict_passes_through_unchanged(paper_client, paper_dirs):
+    """Candidate with panel_verdict=None (default) is unaffected by Phase 3
+    plumbing — same behavior as pre-Phase-3."""
+    cand = CandidateInput(
+        ticker="NVDA", setup_type="EP", setup_grade="A",
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        target_price=910.00, shares=10, sector_etf="XLK",
+    )
+    result = place_candidate(
+        cand, client=paper_client, dry_run=True, apply_panel_sizing=True,
+    )
+    assert result.status == "dry_run"
+    assert "10 NVDA" in result.reason
+    assert result.panel_verdict is None
+    assert result.panel_sizing_applied is False

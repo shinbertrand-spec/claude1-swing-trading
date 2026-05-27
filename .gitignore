@@ -64,6 +64,10 @@ ledgers/thematic/loop1/*__bundle.json
 # News snapshots — runtime data, regenerable from the bot. Schema + examples tracked.
 ledgers/news/[0-9]*-[0-9]*-[0-9]*/
 
+# Swing-critic panel per-day outputs — regenerable; schema tracked.
+ledgers/swing-critics/[0-9]*-[0-9]*-[0-9]*/
+ledgers/swing-critics/_calibration/
+
 # Old portfolio snapshot reference (pre-cash-out)
 price_check_may14.jsx
 
