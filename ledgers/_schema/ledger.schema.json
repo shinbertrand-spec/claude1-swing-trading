@@ -86,7 +86,24 @@
         },
         "created_at": { "$ref": "#/$defs/iso_timestamp" },
         "updated_by": { "type": "string" },
-        "updated_at": { "$ref": "#/$defs/iso_timestamp" }
+        "updated_at": { "$ref": "#/$defs/iso_timestamp" },
+        "notes": {
+          "description": "Append-only audit-trail entries on this ledger's lifecycle. Each entry records a discrete operator/script event (trim, manual close, screener-retro disqualification, etc.). Distinct from the top-level free-text `notes` field at the ledger root. Added 2026-05-28 after the GO trim script's audit-trail entry caused refresh_starter_stops to fail schema validation silently.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["date", "event"],
+            "properties": {
+              "date": { "$ref": "#/$defs/iso_date" },
+              "event": {
+                "type": "string",
+                "description": "Short kebab-case event tag. e.g. discretionary_trim, manual_close, screener_retro_block, ledger_resync."
+              },
+              "reason": { "type": "string" }
+            }
+          }
+        }
       }
     },
 
