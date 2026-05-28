@@ -5,6 +5,35 @@ edge comes from combining technical setups with fundamental conviction, holding
 positions from **2 days to 6 weeks** to capture multi-day price swings within a
 larger trend.
 
+## Positioning — closing the discipline gap
+
+Claude1's swing stack closes the **discipline gap** on US equity swing-trading:
+the gap between *knowing a strategy* and *executing it consistently under
+fatigue, distraction, and emotional pressure*. The underlying strategies in
+`tools/deployable_setups.yml` are well-known shapes — what Claude1 adds is
+flawless execution of those shapes, not a better shape.
+
+Empirical proof-of-concept (Polymarket, late 2025): a bot using identical
+strategies to human traders captured ~2× the profit purely on execution
+discipline — no fatigue at 3 AM, no oversized positions on confident bets, no
+missed trades. Stack components and the gaps they close:
+
+| Mechanism | Discipline gap closed |
+|---|---|
+| `/auto-paper` cron at 9:35 AM ET | Bot doesn't oversleep or postpone |
+| Position-sizer hard-rule re-run (5% / 20% / 15%-cash) | Bot doesn't oversize on conviction |
+| `tools.refresh_starter_stops` (auto-replace DAY-expired stops) | Bot doesn't forget to renew stops |
+| Per-bar `evaluate_exits` + `stop_ratchet` | Bot advances trailing stops under stress |
+| Phase 5.a backtest gate (Sharpe > 1.0 AND \|MDD\| < 25% AND n ≥ 30) | Bot doesn't deploy luck-driven strategies |
+| Swing-critic panel (shadow → live) | Bot gives every trade the second-look a human would skip |
+| 4-gate trace audit | Bot enforces narrative-truthfulness humans drift on |
+
+Per Nate B Jones, [*A Polymarket Bot Made $438,000 In 30 Days*](https://www.youtube.com/watch?v=BiqG3it0gY0) (2026-04).
+Vault note: `c:/Users/User/Desktop/Obsidian/Bertieboo/wiki/notes/swing-discipline-gap-bot-over-human.md`.
+**Watch for:** if Claude1 ever starts *generating* new strategies (not just
+executing known ones), this framing needs to extend — speed and reasoning gaps
+also become operative.
+
 ## Cross-project vault access
 
 Before reading any file outside this project, read `read-scope.md` at the
