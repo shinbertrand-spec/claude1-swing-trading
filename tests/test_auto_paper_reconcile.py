@@ -414,3 +414,132 @@ def test_stop_placement_failure_is_non_fatal(paper_dirs):
     doc = yaml.safe_load(open(state.ledger_path("NVDA")))
     assert doc["meta"]["state"] == "starter"
     assert "stop_order_id" not in doc.get("position_state", {})
+
+
+# ------------------------------------------------------- refresh_starter_stops (2026-05-28)
+#
+# Tiger paper STP SELL orders are DAY-only — they auto-cancel at session
+# close. Before today, the reconcile path placed stops only on the
+# submitted→starter transition (once per position's lifetime), so DAY-
+# expired stops never got re-armed. Today's smoke test caught this with
+# MXL / GO / VRT all carrying stale stop_order_ids but no live broker
+# orders. refresh_starter_stops sweeps starter positions, detects
+# missing-at-broker stops, and re-places them.
+
+
+def _seed_starter(paper_dirs, *, ticker, shares, stop_price, stop_order_id):
+    """Seed a starter-state ledger + positions.json entry with the given stop_order_id."""
+    state.write_submitted_ledger(
+        ticker=ticker, setup_type="EP", setup_grade="Swan",
+        pivot_price=850.00, limit_price=850.50, stop_price=stop_price,
+        shares=shares, broker_order_id=99001, broker="tiger_paper",
+        sector_etf="XLK",
+    )
+    # Flip ledger from submitted → starter manually + record stop_order_id.
+    doc = yaml.safe_load(open(state.ledger_path(ticker)))
+    doc["meta"]["state"] = "starter"
+    doc["position_state"]["stop_order_id"] = stop_order_id
+    with open(state.ledger_path(ticker), "w") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+    # positions.json entry with stage=starter (mirrors post-reconcile state).
+    state.append_to_positions_json({
+        "ticker": ticker.upper(),
+        "ledger_path": state.ledger_path(ticker).replace("\\", "/"),
+        "entry_date": "2026-05-24",
+        "entry_price": 850.42, "shares": shares, "stop": stop_price,
+        "target_1": 910.00, "sector": "XLK",
+        "broker_order_id": 99001, "broker": "tiger_paper",
+        "stage": "starter",
+        "setup_type": "EP", "setup_grade": "Swan",
+    })
+
+
+def test_refresh_skips_when_no_starter_positions(paper_dirs):
+    """Empty starters list → empty results, no broker calls."""
+    client = _client()
+    results = reconcile.refresh_starter_stops(client=client)
+    assert results == []
+
+
+def test_refresh_reports_intact_when_stop_open_at_broker(paper_dirs):
+    """Stop_order_id from ledger is in broker open_orders → stop_intact, no replace."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    # Broker has the matching STP order open.
+    open_stp = SimpleNamespace(
+        id=55001, contract=SimpleNamespace(symbol="NVDA"),
+        action="SELL", order_type="STP",
+        quantity=10, limit_price=None, status="Submitted",
+    )
+    client = _client(open_=[open_stp])
+    results = reconcile.refresh_starter_stops(client=client)
+    assert len(results) == 1
+    assert results[0].action == "stop_intact"
+    assert results[0].stop_order_id == 55001
+
+
+def test_refresh_replaces_when_stop_expired_at_broker(paper_dirs):
+    """Stop_order_id from ledger NOT in broker open_orders → place fresh, update ledger."""
+    _seed_starter(paper_dirs, ticker="MXL", shares=503, stop_price=65.77,
+                  stop_order_id=44001)
+    # Broker has NO open orders → stop expired.
+    client = _client(open_=[])
+    results = reconcile.refresh_starter_stops(client=client)
+    assert len(results) == 1
+    r = results[0]
+    assert r.action == "stop_replaced"
+    assert r.stop_order_id is not None and r.stop_order_id != 44001
+    # Ledger updated with the new id.
+    doc = yaml.safe_load(open(state.ledger_path("MXL")))
+    assert doc["position_state"]["stop_order_id"] == r.stop_order_id
+
+
+def test_refresh_detects_live_stop_by_symbol_when_ledger_id_stale(paper_dirs):
+    """If the broker has ANY STP SELL on the symbol, treat as protected
+    even when the ledger's recorded stop_order_id is different (e.g. id
+    was rotated externally). Avoids double-stopping."""
+    _seed_starter(paper_dirs, ticker="VRT", shares=152, stop_price=289.66,
+                  stop_order_id=11111)  # stale id
+    # Broker has a different-id STP for VRT (recently re-placed elsewhere).
+    open_stp = SimpleNamespace(
+        id=99999, contract=SimpleNamespace(symbol="VRT"),
+        action="SELL", order_type="STP",
+        quantity=152, limit_price=None, status="Submitted",
+    )
+    client = _client(open_=[open_stp])
+    results = reconcile.refresh_starter_stops(client=client)
+    assert results[0].action == "stop_intact", (
+        "symbol-match should count as live protection, not trigger double-stop"
+    )
+
+
+def test_refresh_dry_run_does_not_place(paper_dirs):
+    """dry_run=True surfaces would-place intent without calling the broker."""
+    _seed_starter(paper_dirs, ticker="GO", shares=3113, stop_price=6.41,
+                  stop_order_id=22222)
+    client = _client(open_=[])
+    results = reconcile.refresh_starter_stops(client=client, dry_run=True)
+    assert results[0].action == "stop_dry_run"
+    assert "would place STP" in (results[0].reason or "")
+    # Ledger's stop_order_id unchanged.
+    doc = yaml.safe_load(open(state.ledger_path("GO")))
+    assert doc["position_state"]["stop_order_id"] == 22222
+
+
+def test_reconcile_today_invokes_refresh_for_starters(paper_dirs):
+    """End-to-end: reconcile_today now refreshes starter stops alongside
+    processing submitted fills. Mixed payload: one starter with expired stop
+    + one submitted fill → results include both refresh and fill actions."""
+    _seed_starter(paper_dirs, ticker="MXL", shares=503, stop_price=65.77,
+                  stop_order_id=44001)
+    _seed_submitted(paper_dirs, ticker="NVDA", order_id=10001, shares=10,
+                    stop_price=820.00)
+    client = _client(
+        filled=[_fake_order(order_id=10001, symbol="NVDA", filled=10,
+                            avg_fill_price=850.42)],
+        open_=[],  # MXL stop expired; NVDA submitted not yet filled-and-open
+    )
+    results = reconcile_today(client=client, dry_run=False)
+    actions = {r.ticker: r.action for r in results}
+    assert actions.get("MXL") == "stop_replaced", f"MXL stop should refresh; got {actions}"
+    assert actions.get("NVDA") == "filled", f"NVDA submitted should fill; got {actions}"

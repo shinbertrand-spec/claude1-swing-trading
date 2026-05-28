@@ -272,6 +272,177 @@ def _pending_submitted_ledgers() -> list[dict[str, Any]]:
     return pending
 
 
+def _starter_positions() -> list[dict[str, Any]]:
+    """Return all paper-auto positions currently in ``starter`` state."""
+    data = state.load_positions_json()
+    out: list[dict[str, Any]] = []
+    for p in data.get("positions", []):
+        if (p.get("stage") or "").lower() == "starter":
+            if p.get("ticker"):
+                out.append(p)
+    return out
+
+
+def refresh_starter_stops(
+    *,
+    client: TigerClient,
+    open_by_id: dict[Any, dict[str, Any]] | None = None,
+    dry_run: bool = False,
+) -> list[ReconcileResult]:
+    """Ensure every ``starter`` position has a live broker-side STP.
+
+    Tiger paper STP orders are DAY-only (no GTC). After session close they
+    cancel themselves. Without this routine, every ``starter`` position is
+    unprotected from session-close until the next monitor / reconcile run
+    re-arms its stop — and the pre-2026-05-28 reconcile path only placed
+    stops on the submitted→starter transition, never on already-starter
+    positions. Result: positions get protective stops on day 1 of their
+    fill and never again. (Today's smoke test caught this — MXL / GO / VRT
+    had stop_order_id in their ledgers but the actual broker orders were
+    long gone, DAY-expired during prior overnight cycles.)
+
+    For each starter position:
+
+    1. Check ``open_by_id`` for the ledger's recorded ``stop_order_id``.
+       If found, the stop is live — emit a ``stop_intact`` result and skip.
+    2. Otherwise the previous stop is gone (DAY-expired or cancelled).
+       Place a fresh STP via :func:`TigerClient.place_stop_loss` sized to
+       the current journal share count at the ledger's ``current_stop``
+       (or the starter leg's ``initial_stop`` fallback).
+    3. Update the ledger's ``stop_order_id`` via
+       :func:`state.record_stop_order_id`.
+
+    Args:
+        client: paper-routed :class:`TigerClient`.
+        open_by_id: optional pre-fetched ``{order_id: order}`` map (avoids
+            a second :func:`TigerClient.open_orders` call when invoked from
+            :func:`reconcile_today`). When None, fetches it here.
+        dry_run: when True, computes what would be placed without
+            calling the broker or touching the ledger.
+
+    Returns:
+        list[ReconcileResult] — one entry per starter position. Possible
+        actions:
+
+        - ``stop_intact`` — ledger's stop_order_id is in open_orders; no-op
+        - ``stop_replaced`` — ledger had no stop_order_id OR it wasn't open
+          at broker; placed a fresh STP, ledger updated
+        - ``stop_dry_run`` — would have placed a fresh STP (dry_run=True)
+        - ``error`` — could not refresh; ``reason`` describes the cause
+    """
+    starters = _starter_positions()
+    if not starters:
+        return []
+
+    if open_by_id is None:
+        try:
+            open_entry = client.open_orders()
+        except BrokerOrderError as exc:
+            return [
+                ReconcileResult(
+                    ticker=p["ticker"], action="error",
+                    reason=f"open_orders fetch: {exc}",
+                ) for p in starters
+            ]
+        open_by_id = {
+            o.get("order_id"): o for o in open_entry.output.get("orders", [])
+            if o.get("order_id") is not None
+        }
+
+    results: list[ReconcileResult] = []
+    for entry in starters:
+        ticker = entry["ticker"]
+        ledger_stop_oid = _existing_stop_order_id(ticker)
+
+        # Look up by id AND by (symbol, type=STP, action=SELL) — Tiger's
+        # open_orders typedef wraps id in int/float depending on the SDK
+        # build, so we cross-check both ways for robustness.
+        live = False
+        if ledger_stop_oid is not None and ledger_stop_oid in open_by_id:
+            live = True
+        else:
+            # Fallback: ANY open STP SELL on this symbol counts as protection.
+            for o in open_by_id.values():
+                if (
+                    o.get("symbol") == ticker.upper()
+                    and o.get("order_type") == "STP"
+                    and o.get("action") == "SELL"
+                ):
+                    live = True
+                    break
+
+        if live:
+            results.append(ReconcileResult(
+                ticker=ticker, action="stop_intact",
+                stop_order_id=ledger_stop_oid,
+            ))
+            continue
+
+        # No live stop — need to place one.
+        shares = int(entry.get("shares") or 0)
+        if shares <= 0:
+            results.append(ReconcileResult(
+                ticker=ticker, action="error",
+                reason=f"position has non-positive shares={shares}",
+            ))
+            continue
+
+        stop_price = _ledger_stop_price(ticker)
+        if stop_price is None or stop_price <= 0:
+            results.append(ReconcileResult(
+                ticker=ticker, action="error",
+                reason=f"ledger has no usable stop_price",
+            ))
+            continue
+
+        if dry_run:
+            results.append(ReconcileResult(
+                ticker=ticker, action="stop_dry_run",
+                requested_qty=shares,
+                reason=f"would place STP {shares}sh @ ${stop_price:.2f}",
+            ))
+            continue
+
+        try:
+            placed = client.place_stop_loss(
+                symbol=ticker.upper(), quantity=shares, stop_price=stop_price,
+            )
+        except BrokerOrderError as exc:
+            results.append(ReconcileResult(
+                ticker=ticker, action="error",
+                reason=f"place_stop_loss: {exc}",
+            ))
+            continue
+
+        new_sid = placed.output.get("order_id")
+        if new_sid is None:
+            results.append(ReconcileResult(
+                ticker=ticker, action="error",
+                reason="broker returned no order_id for fresh stop",
+            ))
+            continue
+        new_sid = int(new_sid)
+        try:
+            state.record_stop_order_id(ticker, new_sid)
+        except state.PaperAutoStateError as exc:
+            # Stop is live at broker but ledger write failed; surface so the
+            # operator can fix manually. Don't roll back the order.
+            results.append(ReconcileResult(
+                ticker=ticker, action="stop_replaced",
+                stop_order_id=new_sid, requested_qty=shares,
+                stop_place_error=f"ledger update: {exc}",
+            ))
+            continue
+
+        results.append(ReconcileResult(
+            ticker=ticker, action="stop_replaced",
+            stop_order_id=new_sid, requested_qty=shares,
+            reason=f"replaced expired stop at ${stop_price:.2f}",
+        ))
+
+    return results
+
+
 def reconcile_today(
     *,
     client: TigerClient | None = None,
@@ -309,9 +480,10 @@ def reconcile_today(
         ]
 
     start = (_dt.date.today() - _dt.timedelta(days=lookback_days)).isoformat()
+    end = (_dt.date.today() + _dt.timedelta(days=1)).isoformat()
 
     try:
-        filled_entry = c.get_filled_orders(start_time=start)
+        filled_entry = c.get_filled_orders(start_time=start, end_time=end)
         open_entry = c.open_orders()
     except BrokerOrderError as exc:
         return [
@@ -332,6 +504,14 @@ def reconcile_today(
     }
 
     results: list[ReconcileResult] = []
+    # Self-healing stop refresh — run BEFORE processing submitted fills so
+    # the post-fill stop-placement path stays unchanged. See
+    # :func:`refresh_starter_stops` docstring for the recurrence-prevention
+    # rationale (Tiger paper STPs are DAY-only).
+    results.extend(refresh_starter_stops(
+        client=c, open_by_id=open_by_id, dry_run=dry_run,
+    ))
+
     for entry in pending:
         ticker = entry["ticker"]
         order_id = entry["broker_order_id"]
