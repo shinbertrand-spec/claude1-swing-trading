@@ -311,12 +311,15 @@ def test_sell_50_places_limit_sell_and_cancels_stop(paper_dirs, monkeypatch):
     history = doc["sell_eval_history"]
     assert history[-1]["action"] == "sell_50"
 
-    # positions.json marked closed.
+    # positions.json: closed ticker is REMOVED from the open-positions
+    # index (not stage-marked). Closed-history lives in the ledger file.
+    # Previously we stage-marked and left the entry; that silently
+    # double-counted against MAX_POSITIONS + sector caps. See
+    # tools/auto_paper/exits.py:_mark_positions_json_closed docstring.
     data = json.load(open(state.PAPER_AUTO_POSITIONS_JSON))
-    pj_entry = data["positions"][0]
-    assert pj_entry["stage"] == "closed"
-    assert pj_entry["exit_price"] == expected_limit
-    assert "sell_decision/sell_50" in pj_entry["exit_reason"]
+    assert all(p.get("ticker") != "NVDA" for p in data["positions"]), (
+        "closed ticker must be removed from positions.json open-index"
+    )
 
 
 def test_sell_100_when_no_stop_present_still_closes(paper_dirs, monkeypatch):

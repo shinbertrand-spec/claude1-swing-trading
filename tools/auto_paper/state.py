@@ -289,6 +289,117 @@ def load_positions_json() -> dict[str, Any]:
         return json.load(fh)
 
 
+# ---------------------------------------------------------------------------
+# Run-status helpers — per [auto-paper LLM/Python boundary refactor 2026-05-28]
+# Each /auto-paper invocation creates one run directory under
+# ``ledgers/_auto_paper_runs/<run_id>/`` (gitignored). ``_status.yml`` lives
+# at the root of that directory and tracks phase progression so resume-from-
+# failure is trivial.
+# ---------------------------------------------------------------------------
+
+_VALID_STATUS_PHASES = ("init", "post_skeptic", "post_panel")
+
+
+def write_run_status(
+    run_dir: str | os.PathLike,
+    *,
+    phase: str,
+    started_at: str | None = None,
+    completed_at: str | None = None,
+    **extra_fields: Any,
+) -> str:
+    """Append-or-update the per-run ``_status.yml`` at ``<run_dir>/_status.yml``.
+
+    Schema (§2 of the boundary spec):
+
+        run_id: <basename of run_dir>
+        run_started_at: <ISO timestamp; first write only>
+        last_phase_completed: init | post_skeptic | post_panel | null
+        phases_completed:
+          - phase: init
+            completed_at: <ISO timestamp>
+            <plus any **extra_fields the caller passed at completion time>
+          - ...
+        errors: []
+
+    Calling with ``started_at`` initialises the file. Calling with
+    ``completed_at`` (and an existing file) appends the phase to
+    ``phases_completed`` + advances ``last_phase_completed``.
+
+    Args:
+        run_dir: directory holding the run artifacts.
+        phase: one of ``init`` / ``post_skeptic`` / ``post_panel``.
+        started_at: when set, treats this as the FIRST status write
+            (creates / overwrites the file).
+        completed_at: when set, appends a phase-completion entry.
+        **extra_fields: arbitrary key/value pairs included on the
+            phase-completion entry (e.g. ``candidates_in=8``).
+
+    Returns:
+        Absolute path of the written ``_status.yml``.
+    """
+    if phase not in _VALID_STATUS_PHASES:
+        raise ValueError(
+            f"unknown phase {phase!r}; valid: {_VALID_STATUS_PHASES}"
+        )
+    if not (started_at or completed_at):
+        raise ValueError("write_run_status requires started_at or completed_at")
+
+    run_dir = os.fspath(run_dir)
+    os.makedirs(run_dir, exist_ok=True)
+    status_path = os.path.join(run_dir, "_status.yml")
+
+    if started_at:
+        # First write — initialise the doc. Overwrite if exists (re-running
+        # init creates a fresh dir anyway; this path is also used by tests).
+        doc: dict[str, Any] = {
+            "run_id": os.path.basename(os.path.normpath(run_dir)),
+            "run_started_at": started_at,
+            "last_phase_completed": None,
+            "phases_completed": [],
+            "errors": [],
+        }
+    else:
+        # Append-to-existing — read, update, write back.
+        if not os.path.isfile(status_path):
+            raise PaperAutoStateError(
+                f"write_run_status: cannot append phase {phase!r} — "
+                f"no existing status at {status_path}; pass started_at to init"
+            )
+        with open(status_path, encoding="utf-8") as fh:
+            doc = yaml.safe_load(fh) or {}
+
+    if completed_at:
+        entry: dict[str, Any] = {"phase": phase, "completed_at": completed_at}
+        entry.update(extra_fields)
+        doc.setdefault("phases_completed", []).append(entry)
+        doc["last_phase_completed"] = phase
+
+    with open(status_path, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+    return status_path
+
+
+def read_run_status(run_dir: str | os.PathLike) -> dict[str, Any]:
+    """Read and return ``<run_dir>/_status.yml`` as a dict.
+
+    Raises :class:`PaperAutoStateError` if the file is missing or malformed.
+    """
+    run_dir = os.fspath(run_dir)
+    status_path = os.path.join(run_dir, "_status.yml")
+    if not os.path.isfile(status_path):
+        raise PaperAutoStateError(
+            f"read_run_status: no status file at {status_path}"
+        )
+    with open(status_path, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh)
+    if not isinstance(doc, dict):
+        raise PaperAutoStateError(
+            f"read_run_status: malformed YAML at {status_path}"
+        )
+    return doc
+
+
 def record_stop_order_id(ticker: str, stop_order_id: int) -> str:
     """Record the broker stop-loss order ID on the paper-auto ledger.
 

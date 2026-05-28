@@ -201,21 +201,35 @@ def _write_ledger(ticker: str, doc: dict[str, Any]) -> None:
 
 
 def _mark_positions_json_closed(ticker: str, *, exit_price: float, exit_reason: str) -> None:
+    """Remove a closed ticker from the paper-auto positions index.
+
+    positions.json is the OPEN-positions index — closed positions live
+    in the ledger file (state: closed). Previously we stage-marked the
+    entry as "closed" but left it in the array; that double-counted
+    position-count and sector-concentration against `MAX_POSITIONS` /
+    `MAX_PCT_PER_SECTOR` in `pipeline._check_track_limits`, blocking new
+    entries silently. Closed-history reconstruction lives in
+    `tools.auto_paper.performance` which reads ledgers directly.
+    """
     if not os.path.isfile(state.PAPER_AUTO_POSITIONS_JSON):
         return
     import json
     with open(state.PAPER_AUTO_POSITIONS_JSON, encoding="utf-8") as fh:
         data = json.load(fh)
-    for entry in data.get("positions", []):
-        if entry.get("ticker") == ticker.upper():
-            entry["stage"] = "closed"
-            entry["exit_price"] = float(exit_price)
-            entry["exit_reason"] = exit_reason
-            entry["exit_date"] = _today_iso()
-            break
+    before = len(data.get("positions", []))
+    data["positions"] = [
+        p for p in data.get("positions", [])
+        if p.get("ticker") != ticker.upper()
+    ]
+    removed = before - len(data["positions"])
     data["updated"] = _now_iso()
     with open(state.PAPER_AUTO_POSITIONS_JSON, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2)
+    # The exit_price / exit_reason / exit_date are already persisted on
+    # the ledger file by _close_ledger; keeping them argumented here so
+    # callers don't need to change. The variables are intentionally
+    # unused at this layer.
+    del exit_price, exit_reason, removed
 
 
 def _evaluate_one(

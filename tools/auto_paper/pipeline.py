@@ -167,6 +167,7 @@ def place_candidate(
     client: TigerClient | None = None,
     dry_run: bool = False,
     apply_panel_sizing: bool = False,
+    auto_paper_run_dir: Optional[str] = None,
 ) -> PlacementResult:
     """Place one vetted candidate on the paper-auto track.
 
@@ -183,10 +184,25 @@ def place_candidate(
             the multiplier is logged in PlacementResult but NOT applied.
             Per Phase 3 scope (2026-05-27), shadow mode runs for 1-2 weeks
             while calibration data accumulates.
+        auto_paper_run_dir: when set, the run-directory path produced by
+            :func:`tools.auto_paper.run_entry.phase_init` is appended to
+            ``cand.reasoning_trace`` so each placement is traceable back to
+            its run dir. Pure additive — existing callers (the original
+            v1 slash command) leave this None and see no behavior change.
 
     Returns:
         :class:`PlacementResult` describing the outcome.
     """
+    if auto_paper_run_dir is not None:
+        # Stamp the run-dir reference on the candidate's reasoning_trace so
+        # the paper-auto ledger downstream carries the back-reference.
+        # Mutating the list is fine — CandidateInput is a per-placement
+        # value, not a long-lived object.
+        cand.reasoning_trace.append({
+            "tool": "tools.auto_paper.run_entry",
+            "kind": "run_dir_reference",
+            "auto_paper_run_dir": str(auto_paper_run_dir),
+        })
     # 1. Deployable-setup filter
     if not config.is_deployable(cand.setup_type):
         return _reject(

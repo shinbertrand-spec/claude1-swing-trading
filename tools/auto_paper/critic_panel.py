@@ -276,6 +276,132 @@ def aggregate_panel(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Panel-input builders — extracted from .claude/commands/auto-paper.md (v1)
+# Step 3b.4 per [auto-paper LLM/Python boundary refactor 2026-05-28] so this
+# logic lives in Python under test rather than as code blocks executed by
+# the LLM in the slash command. Shape unchanged from v1.
+# ---------------------------------------------------------------------------
+
+
+# Critic firing rules (CLAUDE.md § 7 / auto-paper.md v1 Step 3b.4).
+_CORE_CRITICS: tuple[str, ...] = (
+    "risk-manager",
+    "setup-quality-hawk",
+    "macro-skeptic",
+)
+_QUANT_CRITIC = "quant-insight"
+_SEMI_SPECIALIST_CRITICS: tuple[str, ...] = (
+    "thematic-critic-patel",
+    "thematic-critic-rasgon",
+)
+_SEMI_SECTOR_ETFS: frozenset[str] = frozenset({"XLK", "XSD"})
+
+
+def build_panel_input_dict(
+    *,
+    ticker: str,
+    setup_type: str,
+    setup_grade: Optional[str],
+    pivot_price: float,
+    stop_price: float,
+    sector_etf: Optional[str],
+    sector_industry: str,
+    shares: int,
+    source: str,
+    ledger_path: str,
+    bull_report_path: str,
+    bear_report_path: Optional[str],
+    regime_class: str,
+    atr_14: Optional[float],
+    next_earnings_date: Optional[str],
+    screener_summary: dict[str, Any],
+    existing_positions: list[dict[str, Any]],
+    net_liquidation: float,
+    cash_buffer_pct: float,
+    panel_call_id: str,
+    panel_firing_date: str,
+    shadow_mode: bool = True,
+    signal_rank: Optional[int] = None,
+    signal_percentile: Optional[float] = None,
+    signal_score: Optional[float] = None,
+    n_eligible_total: Optional[int] = None,
+) -> dict[str, Any]:
+    """Build the panel_input dict passed verbatim to each critic via Agent prompt.
+
+    Shape mirrors the JSON the v1 slash command constructed inline at
+    Step 3b.4 (lines 230-278). Critics read this same shape from the
+    ``.claude/agents/swing-critics/*.md`` invocation contract — do not
+    rename or restructure fields without updating the agent prompts.
+    """
+    stop_distance_pct = (
+        (pivot_price - stop_price) / pivot_price if pivot_price else 0.0
+    )
+    return {
+        "candidate": {
+            "ticker": ticker,
+            "setup_type": setup_type,
+            "setup_grade": setup_grade,
+            "pivot_price": pivot_price,
+            "stop_price": stop_price,
+            "stop_distance_pct": round(stop_distance_pct, 4),
+            "sector_etf": sector_etf,
+            "sector_industry": sector_industry,
+            "shares": shares,
+            "source": source,
+        },
+        "ledger_context": {
+            "ledger_path": ledger_path,
+            "bull_report_path": bull_report_path,
+            "bear_report_path": bear_report_path,
+            "regime_summary": {
+                "broad_market_stage_class": regime_class,
+                "sector_etf": sector_etf,
+            },
+            "atr_14": atr_14,
+            "next_earnings_date": next_earnings_date,
+            "screener_summary": screener_summary,
+            "signal_rank": signal_rank,
+            "signal_percentile": signal_percentile,
+            "signal_score": signal_score,
+            "n_eligible_total": n_eligible_total,
+        },
+        "portfolio_context": {
+            "existing_positions": existing_positions,
+            "net_liquidation": net_liquidation,
+            "cash_buffer_pct": cash_buffer_pct,
+            "position_count": len(existing_positions),
+        },
+        "panel_metadata": {
+            "panel_call_id": panel_call_id,
+            "panel_firing_date": panel_firing_date,
+            "shadow_mode": shadow_mode,
+        },
+    }
+
+
+def _derive_critics_list(panel_input: dict[str, Any]) -> list[str]:
+    """Return the list of critic agent names to fire for this candidate.
+
+    Rules (CLAUDE.md § 7):
+    - 3 core critics (risk-manager + setup-quality-hawk + macro-skeptic)
+      fire on EVERY candidate.
+    - quant-insight fires when ``candidate.source == "quant_scanner"``.
+    - Patel + Rasgon (thematic-critics) fire when
+      ``candidate.sector_etf in {XLK, XSD}`` AND
+      ``candidate.sector_industry`` contains "Semiconductor".
+    """
+    cand = panel_input.get("candidate", {}) or {}
+    critics: list[str] = list(_CORE_CRITICS)
+    if cand.get("source") == "quant_scanner":
+        critics.append(_QUANT_CRITIC)
+    sector = cand.get("sector_etf")
+    industry = cand.get("sector_industry") or ""
+    if sector in _SEMI_SECTOR_ETFS and "Semiconductor" in industry:
+        critics.extend(_SEMI_SPECIALIST_CRITICS)
+    return critics
+
+
 def save_critic_vote(
     vote: CriticVote,
     *,
