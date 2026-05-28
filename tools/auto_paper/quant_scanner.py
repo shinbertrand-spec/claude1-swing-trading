@@ -330,6 +330,17 @@ def _candidate_from_signal(
             regime_class=regime_class,
             atr_multiple=atr_mult,
             cash_available=cash_available,
+            # 2026-05-28 fix: clamp to CLAUDE.md's 5% per-position hard rule.
+            # position_sizer's default concentration_cap_pct=0.25 (25%) is
+            # the doctrine's "relaxed" sizing limit, but the paper-auto track
+            # is governed by the same 5% cap as the human track via
+            # tools.auto_paper.pipeline._check_track_limits. Without this
+            # clamp, ATR-tight-stop quant picks size to 7-11% of net liq and
+            # get unconditionally rejected at the pipeline cap — silent zero-
+            # placement outcome despite valid signals. Pass 0.05 here so the
+            # binding constraint is the min(risk_budget, 5%_cap) inside the
+            # sizer, never the pipeline's after-the-fact rejection.
+            concentration_cap_pct=0.05,
         )
     except ValueError:
         return None

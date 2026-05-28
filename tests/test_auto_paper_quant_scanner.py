@@ -176,9 +176,17 @@ def test_scan_setup_sized_candidates_pass_pipeline_track_limits():
     assert len(report.candidates) >= 1
     c = report.candidates[0]
     cost = c.shares * c.limit_price
-    # Per CLAUDE.md, hard cap is 5% per position; the sizer's concentration
-    # cap default is 25% (risk-based since v2). Allow either.
-    assert cost <= 250_001.0  # within 25% concentration cap on $1M
+    # Per CLAUDE.md, hard cap is 5% per position. The scanner passes
+    # concentration_cap_pct=0.05 explicitly to tools.position_sizer so the
+    # binding constraint is min(risk_budget, 5%_cap) and the pipeline's
+    # after-the-fact track-rule check never has cause to reject a sized
+    # candidate. Pre-2026-05-28 the assertion permitted up to 25% — which
+    # encoded the bug where today's smoke-test produced 10 candidates
+    # at 7-11% of net liq, ALL rejected by the pipeline track cap.
+    assert cost <= 50_001.0, (
+        f"candidate {c.ticker} cost ${cost:,.0f} exceeds 5% cap "
+        f"on $1M (would be rejected by paper-auto track rules)"
+    )
 
 
 # ------------------------------------------------------- registry-vs-spec-name decoupling
