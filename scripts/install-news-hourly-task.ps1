@@ -86,7 +86,7 @@ $trigger.Repetition = (New-ScheduledTaskTrigger `
 
 $principal = New-ScheduledTaskPrincipal `
     -UserId $env:USERNAME `
-    -LogonType Interactive `
+    -LogonType S4U `
     -RunLevel Limited
 
 $settings = New-ScheduledTaskSettingsSet `

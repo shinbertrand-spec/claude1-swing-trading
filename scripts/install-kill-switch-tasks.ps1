@@ -111,7 +111,7 @@ Set-Location -LiteralPath '$ProjectRoot'
 function New-KillSwitchPrincipal {
     return New-ScheduledTaskPrincipal `
         -UserId $env:USERNAME `
-        -LogonType Interactive `
+        -LogonType S4U `
         -RunLevel Limited
 }
 

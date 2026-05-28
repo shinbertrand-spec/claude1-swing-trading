@@ -30,6 +30,17 @@ from typing import Optional
 from tools.observability.discord import post_to_channel
 
 
+# Windows: spawn the slash-command subprocess WITHOUT a visible console
+# window. The Task Scheduler action already passes -WindowStyle Hidden to
+# powershell.exe, but the powershell shell still creates a brief console
+# flash when it spawns claude.exe — only the CREATE_NO_WINDOW process
+# creation flag fully suppresses it. The flag is Windows-only; on
+# Linux / macOS subprocess has no CREATE_NO_WINDOW attribute so the
+# getattr fallback yields 0 (no-op). Part of the 2026-05-28 Fix 2
+# durable patch alongside the S4U bake-in across install-*.ps1 scripts.
+_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def run_and_push(
     *,
     claude_exe: str,
@@ -61,6 +72,7 @@ def run_and_push(
             encoding="utf-8",
             errors="replace",
             timeout=timeout_seconds,
+            creationflags=_CREATE_NO_WINDOW,
         )
         exit_code = proc.returncode
         stdout = proc.stdout or ""

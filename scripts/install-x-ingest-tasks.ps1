@@ -121,7 +121,7 @@ Set-Location -LiteralPath '$ProjectRoot'
 function New-XIngestPrincipal {
     return New-ScheduledTaskPrincipal `
         -UserId $env:USERNAME `
-        -LogonType Interactive `
+        -LogonType S4U `
         -RunLevel Limited
 }
 
