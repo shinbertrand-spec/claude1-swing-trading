@@ -45,6 +45,25 @@ The module:
 
 If no positions are in `starter` state, returns `[]` and the command exits with `AUTO_PAPER_MONITOR_NOTHING_OPEN`.
 
+## Step 1a — Refresh DAY-expired broker stops (self-healing)
+
+Before evaluating exits and before ratcheting, ensure every `starter` position has a live broker-side STP. Tiger paper STP orders are DAY-only and auto-cancel at session close; a fresh stop must be re-armed on the first monitor pass of the new session. The composer in Step 1 also depends on a live stop to cancel before exit — without this refresh, the exit path would try to cancel a non-existent order.
+
+```python
+from tools.auto_paper.reconcile import refresh_starter_stops
+from tools.broker.tiger import TigerClient
+client = TigerClient()
+refresh_results = refresh_starter_stops(client=client, dry_run=<args.dry_run>)
+```
+
+Outcomes per starter:
+- `stop_intact` — ledger's `stop_order_id` is live at the broker; no-op
+- `stop_replaced` — placed a fresh STP at the ledger's `current_stop`, recorded the new `stop_order_id` on the ledger
+- `stop_dry_run` — would have placed a fresh STP (`--dry-run`)
+- `error` — could not refresh; ledger / broker state may need manual review
+
+Surface `stop_replaced` and `error` rows in the summary so the operator can audit. `stop_intact` is the steady-state expectation post-fix.
+
 ## Step 1b — Trailing-stop ratchet (post-exit pass)
 
 After Step 1 finishes, ratchet broker-side stops upward for any positions that survived (didn't get closed by the composer):
