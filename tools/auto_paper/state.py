@@ -105,6 +105,36 @@ _KIND_REGISTRY_SETUPS = {
 }
 
 
+def _assign_trace_ids(traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Stamp sequential ``id`` (1-indexed) onto trace entries that lack one.
+
+    Per the TraceEntry contract: ``id: int | None`` is set when appended to
+    a ledger's ``reasoning_trace``. This function is where the appending
+    happens; without it, scanner-emitted traces fail the ledger schema's
+    ``id: required`` rule. Idempotent — re-assigns IDs cleanly if all
+    entries already have one (preserves existing ints, only fills None).
+    """
+    out: list[dict[str, Any]] = []
+    next_id = 1
+    used: set[int] = {
+        t["id"] for t in traces
+        if isinstance(t, dict) and isinstance(t.get("id"), int)
+    }
+    for t in traces:
+        if not isinstance(t, dict):
+            out.append(t)
+            continue
+        t2 = dict(t)
+        if not isinstance(t2.get("id"), int):
+            while next_id in used:
+                next_id += 1
+            t2["id"] = next_id
+            used.add(next_id)
+            next_id += 1
+        out.append(t2)
+    return out
+
+
 def _trigger_for(setup_type: str) -> str:
     """Map a setup_type to the position_state.starter.trigger enum value.
 
@@ -189,7 +219,16 @@ def write_submitted_ledger(
             "trail_state_legacy": "initial",
             "alerts_sent": [],
         },
-        "reasoning_trace": reasoning_trace or [],
+        # 2026-05-28: assign sequential ids to reasoning_trace entries that
+        # arrive id-less. TraceEntry's contract is `id: int | None — set
+        # when appended to a ledger reasoning_trace`; this is where the
+        # appending happens, so this is where ids are assigned. Without
+        # this, the ledger schema's `id: required` rule rejects the doc
+        # and the broker_order_id is already at Tiger — producing an
+        # orphan order. (Exactly what happened on 2026-05-28 with COIN /
+        # WMT / XOM / GKOS / VAL after the quant_scanner eligibility_evidence
+        # trace was added at dc25fe3 without id assignment downstream.)
+        "reasoning_trace": _assign_trace_ids(reasoning_trace or []),
     }
     if setup_grade is not None:
         doc["setup_classification"]["grade"] = setup_grade

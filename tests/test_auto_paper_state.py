@@ -67,6 +67,77 @@ def test_write_submitted_ledger_happy(paper_dirs):
     assert starter["broker"] == "tiger_paper"
 
 
+def test_write_submitted_ledger_assigns_ids_to_idless_reasoning_trace(paper_dirs):
+    """Regression test for the 2026-05-28 orphan-order bug.
+
+    quant_scanner.scan_today emits TraceEntry dicts with ``id=None`` (the
+    TraceEntry contract: id is set when appended to a ledger). The ledger
+    JSON schema requires ``id: int`` on every reasoning_trace entry. If
+    write_submitted_ledger doesn't stamp ids, schema validation fails AFTER
+    the broker call has succeeded → orphan order at Tiger with no journal
+    record.
+
+    Today's smoke test caught this with 5 orphan orders (COIN/WMT/XOM/VAL/GKOS).
+    This test pins the fix: id-less traces are assigned sequential ints 1+
+    and the ledger validates clean.
+    """
+    raw_traces = [
+        {
+            "tool": "tools/auto_paper/quant_scanner.py:eligibility_evidence",
+            "inputs": {"ticker": "COIN", "setup": "xs_short_term_reversal"},
+            "output": {"n_eligible_total": 5, "ticker_in_eligible": True},
+            "fetched_at": "2026-05-28T00:00:00+00:00",
+            # NOTE: deliberately no 'id' field — replicates scanner shape
+        },
+        {
+            "tool": "tools/auto_paper/quant_scanner.py:sizing",
+            "inputs": {"account": 1_000_000.0},
+            "output": {"shares": 213},
+            "fetched_at": "2026-05-28T00:00:01+00:00",
+            "id": None,  # explicit None — also replicates scanner shape
+        },
+    ]
+    path = state.write_submitted_ledger(
+        ticker="COIN",
+        setup_type="xs_short_term_reversal",
+        setup_grade="B",
+        pivot_price=175.60, limit_price=175.95, stop_price=149.95,
+        shares=213, broker_order_id=43388251082345472, broker="tiger_paper",
+        sector_etf="XLK", reasoning_trace=raw_traces,
+    )
+    doc = yaml.safe_load(open(path))
+    written = doc["reasoning_trace"]
+    assert len(written) == 2
+    assert written[0]["id"] == 1, f"first id-less trace should be id=1, got {written[0].get('id')}"
+    assert written[1]["id"] == 2, f"second id-less trace should be id=2, got {written[1].get('id')}"
+    # Schema validation already passed at write time; absence of an exception
+    # is the load-bearing assertion.
+
+
+def test_write_submitted_ledger_preserves_pre_stamped_trace_ids(paper_dirs):
+    """When traces already have ids, leave them alone (idempotent)."""
+    raw_traces = [
+        {
+            "tool": "tools/atr_compute.py", "inputs": {}, "output": {"atr": 5.0},
+            "fetched_at": "2026-05-28T00:00:00+00:00", "id": 7,
+        },
+        {
+            "tool": "tools/regime_check.py", "inputs": {}, "output": {"stage": 2},
+            "fetched_at": "2026-05-28T00:00:01+00:00",  # id-less
+        },
+    ]
+    path = state.write_submitted_ledger(
+        ticker="NVDA", setup_type="EP", setup_grade="Swan",
+        pivot_price=850.0, limit_price=850.5, stop_price=820.0, shares=10,
+        broker_order_id=10001, broker="tiger_paper", sector_etf="XLK",
+        reasoning_trace=raw_traces,
+    )
+    written = yaml.safe_load(open(path))["reasoning_trace"]
+    assert written[0]["id"] == 7, "pre-stamped id=7 must be preserved"
+    # The id-less entry must avoid colliding with id=7 → it should pick 1.
+    assert written[1]["id"] == 1, f"id-less entry should pick the lowest unused id; got {written[1].get('id')}"
+
+
 def test_write_submitted_refuses_overwrite(paper_dirs):
     args = dict(
         ticker="NVDA", setup_type="EP", setup_grade=None,
