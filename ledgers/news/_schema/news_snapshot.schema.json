@@ -443,7 +443,7 @@
           "description": "bullish_count / (bullish_count + bearish_count) over tagged messages. Absent when msg_count < 5 (sample too small)."
         },
         "volume_z": {
-          "type": "number",
+          "type": ["number", "null"],
           "description": "(current_hour_msg_count - baseline_mean) / baseline_std over the trailing 24-hour per-ticker baseline in _state/social_baseline.json. Null/absent during the first 24 hours of a new ticker's baseline accumulation."
         },
         "top_url": {
