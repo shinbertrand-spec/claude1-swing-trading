@@ -7,8 +7,10 @@
 #      Loop 1 firings.
 #
 #   2. ClaudeThematicXIngestTier23   fires every 4 hours, 24/7
-#      Polls Tier 2 + Tier 3 accounts: philip_trammell / AvitalBalwit /
-#      sholtodouglas / bradgerstner / plaffont / TimWeiss_LSC.
+#      Polls Tier 2 + Tier 3 accounts: AvitalBalwit / sholtodouglas /
+#      bradgerstner / plaffont.
+#      (philip_trammell + TimWeiss_LSC dropped 2026-05-28 — handles
+#      didn't resolve; see x_ingest.py ACCOUNTS comment.)
 #      Secondary signals — 4-hourly is the documented cadence per
 #      [[swing-thematic-portfolio-x-ingest-decision]] § Polling cadence.
 #
@@ -195,13 +197,13 @@ if (-not $Tier1Only) {
         -Name $Tier23TaskName `
         -TierArgs "--tier 2 --tier 3" `
         -IntervalMinutes $Tier23IntervalMinutes `
-        -Description "Claude1 thematic-portfolio X-ingest Tier 2/3 (Trammell + Avital + Sholto + Gerstner + Laffont + Weiss), every 4h 24/7"
+        -Description "Claude1 thematic-portfolio X-ingest Tier 2/3 (Avital + Sholto + Gerstner + Laffont), every 4h 24/7"
 }
 
 Write-Output ""
 Write-Output "==== Install summary ===="
 Write-Output "  Tier 1 (hourly):     leopoldasch + CarlShulman"
-Write-Output "  Tier 2/3 (4hrly):    philip_trammell + AvitalBalwit + sholtodouglas + bradgerstner + plaffont + TimWeiss_LSC"
+Write-Output "  Tier 2/3 (4hrly):    AvitalBalwit + sholtodouglas + bradgerstner + plaffont"
 Write-Output "  Max pages / account: $MaxPagesPerAccount (= up to $(20 * $MaxPagesPerAccount) tweets per fire per account)"
 if ($DryRun) {
     Write-Output "  Mode:                --dry-run (artifacts NOT written; state NOT persisted)"

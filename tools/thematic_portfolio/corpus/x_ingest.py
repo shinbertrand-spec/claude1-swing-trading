@@ -22,8 +22,8 @@ per the v2 design at ``Bertieboo/wiki/notes/swing-thematic-portfolio-x-ingest-de
 | Tier | Accounts | Cadence (intended) |
 |---|---|---|
 | 1 | @leopoldasch + @CarlShulman | hourly |
-| 2 | @philip_trammell + @AvitalBalwit + @sholtodouglas | 4-hourly |
-| 3 | @bradgerstner + @plaffont + @TimWeiss_LSC | 4-hourly |
+| 2 | @AvitalBalwit + @sholtodouglas | 4-hourly |
+| 3 | @bradgerstner + @plaffont | 4-hourly |
 
 Cadence is enforced by the **caller** (Task Scheduler / cron). This
 module exposes a ``--tier`` filter so the cron line can choose which
@@ -154,22 +154,25 @@ class XAccount:
         return self.username.lstrip("@").lower()
 
 
-# Final list per the design spec (v1 — 8 accounts). Handles for Tier 3
-# Coatue + Light Street are flagged in the design as "verification needed";
-# v1 ships them and lets any 404 land as a per-account error. Better to
-# fail loudly than silently skip.
+# Final list per the design spec, with first-fire empirical corrections
+# applied 2026-05-28. Two handles from the spec were dropped:
+#   * philip_trammell — spec handle didn't resolve; closest match
+#     (`philiptrammell`, id 23906192) is a different person (6 tweets ever,
+#     3 followers, gaming bio). No X account for the GPI economist found.
+#   * TimWeiss_LSC — no such handle on X. Closest `TimWeiss` is a different
+#     person. Light Street Capital's Tim Weiss does not appear to maintain
+#     a discoverable X presence.
+# Re-add either if the canonical handles are later identified.
 ACCOUNTS: list[XAccount] = [
     # Tier 1 — primary signal, hourly
     XAccount(username="leopoldasch", tier=1),
     XAccount(username="CarlShulman", tier=1),
     # Tier 2 — secondary signal, 4-hourly
-    XAccount(username="philip_trammell", tier=2),
     XAccount(username="AvitalBalwit", tier=2),
     XAccount(username="sholtodouglas", tier=2),
     # Tier 3 — ensemble fund principals, 4-hourly
     XAccount(username="bradgerstner", tier=3),
-    XAccount(username="plaffont", tier=3),         # verify on first call
-    XAccount(username="TimWeiss_LSC", tier=3),     # verify on first call
+    XAccount(username="plaffont", tier=3),
 ]
 
 
