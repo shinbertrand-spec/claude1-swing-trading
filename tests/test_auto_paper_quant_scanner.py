@@ -296,6 +296,9 @@ def test_refresh_universe_start_date_overrides_lookback(monkeypatch):
     import datetime as _dt
     calls = []
 
+    # Disable staleness auto-refetch so we only test the start-date path.
+    monkeypatch.setattr(quant_scanner, "_benchmark_cache_age_hours", lambda _b="SPY": 0.0)
+
     def _fake_fetch(ticker, *, start, end, force_refetch=False):
         calls.append((ticker, start, end))
 
@@ -319,6 +322,117 @@ def test_refresh_universe_start_date_overrides_lookback(monkeypatch):
         assert start == fixed_start, (
             f"start_date should win over lookback_days; got start={start}"
         )
+
+
+# ------------------------------------------------------- cache staleness auto-refetch (2026-05-28)
+#
+# Regression coverage for the 2026-05-28 smoke-test finding: the SPY cache
+# was 5 days stale (last bar 2026-05-22 on 2026-05-27) and the scanner used
+# it silently. data_cache.fetch returns early on cache hit without checking
+# fetched_at, so quant_scanner._refresh_universe must perform its own age
+# check via the benchmark sidecar and promote force_refetch when stale.
+
+
+def test_refresh_universe_stale_benchmark_cache_triggers_force_refetch(monkeypatch):
+    """Stale benchmark cache → _refresh_universe promotes force_refetch=True."""
+    import datetime as _dt
+    import pandas as _pd
+    fetch_calls = []
+
+    def _fake_fetch(ticker, *, start, end, force_refetch=False):
+        fetch_calls.append({"ticker": ticker, "force_refetch": force_refetch})
+
+    def _fake_load(ticker):
+        return _pd.DataFrame({"Open": [1.0], "High": [1.0], "Low": [1.0],
+                              "Close": [1.0], "Volume": [1]},
+                             index=_pd.date_range("2024-01-02", periods=1, freq="B"))
+
+    # 30 hours stale → exceeds default 18h threshold → should force-refetch.
+    monkeypatch.setattr(quant_scanner, "_benchmark_cache_age_hours",
+                        lambda _b="SPY": 30.0)
+    monkeypatch.setattr(quant_scanner.data_cache, "fetch", _fake_fetch)
+    monkeypatch.setattr(quant_scanner.data_cache, "load", _fake_load)
+
+    quant_scanner._refresh_universe(["A", "B"], start_date=_dt.date(2017, 1, 1))
+
+    assert len(fetch_calls) == 2
+    for call in fetch_calls:
+        assert call["force_refetch"] is True, (
+            f"stale benchmark cache should force-refetch all tickers; "
+            f"got force_refetch={call['force_refetch']} for {call['ticker']}"
+        )
+
+
+def test_refresh_universe_fresh_benchmark_cache_skips_force_refetch(monkeypatch):
+    """Fresh benchmark cache → _refresh_universe keeps force_refetch=False."""
+    import datetime as _dt
+    import pandas as _pd
+    fetch_calls = []
+
+    def _fake_fetch(ticker, *, start, end, force_refetch=False):
+        fetch_calls.append({"ticker": ticker, "force_refetch": force_refetch})
+
+    def _fake_load(ticker):
+        return _pd.DataFrame({"Open": [1.0]}, index=_pd.date_range("2024-01-02", periods=1, freq="B"))
+
+    # 2 hours fresh → well inside 18h threshold → no auto-refetch.
+    monkeypatch.setattr(quant_scanner, "_benchmark_cache_age_hours",
+                        lambda _b="SPY": 2.0)
+    monkeypatch.setattr(quant_scanner.data_cache, "fetch", _fake_fetch)
+    monkeypatch.setattr(quant_scanner.data_cache, "load", _fake_load)
+
+    quant_scanner._refresh_universe(["A"], start_date=_dt.date(2017, 1, 1))
+
+    assert len(fetch_calls) == 1
+    assert fetch_calls[0]["force_refetch"] is False
+
+
+def test_refresh_universe_missing_benchmark_cache_triggers_force_refetch(monkeypatch):
+    """No benchmark cache yet → treat as stale → force-refetch."""
+    import datetime as _dt
+    import pandas as _pd
+    fetch_calls = []
+
+    def _fake_fetch(ticker, *, start, end, force_refetch=False):
+        fetch_calls.append({"ticker": ticker, "force_refetch": force_refetch})
+
+    def _fake_load(ticker):
+        return _pd.DataFrame({"Open": [1.0]}, index=_pd.date_range("2024-01-02", periods=1, freq="B"))
+
+    monkeypatch.setattr(quant_scanner, "_benchmark_cache_age_hours",
+                        lambda _b="SPY": None)
+    monkeypatch.setattr(quant_scanner.data_cache, "fetch", _fake_fetch)
+    monkeypatch.setattr(quant_scanner.data_cache, "load", _fake_load)
+
+    quant_scanner._refresh_universe(["A"], start_date=_dt.date(2017, 1, 1))
+
+    assert fetch_calls[0]["force_refetch"] is True
+
+
+def test_refresh_universe_inf_max_age_disables_auto_refetch(monkeypatch):
+    """cache_max_age_hours=inf bypasses the staleness check entirely."""
+    import datetime as _dt
+    import pandas as _pd
+    fetch_calls = []
+
+    def _fake_fetch(ticker, *, start, end, force_refetch=False):
+        fetch_calls.append({"ticker": ticker, "force_refetch": force_refetch})
+
+    def _fake_load(ticker):
+        return _pd.DataFrame({"Open": [1.0]}, index=_pd.date_range("2024-01-02", periods=1, freq="B"))
+
+    # Even with very stale cache, inf max_age must NOT promote force_refetch.
+    monkeypatch.setattr(quant_scanner, "_benchmark_cache_age_hours",
+                        lambda _b="SPY": 1_000_000.0)
+    monkeypatch.setattr(quant_scanner.data_cache, "fetch", _fake_fetch)
+    monkeypatch.setattr(quant_scanner.data_cache, "load", _fake_load)
+
+    quant_scanner._refresh_universe(
+        ["A"], start_date=_dt.date(2017, 1, 1),
+        cache_max_age_hours=float("inf"),
+    )
+
+    assert fetch_calls[0]["force_refetch"] is False
 
 
 def test_scan_setup_passes_spec_period_start_to_refresh_universe(tmp_path, monkeypatch):

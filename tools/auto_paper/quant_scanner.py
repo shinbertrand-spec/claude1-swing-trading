@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -118,12 +118,42 @@ def _live_params_for(row: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any
 # ---------------------------------------------------------------- data refresh
 
 
+def _benchmark_cache_age_hours(benchmark: str = "SPY") -> Optional[float]:
+    """Return the cache file's age in hours, or None if uncached / unreadable.
+
+    Used to decide whether the cache is stale enough that a force-refetch is
+    warranted. Reads the ``fetched_at`` timestamp from the cache meta sidecar
+    (written by :mod:`tools.backtest.data_cache`) rather than the cache file's
+    filesystem mtime — meta is the contract; mtime can drift on file moves.
+    """
+    try:
+        entry = data_cache.info(benchmark)
+    except Exception:
+        return None
+    if entry is None:
+        return None
+    fetched_at_str = entry.fetched_at
+    if not fetched_at_str or fetched_at_str == "unknown":
+        return None
+    try:
+        # Parse "2026-05-22T13:45:30+00:00" → aware datetime
+        fetched_at = datetime.fromisoformat(fetched_at_str)
+    except (TypeError, ValueError):
+        return None
+    now = datetime.now(timezone.utc)
+    if fetched_at.tzinfo is None:
+        fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+    return (now - fetched_at).total_seconds() / 3600.0
+
+
 def _refresh_universe(
     tickers: list[str],
     *,
     start_date: Optional[date] = None,
     lookback_days: int = 400,
     force_refetch: bool = False,
+    cache_max_age_hours: float = 18.0,
+    benchmark: str = "SPY",
 ) -> dict[str, pd.DataFrame]:
     """Pull / refresh OHLCV for every ticker; return ``{ticker: df}``.
 
@@ -135,6 +165,14 @@ def _refresh_universe(
     ``date.fromisoformat(spec["period"]["start"])`` so the live schedule
     matches the backtest's exactly — same rebalance dates, same selections.
 
+    Cache-staleness fix (2026-05-28): :func:`tools.backtest.data_cache.fetch`
+    returns the existing cache without checking ``fetched_at``, so a stale
+    cache produces silently stale signals. This function now inspects the
+    benchmark ticker's cache age and, if older than ``cache_max_age_hours``,
+    promotes ``force_refetch`` to True for the entire universe. The benchmark
+    is the canonical clock — if SPY's cache is stale, every other ticker's
+    cache is also stale (they were all written at the same cron tick).
+
     Args:
         tickers: list of tickers to fetch.
         start_date: fixed history anchor (preferred). Wins over lookback_days
@@ -143,8 +181,27 @@ def _refresh_universe(
             ~16 months — enough for a 200d SMA + 100d momentum lookback for
             kinds that DON'T have a per-rebalance schedule (e.g. connors_rsi2,
             which is per-day-eligible — no schedule drift to align).
-        force_refetch: re-pull from yfinance even if cached.
+        force_refetch: re-pull from yfinance even if cached. The
+            ``cache_max_age_hours`` check can flip this to True automatically.
+        cache_max_age_hours: if the benchmark cache's ``fetched_at`` is older
+            than this many hours, force a universe-wide refetch. Default 18h
+            ≈ one trading day — a daily cron at the same wall-clock time will
+            always see ~24h-old cache and refresh; intraday re-runs inside
+            the same session see a fresh cache and skip the refetch. Pass
+            ``float("inf")`` to disable the auto-refresh.
+        benchmark: ticker used as the staleness clock. Default SPY.
     """
+    if not force_refetch and cache_max_age_hours != float("inf"):
+        age_h = _benchmark_cache_age_hours(benchmark)
+        if age_h is None or age_h > cache_max_age_hours:
+            print(
+                f"# quant_scanner: benchmark {benchmark} cache age="
+                f"{('unknown' if age_h is None else f'{age_h:.1f}h')} "
+                f"exceeds max_age={cache_max_age_hours:.1f}h — "
+                f"force_refetch=True for universe",
+                flush=True,
+            )
+            force_refetch = True
     end = date.today()
     if start_date is not None:
         start = start_date
