@@ -20,6 +20,14 @@ dependencies = [
     # tools.contract. Already pulled in transitively by mcp/edgartools, but
     # declared explicitly because tools.debate_synthesis imports it directly.
     "pydantic>=2.0",
+    # AAII weekly sentiment XLS parser (market_temperature v1.1).
+    # Canonical feed at https://www.aaii.com/files/surveys/sentiment.xls —
+    # DOM-stable preferred path over the sent_results HTML scrape.
+    # openpyxl reads .xlsx; xlrd<2 reads the true legacy binary .xls that
+    # AAII currently publishes. Parser tries openpyxl first, falls back to
+    # xlrd if the bytes aren't zip-based (BadZipFile).
+    "openpyxl>=3.1",
+    "xlrd>=1.2,<2.0",
 ]
 
 [dependency-groups]

@@ -149,6 +149,14 @@ def _err(reason: str) -> dict:
 
 _FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 
+# CNN's dataviz endpoint enforces an Origin/Referer CORS-flavoured check
+# server-side. Plain UA gets a 403; matching the CNN F&G page passes.
+_CNN_HEADERS = {
+    "Origin": "https://www.cnn.com",
+    "Referer": "https://www.cnn.com/markets/fear-and-greed",
+    "Accept": "application/json, text/plain, */*",
+}
+
 
 def _classify_fear_greed(value: int) -> str:
     if value <= 24:
@@ -164,11 +172,15 @@ def _classify_fear_greed(value: int) -> str:
 
 def fetch_fear_greed(
     *,
-    http_get: Callable[[str], bytes] = _http_get,
+    http_get: Callable[..., bytes] = _http_get,
 ) -> dict:
-    """CNN Fear & Greed composite. Daily cadence (cached 1h)."""
+    """CNN Fear & Greed composite. Daily cadence (cached 1h).
+
+    v1.1: passes Origin + Referer matching cnn.com (the dataviz endpoint
+    server-side-enforces CORS-flavoured origin checks; bare UA 403s).
+    """
     try:
-        raw = http_get(_FEAR_GREED_URL)
+        raw = http_get(_FEAR_GREED_URL, headers=_CNN_HEADERS)
         doc = json.loads(raw)
         fg = doc.get("fear_and_greed") or {}
         score = fg.get("score")
@@ -195,67 +207,123 @@ def fetch_fear_greed(
 # ---------------------------------------------------------------------------
 
 
-_PUT_CALL_URL = (
+_PUT_CALL_URL_PRIMARY = (
     "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIXPCC_History.csv"
 )
+# v1.1: fallback when the CDN CSV 403s. The daily market-statistics HTML page
+# exposes the same numbers in a different shape; we scrape the most recent row.
+_PUT_CALL_URL_FALLBACK = (
+    "https://www.cboe.com/us/options/market_statistics/daily/"
+)
+_CBOE_HEADERS = {
+    "Referer": "https://www.cboe.com/",
+    "Origin": "https://www.cboe.com",
+    "Accept": "text/csv, text/plain, text/html, */*",
+}
+
+# Fallback parser: the daily market-statistics page renders a table with
+# rows like "TOTAL PUT/CALL RATIO 0.95" / "EQUITY PUT/CALL RATIO 0.62".
+_PUT_CALL_FALLBACK_RE = re.compile(
+    r"(TOTAL|EQUITY|INDEX)\s+PUT\s*/\s*CALL\s+RATIO[^0-9]{0,40}"
+    r"([0-9]+(?:\.[0-9]+)?)",
+    re.IGNORECASE,
+)
+
+
+def _parse_put_call_csv(text: str) -> dict:
+    """Parse the CBOE VIXPCC_History.csv body."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return _err("empty_csv")
+    header = [h.strip().lower() for h in lines[0].split(",")]
+    last = lines[-1].split(",")
+    if len(last) < 2:
+        return _err("malformed_row")
+    date_val = last[0]
+    total: float | None = None
+    equity: float | None = None
+    for i, col in enumerate(header[1:], start=1):
+        if i >= len(last):
+            break
+        try:
+            val = float(last[i])
+        except ValueError:
+            continue
+        if total is None and ("total" in col or i == 1):
+            total = val
+        if "equity" in col:
+            equity = val
+    if total is None:
+        return _err("no_total_column")
+    as_of = date_val
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            as_of = datetime.strptime(date_val, fmt).date().isoformat()
+            break
+        except ValueError:
+            continue
+    return {
+        "as_of": as_of,
+        "total": total,
+        "equity": equity,
+        "source": "cboe",
+    }
+
+
+def _parse_put_call_fallback_html(text: str) -> dict:
+    """Scrape the CBOE daily market-statistics HTML for total + equity rows."""
+    found: dict[str, float] = {}
+    for m in _PUT_CALL_FALLBACK_RE.finditer(text):
+        label = m.group(1).lower()
+        try:
+            found.setdefault(label, float(m.group(2)))
+        except ValueError:
+            continue
+    total = found.get("total")
+    if total is None:
+        return _err("no_total_in_fallback_html")
+    return {
+        "as_of": datetime.now(timezone.utc).date().isoformat(),
+        "total": total,
+        "equity": found.get("equity"),
+        "source": "cboe",
+    }
 
 
 def fetch_put_call_ratio(
     *,
-    http_get: Callable[[str], bytes] = _http_get,
+    http_get: Callable[..., bytes] = _http_get,
 ) -> dict:
     """CBOE total + equity-only put/call ratios. Daily cadence (cached 1h).
 
-    The CBOE PCC history CSV exposes the total VIX-relevant put-call ratio.
-    Equity-only is not always available from the same endpoint; we surface
-    it as ``None`` when the column is absent rather than fail the call.
+    v1.1: try the primary CDN CSV with browser-like Referer + Origin first;
+    on HTTPError or parse failure, fall through to the daily market-statistics
+    HTML page and scrape the headline rows. Both paths fail-soft to ``_err()``.
     """
+    primary_err: str | None = None
     try:
-        raw = http_get(_PUT_CALL_URL)
+        raw = http_get(_PUT_CALL_URL_PRIMARY, headers=_CBOE_HEADERS)
         text = raw.decode("utf-8", errors="replace")
-        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-        if len(lines) < 2:
-            return _err("empty_csv")
-        header = [h.strip().lower() for h in lines[0].split(",")]
-        last = lines[-1].split(",")
-        if len(last) < 2:
-            return _err("malformed_row")
-        # Date is the first column, total ratio is conventionally the next
-        # numeric column.
-        date_val = last[0]
-        total: float | None = None
-        equity: float | None = None
-        for i, col in enumerate(header[1:], start=1):
-            if i >= len(last):
-                break
-            try:
-                val = float(last[i])
-            except ValueError:
-                continue
-            if total is None and ("total" in col or i == 1):
-                total = val
-            if "equity" in col:
-                equity = val
-        if total is None:
-            return _err("no_total_column")
-        # Normalize date to ISO yyyy-mm-dd if possible
-        as_of = date_val
-        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%Y/%m/%d"):
-            try:
-                as_of = datetime.strptime(date_val, fmt).date().isoformat()
-                break
-            except ValueError:
-                continue
-        return {
-            "as_of": as_of,
-            "total": total,
-            "equity": equity,
-            "source": "cboe",
-        }
+        parsed = _parse_put_call_csv(text)
+        if "error" not in parsed:
+            return parsed
+        primary_err = f"primary_parse: {parsed['error']}"
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
-        return _err(f"network: {type(exc).__name__}")
+        primary_err = f"primary_network: {type(exc).__name__}"
     except (ValueError, IndexError) as exc:
-        return _err(f"parse: {type(exc).__name__}")
+        primary_err = f"primary_parse: {type(exc).__name__}"
+
+    try:
+        raw = http_get(_PUT_CALL_URL_FALLBACK, headers=_CBOE_HEADERS)
+        text = raw.decode("utf-8", errors="replace")
+        parsed = _parse_put_call_fallback_html(text)
+        if "error" not in parsed:
+            return parsed
+        return _err(f"fallback_parse: {parsed['error']} (primary: {primary_err})")
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        return _err(f"fallback_network: {type(exc).__name__} (primary: {primary_err})")
+    except (ValueError, IndexError) as exc:
+        return _err(f"fallback_parse: {type(exc).__name__} (primary: {primary_err})")
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +331,7 @@ def fetch_put_call_ratio(
 # ---------------------------------------------------------------------------
 
 
+_AAII_XLS_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
 _AAII_HTML_URL = "https://www.aaii.com/sentimentsurvey/sent_results"
 
 # Look for the percent lines in the HTML scrape. The page renders the
@@ -277,15 +346,162 @@ _AAII_DATE_RE = re.compile(
 )
 
 
-def fetch_aaii_survey(
-    *,
-    http_get: Callable[[str], bytes] = _http_get,
-) -> dict:
-    """AAII weekly investor sentiment. Weekly cadence (cached 24h).
+def _normalize_aaii_pct(val) -> float | None:
+    """AAII files mix 0-1 floats and 0-100 percentages. Return 0-1 float."""
+    try:
+        f = float(val)
+    except (TypeError, ValueError):
+        return None
+    if f > 1.0:
+        f = f / 100.0
+    if not (0 <= f <= 1):
+        return None
+    return f
 
-    HTML-scrape strategy (no new deps). The page renders Bullish / Neutral /
-    Bearish as labelled percentages.
+
+def _aaii_rows_via_xlrd(raw: bytes) -> list[tuple] | None:
+    """xlrd path for true legacy binary .xls (openpyxl can't open them)."""
+    try:
+        import xlrd  # type: ignore
+    except ImportError:
+        return None
+    try:
+        book = xlrd.open_workbook(file_contents=raw)
+    except Exception:  # noqa: BLE001
+        return None
+    sheet = book.sheet_by_index(0)
+    rows: list[tuple] = []
+    for r in range(sheet.nrows):
+        out_row: list = []
+        for c in range(sheet.ncols):
+            cell = sheet.cell(r, c)
+            val = cell.value
+            # xlrd cell type 3 = date stored as float; convert.
+            if cell.ctype == 3:
+                try:
+                    tup = xlrd.xldate_as_tuple(val, book.datemode)
+                    val = datetime(*tup) if any(tup[:3]) else None
+                except Exception:  # noqa: BLE001
+                    pass
+            out_row.append(val)
+        rows.append(tuple(out_row))
+    return rows
+
+
+def _parse_aaii_xls_bytes(raw: bytes) -> dict:
+    """Parse the AAII sentiment.xls feed.
+
+    Tries openpyxl (Excel 2007+ / .xlsx-internals) first; falls back to
+    xlrd<2 for the true legacy binary .xls AAII currently publishes.
     """
+    rows: list[tuple] | None = None
+    opener_err: str | None = None
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        opener_err = "openpyxl_unavailable"
+    else:
+        import io
+        try:
+            wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            ws = wb.active
+            if ws is None:
+                opener_err = "xls_no_sheet"
+            else:
+                rows = list(ws.iter_rows(values_only=True))
+        except Exception as exc:  # noqa: BLE001 — openpyxl raises many shapes
+            opener_err = f"xls_open: {type(exc).__name__}"
+            rows = None
+
+    # xlrd fallback for true legacy .xls (BadZipFile from openpyxl is the tell).
+    if rows is None:
+        xlrd_rows = _aaii_rows_via_xlrd(raw)
+        if xlrd_rows is None:
+            return _err(opener_err or "xls_open_failed")
+        rows = xlrd_rows
+
+    if not rows:
+        return _err("xls_empty")
+
+    header_row_idx: int | None = None
+    cols: dict[str, int] = {}
+    for i, row in enumerate(rows[:10]):
+        labels = {
+            (str(c).strip().lower() if c is not None else ""): j
+            for j, c in enumerate(row)
+        }
+        date_keys = ("date", "reported date", "reported")
+        if any(k in labels for k in date_keys) and (
+            "bullish" in labels and "bearish" in labels
+        ):
+            header_row_idx = i
+            for key in ("date", "reported date", "reported"):
+                if key in labels:
+                    cols["date"] = labels[key]
+                    break
+            cols["bullish"] = labels["bullish"]
+            cols["bearish"] = labels["bearish"]
+            if "neutral" in labels:
+                cols["neutral"] = labels["neutral"]
+            break
+
+    if header_row_idx is None or "date" not in cols:
+        return _err("xls_no_header")
+
+    # Walk rows after the header and pick the LAST one that has all three
+    # percentages set — files often pad with formulas / blank rows.
+    bull = neutral = bear = None
+    as_of_week: str | None = None
+    for row in rows[header_row_idx + 1:]:
+        b = _normalize_aaii_pct(row[cols["bullish"]]) if cols.get("bullish") is not None else None
+        n = _normalize_aaii_pct(row[cols["neutral"]]) if cols.get("neutral") is not None else None
+        x = _normalize_aaii_pct(row[cols["bearish"]]) if cols.get("bearish") is not None else None
+        if b is None or x is None:
+            continue
+        bull, bear = b, x
+        if n is not None:
+            neutral = n
+        date_val = row[cols["date"]]
+        if isinstance(date_val, datetime):
+            as_of_week = date_val.date().isoformat()
+        elif date_val is not None:
+            s = str(date_val).strip()
+            for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+                try:
+                    as_of_week = datetime.strptime(s, fmt).date().isoformat()
+                    break
+                except ValueError:
+                    continue
+
+    if bull is None or bear is None:
+        return _err("xls_no_data_row")
+    if neutral is None:
+        neutral = round(max(0.0, 1.0 - bull - bear), 4)
+    return {
+        "as_of_week": as_of_week,
+        "bull": bull,
+        "neutral": neutral,
+        "bear": bear,
+        "bull_bear_spread": round(bull - bear, 4),
+        "source": "aaii",
+    }
+
+
+def _fetch_aaii_xls(
+    *, http_get: Callable[..., bytes] = _http_get,
+) -> dict:
+    """Primary path — canonical XLS. DOM-stable across page redesigns."""
+    try:
+        raw = http_get(_AAII_XLS_URL)
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        return _err(f"xls_network: {type(exc).__name__}")
+    return _parse_aaii_xls_bytes(raw)
+
+
+def _fetch_aaii_html(
+    *, http_get: Callable[..., bytes] = _http_get,
+) -> dict:
+    """Fallback path — scrape sent_results HTML for Bullish/Neutral/Bearish %s."""
     try:
         raw = http_get(_AAII_HTML_URL)
         text = raw.decode("utf-8", errors="replace")
@@ -293,8 +509,6 @@ def fetch_aaii_survey(
         for m in _AAII_PCT_RE.finditer(text):
             label = m.group(1).lower()
             pct = float(m.group(2)) / 100.0
-            # First occurrence wins (the page repeats values in tables;
-            # the first hit is the headline current week).
             found.setdefault(label, pct)
         bull = found.get("bullish")
         neutral = found.get("neutral")
@@ -325,6 +539,25 @@ def fetch_aaii_survey(
         return _err(f"network: {type(exc).__name__}")
     except (ValueError, AttributeError) as exc:
         return _err(f"parse: {type(exc).__name__}")
+
+
+def fetch_aaii_survey(
+    *,
+    http_get: Callable[..., bytes] = _http_get,
+) -> dict:
+    """AAII weekly investor sentiment. Weekly cadence (cached 24h).
+
+    v1.1: canonical XLS feed is the primary source (DOM-stable across page
+    redesigns); HTML scrape stays as fallback when the XLS endpoint or
+    parser fails. Both paths fail-soft to ``_err()``.
+    """
+    xls_result = _fetch_aaii_xls(http_get=http_get)
+    if "error" not in xls_result:
+        return xls_result
+    html_result = _fetch_aaii_html(http_get=http_get)
+    if "error" not in html_result:
+        return html_result
+    return _err(f"xls:{xls_result['error']};html:{html_result['error']}")
 
 
 # ---------------------------------------------------------------------------
