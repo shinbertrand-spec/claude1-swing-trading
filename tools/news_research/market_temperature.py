@@ -27,6 +27,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+import xlrd  # AAII feed is true legacy binary .xls — xlrd 1.2.0 only.
+
 TOOL = "tools/news_research/market_temperature.py"
 
 DEFAULT_CACHE_DIR = Path("ledgers/news/_state/market_temperature_cache")
@@ -334,6 +336,22 @@ def fetch_put_call_ratio(
 _AAII_XLS_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
 _AAII_HTML_URL = "https://www.aaii.com/sentimentsurvey/sent_results"
 
+# AAII's CDN is fronted by an anti-bot layer that 4xx-or-serves-challenge
+# to bare urllib requests. A fuller browser-shaped header set passes more
+# often than not (TLS fingerprint can still trip residual blocks).
+_AAII_HEADERS = {
+    "Accept": (
+        "application/vnd.ms-excel,application/octet-stream,"
+        "application/xml;q=0.9,*/*;q=0.8"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.aaii.com/sentimentsurvey",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Upgrade-Insecure-Requests": "1",
+}
+
 # Look for the percent lines in the HTML scrape. The page renders the
 # current week's Bullish / Neutral / Bearish percentages in close proximity.
 _AAII_PCT_RE = re.compile(
@@ -346,156 +364,111 @@ _AAII_DATE_RE = re.compile(
 )
 
 
-def _normalize_aaii_pct(val) -> float | None:
-    """AAII files mix 0-1 floats and 0-100 percentages. Return 0-1 float."""
-    try:
-        f = float(val)
-    except (TypeError, ValueError):
-        return None
-    if f > 1.0:
-        f = f / 100.0
-    if not (0 <= f <= 1):
-        return None
-    return f
-
-
-def _aaii_rows_via_xlrd(raw: bytes) -> list[tuple] | None:
-    """xlrd path for true legacy binary .xls (openpyxl can't open them)."""
-    try:
-        import xlrd  # type: ignore
-    except ImportError:
-        return None
-    try:
-        book = xlrd.open_workbook(file_contents=raw)
-    except Exception:  # noqa: BLE001
-        return None
-    sheet = book.sheet_by_index(0)
-    rows: list[tuple] = []
-    for r in range(sheet.nrows):
-        out_row: list = []
-        for c in range(sheet.ncols):
-            cell = sheet.cell(r, c)
-            val = cell.value
-            # xlrd cell type 3 = date stored as float; convert.
-            if cell.ctype == 3:
-                try:
-                    tup = xlrd.xldate_as_tuple(val, book.datemode)
-                    val = datetime(*tup) if any(tup[:3]) else None
-                except Exception:  # noqa: BLE001
-                    pass
-            out_row.append(val)
-        rows.append(tuple(out_row))
-    return rows
-
-
-def _parse_aaii_xls_bytes(raw: bytes) -> dict:
-    """Parse the AAII sentiment.xls feed.
-
-    Tries openpyxl (Excel 2007+ / .xlsx-internals) first; falls back to
-    xlrd<2 for the true legacy binary .xls AAII currently publishes.
-    """
-    rows: list[tuple] | None = None
-    opener_err: str | None = None
-    try:
-        from openpyxl import load_workbook
-    except ImportError:
-        opener_err = "openpyxl_unavailable"
-    else:
-        import io
-        try:
-            wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
-            ws = wb.active
-            if ws is None:
-                opener_err = "xls_no_sheet"
-            else:
-                rows = list(ws.iter_rows(values_only=True))
-        except Exception as exc:  # noqa: BLE001 — openpyxl raises many shapes
-            opener_err = f"xls_open: {type(exc).__name__}"
-            rows = None
-
-    # xlrd fallback for true legacy .xls (BadZipFile from openpyxl is the tell).
-    if rows is None:
-        xlrd_rows = _aaii_rows_via_xlrd(raw)
-        if xlrd_rows is None:
-            return _err(opener_err or "xls_open_failed")
-        rows = xlrd_rows
-
-    if not rows:
-        return _err("xls_empty")
-
-    header_row_idx: int | None = None
-    cols: dict[str, int] = {}
-    for i, row in enumerate(rows[:10]):
-        labels = {
-            (str(c).strip().lower() if c is not None else ""): j
-            for j, c in enumerate(row)
-        }
-        date_keys = ("date", "reported date", "reported")
-        if any(k in labels for k in date_keys) and (
-            "bullish" in labels and "bearish" in labels
-        ):
-            header_row_idx = i
-            for key in ("date", "reported date", "reported"):
-                if key in labels:
-                    cols["date"] = labels[key]
-                    break
-            cols["bullish"] = labels["bullish"]
-            cols["bearish"] = labels["bearish"]
-            if "neutral" in labels:
-                cols["neutral"] = labels["neutral"]
-            break
-
-    if header_row_idx is None or "date" not in cols:
-        return _err("xls_no_header")
-
-    # Walk rows after the header and pick the LAST one that has all three
-    # percentages set — files often pad with formulas / blank rows.
-    bull = neutral = bear = None
-    as_of_week: str | None = None
-    for row in rows[header_row_idx + 1:]:
-        b = _normalize_aaii_pct(row[cols["bullish"]]) if cols.get("bullish") is not None else None
-        n = _normalize_aaii_pct(row[cols["neutral"]]) if cols.get("neutral") is not None else None
-        x = _normalize_aaii_pct(row[cols["bearish"]]) if cols.get("bearish") is not None else None
-        if b is None or x is None:
-            continue
-        bull, bear = b, x
-        if n is not None:
-            neutral = n
-        date_val = row[cols["date"]]
-        if isinstance(date_val, datetime):
-            as_of_week = date_val.date().isoformat()
-        elif date_val is not None:
-            s = str(date_val).strip()
-            for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
-                try:
-                    as_of_week = datetime.strptime(s, fmt).date().isoformat()
-                    break
-                except ValueError:
-                    continue
-
-    if bull is None or bear is None:
-        return _err("xls_no_data_row")
-    if neutral is None:
-        neutral = round(max(0.0, 1.0 - bull - bear), 4)
-    return {
-        "as_of_week": as_of_week,
-        "bull": bull,
-        "neutral": neutral,
-        "bear": bear,
-        "bull_bear_spread": round(bull - bear, 4),
-        "source": "aaii",
-    }
-
-
 def _fetch_aaii_xls(
     *, http_get: Callable[..., bytes] = _http_get,
 ) -> dict:
-    """Primary path — canonical XLS. DOM-stable across page redesigns."""
+    """AAII canonical XLS feed. True legacy binary .xls — requires xlrd 1.2.0.
+
+    v1.2: parses via ``xlrd.open_workbook(file_contents=...)`` directly;
+    scans first ~10 rows for the Bullish/Neutral/Bearish header (AAII
+    sometimes prefixes title rows), then walks remaining rows to pick the
+    last populated week. Auto-detects 0-1 vs 0-100 percentage scale per
+    DoD § 3.2.
+    """
     try:
-        raw = http_get(_AAII_XLS_URL)
+        raw = http_get(_AAII_XLS_URL, headers=_AAII_HEADERS)
+        book = xlrd.open_workbook(file_contents=raw)
+        sheet = book.sheet_by_index(0)
+
+        header_row_idx: int | None = None
+        col_map: dict[str, int] = {}
+        for r in range(min(10, sheet.nrows)):
+            row_vals = [str(c).strip().lower() for c in sheet.row_values(r)]
+            if "bullish" in row_vals and "bearish" in row_vals:
+                header_row_idx = r
+                for ci, val in enumerate(row_vals):
+                    if val in ("bullish", "neutral", "bearish", "date"):
+                        col_map[val] = ci
+                break
+        if header_row_idx is None or not all(
+            k in col_map for k in ("bullish", "neutral", "bearish")
+        ):
+            return _err("xls_header_not_found")
+
+        # Walk rows after header; pick the LAST row that is a real weekly
+        # data row. AAII's file trails with "Count 'NN" summary rows whose
+        # date column is a string label (not an Excel serial), and very
+        # old rows have empty Bullish/Neutral/Bearish cells. Guard on both.
+        date_col = col_map.get("date", 0)
+        last_row: list | None = None
+        for r in range(header_row_idx + 1, sheet.nrows):
+            row = sheet.row_values(r)
+            b = row[col_map["bullish"]]
+            n = row[col_map["neutral"]]
+            x = row[col_map["bearish"]]
+            if b in ("", None) or n in ("", None) or x in ("", None):
+                continue
+            date_val = row[date_col]
+            # Real weekly rows store Date as an Excel serial (float) OR a
+            # parseable date string. Trailing "Count 'NN" summary rows store
+            # an unparseable label — reject those.
+            if isinstance(date_val, (int, float)):
+                pass
+            elif isinstance(date_val, str):
+                parsable = False
+                for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+                    try:
+                        datetime.strptime(date_val, fmt)
+                        parsable = True
+                        break
+                    except ValueError:
+                        continue
+                if not parsable:
+                    continue
+            else:
+                continue
+            last_row = row
+        if last_row is None:
+            return _err("xls_no_data_rows")
+
+        bull = float(last_row[col_map["bullish"]])
+        neutral = float(last_row[col_map["neutral"]])
+        bear = float(last_row[col_map["bearish"]])
+        # Scale normalisation — AAII files mix 0-1 floats and 0-100 percentages.
+        if max(bull, neutral, bear) > 1.5:
+            bull, neutral, bear = bull / 100.0, neutral / 100.0, bear / 100.0
+
+        as_of_week: str | None = None
+        if "date" in col_map:
+            date_cell = last_row[col_map["date"]]
+            try:
+                if isinstance(date_cell, (int, float)):
+                    tup = xlrd.xldate_as_tuple(date_cell, book.datemode)
+                    as_of_week = datetime(*tup[:3]).date().isoformat()
+                elif isinstance(date_cell, str):
+                    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+                        try:
+                            as_of_week = datetime.strptime(
+                                date_cell, fmt
+                            ).date().isoformat()
+                            break
+                        except ValueError:
+                            continue
+            except (ValueError, xlrd.XLDateError):
+                pass
+
+        return {
+            "as_of_week": as_of_week,
+            "bull": bull,
+            "neutral": neutral,
+            "bear": bear,
+            "bull_bear_spread": round(bull - bear, 4),
+            "source": "aaii",
+        }
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
-        return _err(f"xls_network: {type(exc).__name__}")
-    return _parse_aaii_xls_bytes(raw)
+        return _err(f"network: {type(exc).__name__}")
+    except (xlrd.XLRDError, ValueError, IndexError, KeyError) as exc:
+        return _err(f"parse: {type(exc).__name__}")
 
 
 def _fetch_aaii_html(

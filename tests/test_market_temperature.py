@@ -8,13 +8,11 @@ Coverage:
 """
 from __future__ import annotations
 
-import io
 import json
 import urllib.error
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook
 
 from tools.news_research import market_temperature as mt
 
@@ -50,17 +48,25 @@ class _HeaderCapture:
         return self.body
 
 
-def _aaii_xls_bytes(
-    *, bull: float, neutral: float, bear: float, date_iso: str = "2026-05-28",
-) -> bytes:
-    """Synthesise a minimal AAII-shaped xlsx workbook matching the parser."""
-    wb = Workbook()
-    ws = wb.active
-    ws.append(["Date", "Bullish", "Neutral", "Bearish"])
-    ws.append([date_iso, bull, neutral, bear])
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+def _make_stub_book(rows: list[list]) -> object:
+    """Return a stub object mimicking ``xlrd.open_workbook(...).sheet_by_index(0)``.
+
+    v1.2: tests monkeypatch ``mt.xlrd.open_workbook`` to return one of
+    these stubs so we don't have to ship a real binary .xls fixture.
+    """
+    class _StubSheet:
+        nrows = len(rows)
+
+        def row_values(self, r):
+            return list(rows[r])
+
+    class _StubBook:
+        datemode = 0
+
+        def sheet_by_index(self, _i):
+            return _StubSheet()
+
+    return _StubBook()
 
 
 # ---------------------------------------------------------------------------
@@ -182,17 +188,16 @@ def test_put_call_both_paths_fail_fail_soft():
 # ---------------------------------------------------------------------------
 
 
-def test_aaii_xls_happy_path():
-    """v1.1: canonical XLS is the primary source."""
-    xls = _aaii_xls_bytes(bull=0.345, neutral=0.30, bear=0.355,
-                          date_iso="2026-05-28")
+def test_aaii_xls_happy_path(monkeypatch):
+    """v1.2: xlrd parser returns last row from a mocked workbook."""
+    book = _make_stub_book([
+        ["Date", "Bullish", "Neutral", "Bearish"],
+        ["5/21/2026", 0.31, 0.34, 0.35],
+        ["5/28/2026", 0.345, 0.30, 0.355],
+    ])
+    monkeypatch.setattr(mt.xlrd, "open_workbook", lambda **kwargs: book)
 
-    def http(url, **_kw):
-        if "sentiment.xls" in url:
-            return xls
-        raise AssertionError(f"unexpected url {url}")
-
-    out = mt.fetch_aaii_survey(http_get=http)
+    out = mt._fetch_aaii_xls(http_get=lambda url, **_kw: b"fake-xls-bytes")
     assert "error" not in out
     assert abs(out["bull"] - 0.345) < 1e-9
     assert abs(out["neutral"] - 0.30) < 1e-9
@@ -201,11 +206,15 @@ def test_aaii_xls_happy_path():
     assert out["as_of_week"] == "2026-05-28"
 
 
-def test_aaii_xls_accepts_0_to_100_percentages():
-    """AAII sometimes stores 34.5 instead of 0.345; normaliser handles both."""
-    xls = _aaii_xls_bytes(bull=34.5, neutral=30.0, bear=35.5,
-                          date_iso="2026-05-28")
-    out = mt.fetch_aaii_survey(http_get=lambda url, **_kw: xls)
+def test_aaii_xls_accepts_0_to_100_percentages(monkeypatch):
+    """AAII sometimes stores 34.5 instead of 0.345; scale-detect handles both."""
+    book = _make_stub_book([
+        ["Date", "Bullish", "Neutral", "Bearish"],
+        ["5/28/2026", 34.5, 30.0, 35.5],
+    ])
+    monkeypatch.setattr(mt.xlrd, "open_workbook", lambda **kwargs: book)
+
+    out = mt._fetch_aaii_xls(http_get=lambda url, **_kw: b"fake-xls-bytes")
     assert "error" not in out
     assert abs(out["bull"] - 0.345) < 1e-9
     assert abs(out["bear"] - 0.355) < 1e-9
