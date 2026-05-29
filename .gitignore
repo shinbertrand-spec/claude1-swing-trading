@@ -49,6 +49,11 @@ ledgers/thematic/loop1/_state/
 # precedent. Was tracked by oversight before 2026-05-28.
 ledgers/news/_state/social_baseline.json
 
+# News-research market-temperature cache — TTL'd JSON per fetcher
+# (put_call / fear_greed / aaii / vix_term). Regenerable on next call.
+# Schema 1.3 (2026-05-29).
+ledgers/news/_state/market_temperature_cache/
+
 # Thematic-portfolio raw 13F fetches — regenerable from EDGAR via
 # tools.thematic_portfolio.corpus.thirteen_f --ensemble. Loop 1 outputs
 # (the LLM audit trail) ARE tracked; the raw 13F snapshots are not.
