@@ -214,7 +214,7 @@ Write-Output "  Project root:  $ProjectRoot"
 $discordStatus = if ($EnableDiscord) { "ENABLED ($EntryDiscordChannel)" } else { "disabled" }
 Write-Output "  Discord push:  $discordStatus"
 Write-Output ""
-Write-Output "v1 task (ClaudeTradingAutoPaperEntry) is UNCHANGED — both will fire in parallel."
+Write-Output "v1 task (ClaudeTradingAutoPaperEntry) is UNCHANGED - both will fire in parallel."
 Write-Output ""
 Write-Output 'Smoke test now (fires immediately, returns exit code only after full run):'
 Write-Output "  Start-ScheduledTask -TaskName $EntryTaskName"
