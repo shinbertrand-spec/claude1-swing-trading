@@ -211,19 +211,20 @@ Write-Output ""
 Write-Output "Registered: $EntryTaskName @ $EntryLocalTime ($dayMsg)"
 Write-Output "  Slash command: /auto-paper-v2"
 Write-Output "  Project root:  $ProjectRoot"
-Write-Output "  Discord push:  $(if ($EnableDiscord) { "ENABLED ($EntryDiscordChannel)" } else { "disabled" })"
+$discordStatus = if ($EnableDiscord) { "ENABLED ($EntryDiscordChannel)" } else { "disabled" }
+Write-Output "  Discord push:  $discordStatus"
 Write-Output ""
 Write-Output "v1 task (ClaudeTradingAutoPaperEntry) is UNCHANGED — both will fire in parallel."
 Write-Output ""
-Write-Output "Smoke test now (fires immediately, returns exit code only after full run):"
+Write-Output 'Smoke test now (fires immediately, returns exit code only after full run):'
 Write-Output "  Start-ScheduledTask -TaskName $EntryTaskName"
 Write-Output ""
 Write-Output "Inspect:"
 Write-Output "  Get-ScheduledTask -TaskName $EntryTaskName | Get-ScheduledTaskInfo"
 Write-Output ""
-Write-Output "Compare outcomes across the shadow window:"
-Write-Output "  - v1 placements -> ledgers/paper-auto/<TICKER>.yml (existing flow)"
-Write-Output "  - v2 placements -> ledgers/paper-auto/<TICKER>.yml (same target)"
-Write-Output "  - v2 run artifacts -> ledgers/_auto_paper_runs/<run_id>/"
+Write-Output 'Compare outcomes across the shadow window:'
+Write-Output '  - v1 placements -> ledgers/paper-auto/<TICKER>.yml (existing flow)'
+Write-Output '  - v2 placements -> ledgers/paper-auto/<TICKER>.yml (same target)'
+Write-Output '  - v2 run artifacts -> ledgers/_auto_paper_runs/<run_id>/'
 Write-Output ""
-Write-Output "Retire v1 after 3 clean parallel days — see RETIREMENT section in script header."
+Write-Output 'Retire v1 after 3 clean parallel days - see RETIREMENT section in script header.'
