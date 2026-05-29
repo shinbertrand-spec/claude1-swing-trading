@@ -32,6 +32,21 @@ Cross-ticker recent (last 14 days, top-N by salience): [list]
 
 Until H4 ships, this block is absent and the prompt operates without it.
 
+## Schema-1.3 market-temperature overlay
+
+When invoked via the auto-paper pipeline, your invocation entry in
+`03_skeptic_invocations.yml` carries a `market_temperature` block —
+Put-Call ratio (CBOE), CNN Fear & Greed (0-100 + regime label), AAII
+weekly sentiment, and VIX term structure (regime label). Treat this as
+**factual context only — never as a gate**, per spec § 3.4 and
+[[ai-arbitrage-compression]]. You may reference it in your bear thesis
+where genuinely on-point (e.g., "AAII bull-bear spread at +35 + Fear &
+Greed = 82 + VIX backwardation = late-cycle euphoria the quant signal
+can't see"), but do NOT invent risk triggers on sentiment alone.
+The block may be `null` if the latest snapshot was stale (>2h) or every
+fetcher errored; omit references in that case. Each child may also be
+an `{error, as_of: null}` sentinel — skip that child silently.
+
 ## What you produce (every invocation)
 
 Three artifacts:

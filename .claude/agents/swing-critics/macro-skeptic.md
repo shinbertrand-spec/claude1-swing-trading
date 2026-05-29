@@ -33,6 +33,8 @@ You receive ONE candidate's full context per the invocation contract. You produc
 - Fed-policy / yield-curve regime fit
 - Backtest period vs current period regime match (e.g., a strategy validated 2017-2024 has minimal experience in the 2025-2026 regime if it's structurally different)
 
+**Schema-1.3 overlay — `market_temperature`:** your envelope (and ONLY your envelope among the critic panel) includes a top-level `market_temperature` block when the most recent news snapshot carried one. It composes Put-Call ratio (CBOE), CNN Fear & Greed (0-100 with regime label), AAII weekly sentiment (bull/neutral/bear shares + bull-bear spread), and VIX term structure (VIX / VIX9D / VIX3M with regime label: short_term_stress / backwardation / contango / neutral). Mention these facts when synthesising your regime view — e.g., "Fear & Greed = 78 (extreme_greed), VIX term in backwardation = tactical caution" — but DO NOT use them as gating criteria. They are overlay context, never gates. The block may be `null` if the latest snapshot was stale (>2h) or every fetcher errored; in that case, simply omit references to it. Each child may also be an `{error, as_of: null}` sentinel; skip that child silently.
+
 **Specific things to check against `ledger_context.regime_summary`:**
 
 1. **Broad market degradation.** If `broad_market_stage_class` is `stage_2_weakening` or `stage_3_transitional`, that's already a meaningful headwind even though the pipeline didn't halt. Recommend `minus_20` if the candidate is high-beta (semis, software) on a degrading broad market.

@@ -38,6 +38,7 @@ from .critic_panel import (
     CriticVote,
     aggregate_panel,
     append_calibration_log,
+    build_critic_envelope,
     build_panel_input_dict,
     save_critic_vote,
     save_panel_verdict,
@@ -50,6 +51,7 @@ from .errors import (
 )
 from .pipeline import CandidateInput, place_candidate
 from .quant_scanner import scan_today
+from ..news_research.market_temperature import load_latest_market_temperature
 
 
 # Run-directory root. Per §3.7 — gitignored, runtime artifacts.
@@ -149,7 +151,9 @@ def _build_skeptic_prompt(
     """The single per-ticker prompt the LLM passes to trade-skeptic.
 
     Same wording as the v1 slash command Step 3b.2 used so the agent's
-    output contract is unchanged.
+    output contract is unchanged. Schema-1.3 note: each invocation entry
+    also carries a ``market_temperature`` field in
+    ``03_skeptic_invocations.yml`` — overlay context only, never a gate.
     """
     return (
         f"Skeptic pass on `{ledger_path}`. This is a paper-auto quant pick — "
@@ -160,7 +164,11 @@ def _build_skeptic_prompt(
         f"strategy-blind failure modes the quant signal can't detect. Write "
         f"your bear thesis to `{ledger_path.replace('.yml', '-bear.md')}` "
         f"per the standard contract, and append bear-side trace_refs to the "
-        f"ledger."
+        f"ledger. The invocation entry in `03_skeptic_invocations.yml` "
+        f"includes a `market_temperature` block (Put-Call / Fear & Greed / "
+        f"AAII / VIX term) — read it as factual context for the regime "
+        f"narrative, NOT as a gate (per spec § 3.4 and "
+        f"[[ai-arbitrage-compression]] discipline)."
     )
 
 
@@ -282,6 +290,12 @@ def phase_init(
     envelope_dir.mkdir(exist_ok=True)
     (run_dir / "06_panel_envelopes").mkdir(exist_ok=True)
 
+    # Schema-1.3 overlay — load once for the run, threaded into per-ticker
+    # skeptic invocations as factual context. ``None`` when the latest
+    # snapshot is stale (>2h) or every fetcher in the block is in error,
+    # so the LLM/critic sees the gap rather than rotted numbers.
+    market_temperature_block = load_latest_market_temperature()
+
     for cand, screen_result in surviving:
         inp = shell_ledger.ShellLedgerInput(
             ticker=cand.ticker,
@@ -363,6 +377,9 @@ def phase_init(
                 "corrected_sector_etf": screen_result.corrected_sector_etf,
                 "blocking_checks": list(screen_result.blocking_checks),
             },
+            # Schema-1.3 overlay. trade-skeptic reads this from its envelope
+            # as factual context only — never as a gate (spec § 3.4).
+            "market_temperature": market_temperature_block,
         }
         skeptic_invocations.append(invocation)
 
@@ -448,6 +465,7 @@ def phase_post_skeptic(run_dir: Path) -> int:
         ticker = inv["ticker"]
         panel_call_id = f"{run_dir.name}__{ticker}"
         panel_input = build_panel_input_dict(
+            market_temperature=inv.get("market_temperature"),
             ticker=ticker,
             setup_type=inv["setup_type"],
             setup_grade=inv["setup_grade"],
@@ -477,9 +495,18 @@ def phase_post_skeptic(run_dir: Path) -> int:
         critics = _derive_critics_list(panel_input)
         env_dir = panel_root / ticker
         env_dir.mkdir(parents=True, exist_ok=True)
+        # Per-critic envelope shaping. Spec § 3.4: market_temperature lands
+        # in the macro-skeptic envelope ONLY; every other critic sees the
+        # field stripped. build_critic_envelope is the single source of
+        # truth for this routing rule.
+        critic_envelopes = {
+            critic: build_critic_envelope(critic, panel_input)
+            for critic in critics
+        }
         panel_invocations.append({
             "ticker": ticker,
             "panel_input": panel_input,
+            "critic_envelopes": critic_envelopes,
             "critics_to_fire": critics,
             "envelope_dir": str(env_dir),
             "skeptic_envelope": skeptic_envelopes.get(ticker),

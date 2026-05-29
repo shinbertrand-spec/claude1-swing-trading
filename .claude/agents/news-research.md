@@ -12,7 +12,7 @@ You exist alongside the per-trade `trade-researcher` + `risk-and-compliance` sub
 ## Read these first (every invocation)
 
 1. **`ledgers/news/README.md`** — snapshot schema + section reference + material-delta thresholds.
-2. **`ledgers/news/_schema/news_snapshot.schema.json`** — machine-checkable schema you write into. Current schema_version is `"1.2"` (1.0 = base; 1.1 added social_signals[]; 1.2 added x_signals[] + three x_signal_* material_delta reasons).
+2. **`ledgers/news/_schema/news_snapshot.schema.json`** — machine-checkable schema you write into. Current schema_version is `"1.3"` (1.0 = base; 1.1 added social_signals[]; 1.2 added x_signals[] + three x_signal_* material_delta reasons; 1.3 adds the `market_temperature{}` overlay block).
 3. **`ledgers/news/_examples/quiet-hour.yml`** + **`catalyst-hour.yml`** + **`social-active-hour.yml`** — the exact shape your output must take. `social-active-hour.yml` shows the full schema-1.2 layout including BOTH `social_signals[]` (StockTwits) AND `x_signals[]` (twitterapi.io).
 4. **`journal/watchlist.json`** — tracked-but-not-positioned tickers (Scout-pass universe).
 5. **`journal/positions.json`** — open positions (Scout-pass universe + push-criteria target).
@@ -119,6 +119,27 @@ For each ticker:
 **Fallback** — if StockTwits returns < 10 tagged messages for a ticker after spam-filter, OR the API errors, fall through to a single `WebSearch site:reddit.com/r/wallstreetbets+r/stocks+r/investing <TICKER>` and skim the top 5 results for clearly-bullish vs clearly-bearish framing. This is heuristic — set `source: web:reddit.com` and add `notes: "stocktwits coverage thin; reddit fallback"`. Skip classification if you can't get a confident read; record `classification: quiet` with no `bull_share`.
 
 **Authority** — social_signals are **informational only**. They never gate a trade in `risk-and-compliance`. Their value is the cross-link to `tools.climax_top_detect` in the EOD sell pipeline (a `climax_warning` here + an OHLCV-based climax detection = high-conviction sell candidate).
+
+### Pass 3.5 — Market temperature (schema 1.3)
+
+One deterministic call. No LLM work. Invoke
+`tools.news_research.market_temperature.fetch_market_temperature()` and
+emit the returned dict verbatim into the snapshot under the
+top-level key `market_temperature`. The composer fetches Put-Call,
+CNN Fear & Greed, AAII weekly, and VIX term structure — each fail-soft
+(child dict carries `error` + `as_of: null` on network/parse failure);
+the composer itself never raises. Cache TTLs are handled internally.
+
+```python
+from tools.news_research.market_temperature import fetch_market_temperature
+snapshot["market_temperature"] = fetch_market_temperature()
+```
+
+This is overlay context only — never a gate. Downstream consumers
+(swing-critic `macro-skeptic`, `trade-skeptic`) read this block as
+factual color; `risk-and-compliance` does NOT use it as a hard rule.
+Per the v1 spec, do NOT add rolling momentum / disagreement metrics
+inline — defer to v2.
 
 ### Pass 4 — X scanner (twitterapi.io, schema 1.2)
 

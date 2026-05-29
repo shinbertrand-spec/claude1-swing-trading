@@ -326,6 +326,7 @@ def build_panel_input_dict(
     signal_percentile: Optional[float] = None,
     signal_score: Optional[float] = None,
     n_eligible_total: Optional[int] = None,
+    market_temperature: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Build the panel_input dict passed verbatim to each critic via Agent prompt.
 
@@ -377,7 +378,34 @@ def build_panel_input_dict(
             "panel_firing_date": panel_firing_date,
             "shadow_mode": shadow_mode,
         },
+        # Schema-1.3 overlay context. Top-level for routing; the per-critic
+        # envelope builder (:func:`build_critic_envelope`) STRIPS this field
+        # for every critic except ``macro-skeptic`` per spec § 3.4.
+        # ``None`` when no recent snapshot exists or the snapshot is stale.
+        "market_temperature": market_temperature,
     }
+
+
+# Critics that receive the market_temperature overlay block in their
+# envelope. Per spec § 3.4 the macro-skeptic gets it; trade-skeptic is
+# routed separately by run_entry (skeptic invocation, not panel critic).
+_MARKET_TEMP_RECIPIENT_CRITICS: frozenset[str] = frozenset({"macro-skeptic"})
+
+
+def build_critic_envelope(
+    critic_name: str, panel_input: dict[str, Any]
+) -> dict[str, Any]:
+    """Return the per-critic envelope dict for ``critic_name``.
+
+    Per spec § 3.4: ``market_temperature`` is threaded into the
+    ``macro-skeptic`` envelope ONLY. For every other critic the field is
+    stripped from a shallow copy of the shared ``panel_input``. The base
+    shape is unchanged so existing agent prompts read the same fields.
+    """
+    env = dict(panel_input)
+    if critic_name not in _MARKET_TEMP_RECIPIENT_CRITICS:
+        env.pop("market_temperature", None)
+    return env
 
 
 def _derive_critics_list(panel_input: dict[str, Any]) -> list[str]:
