@@ -28,6 +28,13 @@
       "type": "array",
       "items": { "$ref": "#/$defs/x_signal" }
     },
+    "market_temperature": {
+      "description": "Schema 1.3 — overlay aggregate market-temperature indices composed by tools.news_research.market_temperature. Put-Call ratio + CNN Fear & Greed + AAII weekly + VIX term structure. NEVER a gate — informational context for risk-and-compliance + swing-critic-panel macro-skeptic + trade-skeptic only. Block may be absent in legacy 1.2 snapshots; new snapshots always include it (possibly populated with errors).",
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/market_temperature" }
+      ]
+    },
     "macro_events": {
       "description": "Scheduled or breaking macro events (Fed speak, FOMC, CPI, employment). Drives broad-market push criteria.",
       "type": "array",
@@ -83,8 +90,8 @@
       "required": ["schema_version", "snapshot_id", "asof", "fetched_at", "ticker_count"],
       "properties": {
         "schema_version": {
-          "enum": ["1.0", "1.1", "1.2"],
-          "description": "1.0 = original Phase 1 shape. 1.1 = adds social_signals[] + three social material_delta reasons (Phase 1.5). 1.2 = adds x_signals[] + three x_signal_* material_delta reasons. New snapshots should write 1.2; older snapshots remain valid at their original version."
+          "enum": ["1.0", "1.1", "1.2", "1.3"],
+          "description": "1.0 = original Phase 1 shape. 1.1 = adds social_signals[] + three social material_delta reasons (Phase 1.5). 1.2 = adds x_signals[] + three x_signal_* material_delta reasons. 1.3 = adds market_temperature{} overlay block (Put-Call + CNN Fear & Greed + AAII + VIX term). New snapshots should write 1.3; older snapshots remain valid at their original version."
         },
         "snapshot_id": {
           "$ref": "#/$defs/iso_timestamp",
@@ -416,6 +423,44 @@
               "description": "Path to the per-post YAML in ledgers/thematic/corpus/x/<date>/<post_id>.yml when the same tweet was ALSO ingested by the thematic side (e.g. @leopoldasch posted about $NVDA). Null when no overlap. The two consumers ingest independently — this field is a cheap audit pointer, not a coupling."
             }
           }
+        }
+      }
+    },
+
+    "market_temperature": {
+      "type": "object",
+      "description": "Schema 1.3 — composed market-temperature block from tools.news_research.market_temperature.fetch_market_temperature(). Each child is either a populated dict OR a {error, as_of: null} sentinel on fetch failure.",
+      "additionalProperties": false,
+      "required": ["as_of", "put_call", "fear_greed", "aaii", "vix_term", "errors"],
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "description": "Max of children's as_of timestamps (or AAII as_of_week). Falls back to composer-time when no child succeeded."
+        },
+        "put_call": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "CBOE put/call ratio. Success shape: {as_of, total, equity, source: 'cboe'}. Error shape: {error, as_of: null}."
+        },
+        "fear_greed": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "CNN Fear & Greed. Success shape: {as_of, value 0-100, regime, source: 'cnn'}. Error shape: {error, as_of: null}."
+        },
+        "aaii": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "AAII weekly survey. Success shape: {as_of_week, bull, neutral, bear, bull_bear_spread, source: 'aaii'}. Error shape: {error, as_of: null}."
+        },
+        "vix_term": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "VIX term structure. Success shape: {as_of, vix, vix9d, vix3m, vix9d_vix, vix_vix3m, regime, source: 'cboe'}. Error shape: {error, as_of: null}."
+        },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Per-fetcher error tags. Empty when all four succeeded."
         }
       }
     },
