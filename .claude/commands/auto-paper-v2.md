@@ -4,6 +4,10 @@ Trigger auto-paper for the current trading day. Five steps; Python owns all stat
 
 Per [auto-paper LLM/Python boundary refactor 2026-05-28]. Architecture-level rationale at the spec; this command is the LLM coordination layer only.
 
+## $ARGUMENTS parsing
+
+- `--dry-run` — **true-shadow mode.** Steps 1–4 run identically (scan, screener, shell ledgers, skeptic + critic panel all fire for real). Step 5 still aggregates + sizes + builds + validates each candidate, but passes `--dry-run` to `--phase post_panel` so **no broker order is placed and no submitted ledger / positions.json row is written** — placement rows report `status=dry_run`. Use this to validate the v2 path places-clean at a real market open without trading. Only Step 5's Python invocation changes; everything upstream is byte-identical to a live run.
+
 ## Step 1 — Initialize the run
 
 Run:
@@ -57,12 +61,14 @@ If individual critics fail: skip silently (aggregator handles partial votes). If
 
 ## Step 5 — Aggregate and place
 
-Run:
+Run (append `--dry-run` to this invocation **iff** `--dry-run` was passed to the command):
 ```bash
 uv run python -m tools.auto_paper.run_entry --phase post_panel
+# true-shadow window:
+uv run python -m tools.auto_paper.run_entry --phase post_panel --dry-run
 ```
 
-Expected stdout final line: `PHASE_POST_PANEL_OK placed=<N>`.
+Expected stdout final line: `PHASE_POST_PANEL_OK placed=<N>`. In `--dry-run` the marker still appears with `placed=0` (nothing was actually placed); per-ticker rows in `07_placement_results.yml` carry `status: dry_run`.
 
 If non-zero exit or missing marker: surface to Bertrand via Telegram with the stderr. Read `{run_dir}/07_placement_results.yml` for the per-ticker placement table and post the summary to Telegram.
 

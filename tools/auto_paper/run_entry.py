@@ -533,6 +533,7 @@ def phase_post_panel(
     run_dir: Path,
     *,
     shadow_mode: bool = True,
+    dry_run: bool = False,
     place_fn=None,
     client_factory=None,
 ) -> int:
@@ -542,6 +543,13 @@ def phase_post_panel(
         shadow_mode: per Phase 3 v1 contract — verdicts logged but
             sizing_multiplier NOT applied. Flip to ``False`` for
             Phase 3 v2 (~2026-06-10).
+        dry_run: when True, runs the full aggregate → size → candidate-build
+            → validate path but passes ``dry_run=True`` to ``place_fn`` so no
+            broker order is placed and no submitted ledger / positions.json is
+            written (placement rows report ``status="dry_run"``). Used for the
+            true-shadow validation window — exercise the open-session path
+            without trading. Independent of ``shadow_mode`` (which is about
+            sizing, not placement).
         place_fn: test seam — override for :func:`pipeline.place_candidate`.
         client_factory: test seam — override for :class:`TigerClient`.
     """
@@ -669,7 +677,7 @@ def phase_post_panel(
             result = place_fn(
                 cand_input,
                 client=client,
-                dry_run=False,
+                dry_run=dry_run,
                 apply_panel_sizing=False,    # shares already finalized above
                 auto_paper_run_dir=str(run_dir),
             )
@@ -757,6 +765,12 @@ def main(argv: list[str] | None = None) -> int:
         "--apply-panel-sizing", action="store_true",
         help="Phase 3 v2 (post-2026-06-10). Sizing multiplier IS applied.",
     )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="post_panel only: run the full aggregate→size→validate path but "
+             "do NOT place broker orders or write submitted ledgers "
+             "(placement rows report status=dry_run). True-shadow validation.",
+    )
     args = parser.parse_args(argv)
     shadow = not args.apply_panel_sizing
 
@@ -768,7 +782,7 @@ def main(argv: list[str] | None = None) -> int:
         return phase_post_skeptic(run_dir)
     elif args.phase == "post_panel":
         run_dir = args.run_dir or _latest_run_dir()
-        return phase_post_panel(run_dir, shadow_mode=shadow)
+        return phase_post_panel(run_dir, shadow_mode=shadow, dry_run=args.dry_run)
     return 1
 
 

@@ -460,6 +460,48 @@ def test_phase_post_panel_aggregates_partial_votes_when_some_critics_present(_is
     assert results["results"][0]["ticker"] == "GKOS"
 
 
+def test_phase_post_panel_dry_run_threads_to_place_fn(_isolated_run_root, capsys):
+    """--dry-run must reach place_fn as dry_run=True; nothing is 'placed'.
+
+    Mirrors place_candidate's real dry-run contract: it returns status='dry_run'
+    BEFORE the broker call, so n_placed stays 0 and the row records dry_run.
+    """
+    run_dir = _make_run_dir(run_entry.RUN_ROOT)
+    _seed_init_artifacts(run_dir, ["GKOS"], skeptic_envelopes={"GKOS": {"verdict": "STRONG"}})
+    _seed_post_skeptic(run_dir, ["GKOS"])
+    _seed_panel_votes(run_dir, "GKOS", {
+        "risk-manager": "hold",
+        "setup-quality-hawk": "hold",
+        "macro-skeptic": "hold",
+        "quant-insight": "hold",
+    })
+
+    seen_dry_run: list[bool] = []
+    def _fake_place(cand, *, client, dry_run, apply_panel_sizing, auto_paper_run_dir):
+        seen_dry_run.append(dry_run)
+        # Real place_candidate short-circuits to dry_run status when dry_run=True
+        return SimpleNamespace(
+            status="dry_run" if dry_run else "placed",
+            broker_order_id=None if dry_run else 12345,
+            reason=None, ledger_path=None if dry_run else "x.yml",
+        )
+
+    rc = run_entry.phase_post_panel(
+        run_dir, dry_run=True, place_fn=_fake_place, client_factory=lambda: object(),
+    )
+    assert rc == 0
+    assert seen_dry_run == [True]            # flag reached the placer
+    out = capsys.readouterr().out
+    assert "PLACE: GKOS dry_run" in out
+    assert "PHASE_POST_PANEL_OK placed=0" in out
+
+    results = yaml.safe_load((run_dir / "07_placement_results.yml").read_text())
+    assert results["n_placed"] == 0
+    assert results["results"][0]["status"] == "dry_run"
+    assert results["results"][0]["placed"] is False
+    assert results["results"][0]["broker_order_id"] is None
+
+
 def test_phase_post_panel_defers_on_structural_risk(_isolated_run_root, capsys):
     run_dir = _make_run_dir(run_entry.RUN_ROOT)
     _seed_init_artifacts(run_dir, ["GKOS"], skeptic_envelopes={"GKOS": {"verdict": "STRONG"}})
