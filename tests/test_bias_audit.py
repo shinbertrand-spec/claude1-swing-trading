@@ -43,18 +43,20 @@ def _write_candidate(
     ticker: str,
     sector: str | None,
     market_cap_usd: float | None,
+    track: str | None = None,
 ) -> Path:
     """Write a minimal candidate ledger to root/<dir_date>/<TICKER>.yml."""
     day_dir = root / dir_date.isoformat()
     day_dir.mkdir(parents=True, exist_ok=True)
     sector_etf = SECTOR_TO_ETF.get(sector) if sector else None
-    ledger: dict = {
-        "meta": {
-            "ticker": ticker,
-            "state": "candidate",
-            "asof": f"{dir_date.isoformat()}T14:30:00+00:00",
-        },
+    meta: dict = {
+        "ticker": ticker,
+        "state": "candidate",
+        "asof": f"{dir_date.isoformat()}T14:30:00+00:00",
     }
+    if track is not None:
+        meta["track"] = track
+    ledger: dict = {"meta": meta}
     if sector_etf:
         ledger["regime"] = {"sector_etf": sector_etf}
     if market_cap_usd is not None:
@@ -329,6 +331,96 @@ def test_render_markdown_with_flags(tmp_path: Path) -> None:
     assert "Flagged buckets" in md
     assert "Technology" in md
     assert "[FLAGGED]" in md
+
+
+# ----------------------------------------------------------------------
+# Track-filter tests (Alfred Delta 6)
+# ----------------------------------------------------------------------
+
+
+def _seed_mixed_tracks(root: Path) -> None:
+    """Seed 20 generic-track + 20 ai_thematic-track candidates with distinct
+    sector distributions so a track filter produces materially different
+    flags."""
+    # 20 generic, broadly tech/fin/hc split
+    for i in range(20):
+        sector = ["Technology", "Financials", "Health Care", "Industrials"][i % 4]
+        cap = LARGE_CAP if i % 2 == 0 else MEGA_CAP
+        _write_candidate(
+            root, date(2026, 5, 1), f"G{i:03d}", sector, cap, track="generic",
+        )
+    # 20 ai_thematic, 100% Technology
+    for i in range(20):
+        cap = LARGE_CAP if i % 2 == 0 else MEGA_CAP
+        _write_candidate(
+            root, date(2026, 5, 1), f"A{i:03d}", "Technology", cap,
+            track="ai_thematic",
+        )
+
+
+def test_audit_default_no_track_filter_includes_all(tmp_path: Path) -> None:
+    """Default audit (no track arg) preserves pre-Delta-6 behavior — sees
+    every ledger regardless of meta.track."""
+    root = tmp_path / "candidates"
+    _seed_mixed_tracks(root)
+    report = audit(root, since=date(2026, 5, 1), until=date(2026, 5, 31))
+    assert report.n_candidates == 40, (
+        "default audit should see all 40 candidates (no track filter)"
+    )
+
+
+def test_audit_track_generic_excludes_ai_thematic(tmp_path: Path) -> None:
+    """track='generic' filter excludes ai_thematic ledgers; missing-track
+    ledgers are treated as generic per DEFAULT_TRACK."""
+    root = tmp_path / "candidates"
+    _seed_mixed_tracks(root)
+    # Also seed 5 with no meta.track — should count as generic.
+    for i in range(5):
+        _write_candidate(
+            root, date(2026, 5, 1), f"L{i:03d}", "Energy", LARGE_CAP, track=None,
+        )
+    report = audit(
+        root, since=date(2026, 5, 1), until=date(2026, 5, 31),
+        track="generic", min_sample=10,
+    )
+    assert report.n_candidates == 25, (
+        f"generic filter should see 20 explicit-generic + 5 no-track = 25; "
+        f"got {report.n_candidates}"
+    )
+
+
+def test_audit_track_ai_thematic_filters_correctly(tmp_path: Path) -> None:
+    """track='ai_thematic' filter keeps only ai_thematic-tagged ledgers."""
+    root = tmp_path / "candidates"
+    _seed_mixed_tracks(root)
+    report = audit(
+        root, since=date(2026, 5, 1), until=date(2026, 5, 31),
+        track="ai_thematic", min_sample=10,
+    )
+    assert report.n_candidates == 20
+    # 100% Technology → strong flag on Tech over-representation
+    tech_flag = next(
+        (f for f in report.flagged_buckets
+         if f["axis"] == "sector" and f["bucket"] == "Technology"),
+        None,
+    )
+    assert tech_flag is not None
+    assert tech_flag["direction"] == "over"
+    # Track-filter note + ai_thematic informational caveat must surface
+    assert any("track filter applied" in n for n in report.notes)
+    assert any("INFORMATIONAL" in n for n in report.notes)
+
+
+def test_audit_unknown_track_raises(tmp_path: Path) -> None:
+    """Unknown track values raise rather than silently filtering to nothing."""
+    root = tmp_path / "candidates"
+    _seed_mixed_tracks(root)
+    try:
+        audit(root, track="nonsense_track")
+    except ValueError as exc:
+        assert "unknown track" in str(exc).lower()
+    else:
+        raise AssertionError("expected ValueError for unknown track value")
 
 
 def test_audit_custom_baseline_overrides_default(tmp_path: Path) -> None:

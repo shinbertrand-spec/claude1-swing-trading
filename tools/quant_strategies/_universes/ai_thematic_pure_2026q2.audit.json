@@ -1,0 +1,395 @@
+{
+  "universe": "ai_thematic_pure_2026q2",
+  "asof": "2026-05-29",
+  "adv_floor_shares": 500000,
+  "lookback_days": 60,
+  "buckets": [
+    {
+      "label": "AI primes / compute leaders",
+      "tickers": [
+        {
+          "ticker": "NVDA",
+          "median_adv_shares": 164815300.0
+        },
+        {
+          "ticker": "AMD",
+          "median_adv_shares": 36069100.0
+        },
+        {
+          "ticker": "AVGO",
+          "median_adv_shares": 21000700.0
+        },
+        {
+          "ticker": "MRVL",
+          "median_adv_shares": 23675350.0
+        },
+        {
+          "ticker": "ASML",
+          "median_adv_shares": 1723900.0
+        },
+        {
+          "ticker": "QCOM",
+          "median_adv_shares": 11493750.0
+        }
+      ]
+    },
+    {
+      "label": "Hyperscalers / inference platforms",
+      "tickers": [
+        {
+          "ticker": "MSFT",
+          "median_adv_shares": 31152550.0
+        },
+        {
+          "ticker": "GOOGL",
+          "median_adv_shares": 25799700.0
+        },
+        {
+          "ticker": "META",
+          "median_adv_shares": 13318100.0
+        },
+        {
+          "ticker": "AMZN",
+          "median_adv_shares": 42185300.0
+        },
+        {
+          "ticker": "ORCL",
+          "median_adv_shares": 22437950.0
+        }
+      ]
+    },
+    {
+      "label": "Power generation (nuclear + IPP)",
+      "tickers": [
+        {
+          "ticker": "CEG",
+          "median_adv_shares": 2759200.0
+        },
+        {
+          "ticker": "VST",
+          "median_adv_shares": 4379250.0
+        },
+        {
+          "ticker": "TLN",
+          "median_adv_shares": 691450.0
+        },
+        {
+          "ticker": "NRG",
+          "median_adv_shares": 2637600.0
+        },
+        {
+          "ticker": "BWXT",
+          "median_adv_shares": 1024350.0
+        }
+      ]
+    },
+    {
+      "label": "Cooling / thermal management",
+      "tickers": [
+        {
+          "ticker": "VRT",
+          "median_adv_shares": 5639950.0
+        },
+        {
+          "ticker": "ETN",
+          "median_adv_shares": 2487100.0
+        },
+        {
+          "ticker": "MOD",
+          "median_adv_shares": 990650.0
+        },
+        {
+          "ticker": "SMCI",
+          "median_adv_shares": 28895050.0
+        }
+      ]
+    },
+    {
+      "label": "Data-center REITs",
+      "tickers": [
+        {
+          "ticker": "EQIX",
+          "median_adv_shares": 509000.0
+        },
+        {
+          "ticker": "DLR",
+          "median_adv_shares": 1792450.0
+        },
+        {
+          "ticker": "IRM",
+          "median_adv_shares": 1363300.0
+        }
+      ]
+    },
+    {
+      "label": "Networking / optical / interconnect",
+      "tickers": [
+        {
+          "ticker": "ANET",
+          "median_adv_shares": 7340100.0
+        },
+        {
+          "ticker": "CIEN",
+          "median_adv_shares": 2510400.0
+        },
+        {
+          "ticker": "COHR",
+          "median_adv_shares": 6279800.0
+        },
+        {
+          "ticker": "LITE",
+          "median_adv_shares": 6132200.0
+        },
+        {
+          "ticker": "CRDO",
+          "median_adv_shares": 6600900.0
+        }
+      ]
+    },
+    {
+      "label": "Memory / HBM",
+      "tickers": [
+        {
+          "ticker": "MU",
+          "median_adv_shares": 43958800.0
+        },
+        {
+          "ticker": "WDC",
+          "median_adv_shares": 7419700.0
+        },
+        {
+          "ticker": "STX",
+          "median_adv_shares": 3525000.0
+        }
+      ]
+    },
+    {
+      "label": "Semicap",
+      "tickers": [
+        {
+          "ticker": "AMAT",
+          "median_adv_shares": 6001350.0
+        },
+        {
+          "ticker": "LRCX",
+          "median_adv_shares": 9424000.0
+        }
+      ]
+    },
+    {
+      "label": "Software inference / accelerated AI infra",
+      "tickers": [
+        {
+          "ticker": "PLTR",
+          "median_adv_shares": 41579950.0
+        },
+        {
+          "ticker": "SNOW",
+          "median_adv_shares": 4092350.0
+        },
+        {
+          "ticker": "NOW",
+          "median_adv_shares": 21868050.0
+        },
+        {
+          "ticker": "DDOG",
+          "median_adv_shares": 4540350.0
+        }
+      ]
+    },
+    {
+      "label": "AI-native compute / cloud",
+      "tickers": [
+        {
+          "ticker": "NBIS",
+          "median_adv_shares": 14239200.0
+        },
+        {
+          "ticker": "CRWV",
+          "median_adv_shares": 25301300.0
+        }
+      ]
+    },
+    {
+      "label": "Smaller pure-play infra",
+      "tickers": [
+        {
+          "ticker": "ALAB",
+          "median_adv_shares": 5146450.0
+        },
+        {
+          "ticker": "AEHR",
+          "median_adv_shares": 2525900.0
+        }
+      ]
+    }
+  ],
+  "survivors": [
+    {
+      "ticker": "AEHR",
+      "median_adv_shares": 2525900.0
+    },
+    {
+      "ticker": "ALAB",
+      "median_adv_shares": 5146450.0
+    },
+    {
+      "ticker": "AMAT",
+      "median_adv_shares": 6001350.0
+    },
+    {
+      "ticker": "AMD",
+      "median_adv_shares": 36069100.0
+    },
+    {
+      "ticker": "AMZN",
+      "median_adv_shares": 42185300.0
+    },
+    {
+      "ticker": "ANET",
+      "median_adv_shares": 7340100.0
+    },
+    {
+      "ticker": "ASML",
+      "median_adv_shares": 1723900.0
+    },
+    {
+      "ticker": "AVGO",
+      "median_adv_shares": 21000700.0
+    },
+    {
+      "ticker": "BWXT",
+      "median_adv_shares": 1024350.0
+    },
+    {
+      "ticker": "CEG",
+      "median_adv_shares": 2759200.0
+    },
+    {
+      "ticker": "CIEN",
+      "median_adv_shares": 2510400.0
+    },
+    {
+      "ticker": "COHR",
+      "median_adv_shares": 6279800.0
+    },
+    {
+      "ticker": "CRDO",
+      "median_adv_shares": 6600900.0
+    },
+    {
+      "ticker": "CRWV",
+      "median_adv_shares": 25301300.0
+    },
+    {
+      "ticker": "DDOG",
+      "median_adv_shares": 4540350.0
+    },
+    {
+      "ticker": "DLR",
+      "median_adv_shares": 1792450.0
+    },
+    {
+      "ticker": "EQIX",
+      "median_adv_shares": 509000.0
+    },
+    {
+      "ticker": "ETN",
+      "median_adv_shares": 2487100.0
+    },
+    {
+      "ticker": "GOOGL",
+      "median_adv_shares": 25799700.0
+    },
+    {
+      "ticker": "IRM",
+      "median_adv_shares": 1363300.0
+    },
+    {
+      "ticker": "LITE",
+      "median_adv_shares": 6132200.0
+    },
+    {
+      "ticker": "LRCX",
+      "median_adv_shares": 9424000.0
+    },
+    {
+      "ticker": "META",
+      "median_adv_shares": 13318100.0
+    },
+    {
+      "ticker": "MOD",
+      "median_adv_shares": 990650.0
+    },
+    {
+      "ticker": "MRVL",
+      "median_adv_shares": 23675350.0
+    },
+    {
+      "ticker": "MSFT",
+      "median_adv_shares": 31152550.0
+    },
+    {
+      "ticker": "MU",
+      "median_adv_shares": 43958800.0
+    },
+    {
+      "ticker": "NBIS",
+      "median_adv_shares": 14239200.0
+    },
+    {
+      "ticker": "NOW",
+      "median_adv_shares": 21868050.0
+    },
+    {
+      "ticker": "NRG",
+      "median_adv_shares": 2637600.0
+    },
+    {
+      "ticker": "NVDA",
+      "median_adv_shares": 164815300.0
+    },
+    {
+      "ticker": "ORCL",
+      "median_adv_shares": 22437950.0
+    },
+    {
+      "ticker": "PLTR",
+      "median_adv_shares": 41579950.0
+    },
+    {
+      "ticker": "QCOM",
+      "median_adv_shares": 11493750.0
+    },
+    {
+      "ticker": "SMCI",
+      "median_adv_shares": 28895050.0
+    },
+    {
+      "ticker": "SNOW",
+      "median_adv_shares": 4092350.0
+    },
+    {
+      "ticker": "STX",
+      "median_adv_shares": 3525000.0
+    },
+    {
+      "ticker": "TLN",
+      "median_adv_shares": 691450.0
+    },
+    {
+      "ticker": "VRT",
+      "median_adv_shares": 5639950.0
+    },
+    {
+      "ticker": "VST",
+      "median_adv_shares": 4379250.0
+    },
+    {
+      "ticker": "WDC",
+      "median_adv_shares": 7419700.0
+    }
+  ],
+  "below_floor": [],
+  "fetch_failures": []
+}

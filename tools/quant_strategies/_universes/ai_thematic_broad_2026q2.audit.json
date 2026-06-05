@@ -1,0 +1,1223 @@
+{
+  "universe": "ai_thematic_broad_2026q2",
+  "asof": "2026-05-29",
+  "adv_floor_shares": 500000,
+  "lookback_days": 60,
+  "buckets": [
+    {
+      "label": "AI primes / compute leaders",
+      "tickers": [
+        {
+          "ticker": "NVDA",
+          "median_adv_shares": 164815300.0
+        },
+        {
+          "ticker": "AMD",
+          "median_adv_shares": 36069100.0
+        },
+        {
+          "ticker": "AVGO",
+          "median_adv_shares": 21000700.0
+        },
+        {
+          "ticker": "MRVL",
+          "median_adv_shares": 23675350.0
+        },
+        {
+          "ticker": "ASML",
+          "median_adv_shares": 1723900.0
+        },
+        {
+          "ticker": "QCOM",
+          "median_adv_shares": 11493750.0
+        }
+      ]
+    },
+    {
+      "label": "Hyperscalers / inference platforms",
+      "tickers": [
+        {
+          "ticker": "MSFT",
+          "median_adv_shares": 31152550.0
+        },
+        {
+          "ticker": "GOOGL",
+          "median_adv_shares": 25799700.0
+        },
+        {
+          "ticker": "META",
+          "median_adv_shares": 13318100.0
+        },
+        {
+          "ticker": "AMZN",
+          "median_adv_shares": 42185300.0
+        },
+        {
+          "ticker": "ORCL",
+          "median_adv_shares": 22437950.0
+        }
+      ]
+    },
+    {
+      "label": "Power generation (nuclear + IPP)",
+      "tickers": [
+        {
+          "ticker": "CEG",
+          "median_adv_shares": 2759200.0
+        },
+        {
+          "ticker": "VST",
+          "median_adv_shares": 4379250.0
+        },
+        {
+          "ticker": "TLN",
+          "median_adv_shares": 691450.0
+        },
+        {
+          "ticker": "NRG",
+          "median_adv_shares": 2637600.0
+        },
+        {
+          "ticker": "BWXT",
+          "median_adv_shares": 1024350.0
+        }
+      ]
+    },
+    {
+      "label": "Cooling / thermal management",
+      "tickers": [
+        {
+          "ticker": "VRT",
+          "median_adv_shares": 5639950.0
+        },
+        {
+          "ticker": "ETN",
+          "median_adv_shares": 2487100.0
+        },
+        {
+          "ticker": "MOD",
+          "median_adv_shares": 990650.0
+        },
+        {
+          "ticker": "SMCI",
+          "median_adv_shares": 28895050.0
+        }
+      ]
+    },
+    {
+      "label": "Data-center REITs",
+      "tickers": [
+        {
+          "ticker": "EQIX",
+          "median_adv_shares": 509000.0
+        },
+        {
+          "ticker": "DLR",
+          "median_adv_shares": 1792450.0
+        },
+        {
+          "ticker": "IRM",
+          "median_adv_shares": 1363300.0
+        }
+      ]
+    },
+    {
+      "label": "Networking / optical / interconnect",
+      "tickers": [
+        {
+          "ticker": "ANET",
+          "median_adv_shares": 7340100.0
+        },
+        {
+          "ticker": "CIEN",
+          "median_adv_shares": 2510400.0
+        },
+        {
+          "ticker": "COHR",
+          "median_adv_shares": 6279800.0
+        },
+        {
+          "ticker": "LITE",
+          "median_adv_shares": 6132200.0
+        },
+        {
+          "ticker": "CRDO",
+          "median_adv_shares": 6600900.0
+        }
+      ]
+    },
+    {
+      "label": "Memory / HBM",
+      "tickers": [
+        {
+          "ticker": "MU",
+          "median_adv_shares": 43958800.0
+        },
+        {
+          "ticker": "WDC",
+          "median_adv_shares": 7419700.0
+        },
+        {
+          "ticker": "STX",
+          "median_adv_shares": 3525000.0
+        }
+      ]
+    },
+    {
+      "label": "Semicap",
+      "tickers": [
+        {
+          "ticker": "AMAT",
+          "median_adv_shares": 6001350.0
+        },
+        {
+          "ticker": "LRCX",
+          "median_adv_shares": 9424000.0
+        }
+      ]
+    },
+    {
+      "label": "Software inference / accelerated AI infra",
+      "tickers": [
+        {
+          "ticker": "PLTR",
+          "median_adv_shares": 41579950.0
+        },
+        {
+          "ticker": "SNOW",
+          "median_adv_shares": 4092350.0
+        },
+        {
+          "ticker": "NOW",
+          "median_adv_shares": 21868050.0
+        },
+        {
+          "ticker": "DDOG",
+          "median_adv_shares": 4540350.0
+        }
+      ]
+    },
+    {
+      "label": "AI-native compute / cloud",
+      "tickers": [
+        {
+          "ticker": "NBIS",
+          "median_adv_shares": 14239200.0
+        },
+        {
+          "ticker": "CRWV",
+          "median_adv_shares": 25301300.0
+        }
+      ]
+    },
+    {
+      "label": "Smaller pure-play infra",
+      "tickers": [
+        {
+          "ticker": "ALAB",
+          "median_adv_shares": 5146450.0
+        },
+        {
+          "ticker": "AEHR",
+          "median_adv_shares": 2525900.0
+        }
+      ]
+    },
+    {
+      "label": "Power & utilities runoff",
+      "tickers": [
+        {
+          "ticker": "AEP",
+          "median_adv_shares": 3143350.0
+        },
+        {
+          "ticker": "D",
+          "median_adv_shares": 4407350.0
+        },
+        {
+          "ticker": "DUK",
+          "median_adv_shares": 3429550.0
+        },
+        {
+          "ticker": "EXC",
+          "median_adv_shares": 7766700.0
+        },
+        {
+          "ticker": "NEE",
+          "median_adv_shares": 8684950.0
+        },
+        {
+          "ticker": "SO",
+          "median_adv_shares": 4689700.0
+        },
+        {
+          "ticker": "XEL",
+          "median_adv_shares": 4305950.0
+        },
+        {
+          "ticker": "PEG",
+          "median_adv_shares": 2611550.0
+        },
+        {
+          "ticker": "PCG",
+          "median_adv_shares": 21423750.0
+        },
+        {
+          "ticker": "EIX",
+          "median_adv_shares": 2765550.0
+        },
+        {
+          "ticker": "SRE",
+          "median_adv_shares": 3258600.0
+        },
+        {
+          "ticker": "ETR",
+          "median_adv_shares": 2761700.0
+        },
+        {
+          "ticker": "WEC",
+          "median_adv_shares": 1819450.0
+        },
+        {
+          "ticker": "AES",
+          "median_adv_shares": 10758400.0
+        },
+        {
+          "ticker": "PPL",
+          "median_adv_shares": 7294300.0
+        }
+      ]
+    },
+    {
+      "label": "Nuclear fuel / SMR",
+      "tickers": [
+        {
+          "ticker": "CCJ",
+          "median_adv_shares": 3141250.0
+        },
+        {
+          "ticker": "UEC",
+          "median_adv_shares": 9248700.0
+        },
+        {
+          "ticker": "LEU",
+          "median_adv_shares": 791600.0
+        },
+        {
+          "ticker": "OKLO",
+          "median_adv_shares": 10683350.0
+        },
+        {
+          "ticker": "SMR",
+          "median_adv_shares": 25704500.0
+        }
+      ]
+    },
+    {
+      "label": "Grid / transmission / electrification",
+      "tickers": [
+        {
+          "ticker": "GEV",
+          "median_adv_shares": 2317850.0
+        },
+        {
+          "ticker": "MTZ",
+          "median_adv_shares": 893550.0
+        },
+        {
+          "ticker": "PWR",
+          "median_adv_shares": 1080900.0
+        },
+        {
+          "ticker": "FLR",
+          "median_adv_shares": 2466600.0
+        },
+        {
+          "ticker": "J",
+          "median_adv_shares": 859800.0
+        },
+        {
+          "ticker": "PRIM",
+          "median_adv_shares": 815050.0
+        },
+        {
+          "ticker": "ROK",
+          "median_adv_shares": 778900.0
+        },
+        {
+          "ticker": "EMR",
+          "median_adv_shares": 2906900.0
+        },
+        {
+          "ticker": "HUBB",
+          "median_adv_shares": 573787.0
+        }
+      ]
+    },
+    {
+      "label": "Industrial gases / cooling fluids",
+      "tickers": [
+        {
+          "ticker": "APD",
+          "median_adv_shares": 1141500.0
+        },
+        {
+          "ticker": "LIN",
+          "median_adv_shares": 2140900.0
+        },
+        {
+          "ticker": "CE",
+          "median_adv_shares": 2196800.0
+        },
+        {
+          "ticker": "DD",
+          "median_adv_shares": 3501500.0
+        }
+      ]
+    },
+    {
+      "label": "Copper / electrification metals",
+      "tickers": [
+        {
+          "ticker": "FCX",
+          "median_adv_shares": 15584700.0
+        },
+        {
+          "ticker": "SCCO",
+          "median_adv_shares": 1494077.5
+        },
+        {
+          "ticker": "TECK",
+          "median_adv_shares": 3306550.0
+        },
+        {
+          "ticker": "ALB",
+          "median_adv_shares": 1868700.0
+        },
+        {
+          "ticker": "MP",
+          "median_adv_shares": 5590750.0
+        }
+      ]
+    },
+    {
+      "label": "Construction / DC build-out",
+      "tickers": [
+        {
+          "ticker": "GVA",
+          "median_adv_shares": 571150.0
+        },
+        {
+          "ticker": "MLM",
+          "median_adv_shares": 502700.0
+        },
+        {
+          "ticker": "VMC",
+          "median_adv_shares": 1099300.0
+        },
+        {
+          "ticker": "MAS",
+          "median_adv_shares": 2596700.0
+        }
+      ]
+    },
+    {
+      "label": "Networking adjacencies",
+      "tickers": [
+        {
+          "ticker": "PRGS",
+          "median_adv_shares": 761050.0
+        },
+        {
+          "ticker": "TEL",
+          "median_adv_shares": 2196750.0
+        },
+        {
+          "ticker": "GLW",
+          "median_adv_shares": 11952150.0
+        }
+      ]
+    },
+    {
+      "label": "Semiconductor adjacencies",
+      "tickers": [
+        {
+          "ticker": "TSM",
+          "median_adv_shares": 13285700.0
+        },
+        {
+          "ticker": "KLAC",
+          "median_adv_shares": 948550.0
+        },
+        {
+          "ticker": "ON",
+          "median_adv_shares": 9535950.0
+        },
+        {
+          "ticker": "MCHP",
+          "median_adv_shares": 9365850.0
+        },
+        {
+          "ticker": "NXPI",
+          "median_adv_shares": 3137000.0
+        },
+        {
+          "ticker": "ADI",
+          "median_adv_shares": 3525250.0
+        },
+        {
+          "ticker": "MPWR",
+          "median_adv_shares": 556150.0
+        },
+        {
+          "ticker": "ENTG",
+          "median_adv_shares": 2670350.0
+        },
+        {
+          "ticker": "TER",
+          "median_adv_shares": 3121750.0
+        },
+        {
+          "ticker": "FORM",
+          "median_adv_shares": 1587400.0
+        }
+      ]
+    },
+    {
+      "label": "Memory / storage adjacencies",
+      "tickers": [
+        {
+          "ticker": "NTAP",
+          "median_adv_shares": 2072750.0
+        },
+        {
+          "ticker": "PSTG",
+          "median_adv_shares": 2568455.0
+        }
+      ]
+    },
+    {
+      "label": "AI-enabled software",
+      "tickers": [
+        {
+          "ticker": "ADBE",
+          "median_adv_shares": 4832350.0
+        },
+        {
+          "ticker": "CRM",
+          "median_adv_shares": 12367700.0
+        },
+        {
+          "ticker": "INTU",
+          "median_adv_shares": 2819450.0
+        },
+        {
+          "ticker": "WDAY",
+          "median_adv_shares": 4492250.0
+        },
+        {
+          "ticker": "CDNS",
+          "median_adv_shares": 2170500.0
+        },
+        {
+          "ticker": "SNPS",
+          "median_adv_shares": 1630050.0
+        },
+        {
+          "ticker": "ADSK",
+          "median_adv_shares": 1809200.0
+        },
+        {
+          "ticker": "MDB",
+          "median_adv_shares": 1432700.0
+        },
+        {
+          "ticker": "FTNT",
+          "median_adv_shares": 5608200.0
+        }
+      ]
+    },
+    {
+      "label": "Data infrastructure / observability",
+      "tickers": [
+        {
+          "ticker": "ESTC",
+          "median_adv_shares": 1780800.0
+        },
+        {
+          "ticker": "GTLB",
+          "median_adv_shares": 5402650.0
+        },
+        {
+          "ticker": "NET",
+          "median_adv_shares": 2152500.0
+        },
+        {
+          "ticker": "OKTA",
+          "median_adv_shares": 3149500.0
+        },
+        {
+          "ticker": "S",
+          "median_adv_shares": 7611700.0
+        }
+      ]
+    },
+    {
+      "label": "Application AI / consumer",
+      "tickers": [
+        {
+          "ticker": "AAPL",
+          "median_adv_shares": 41293400.0
+        },
+        {
+          "ticker": "TSLA",
+          "median_adv_shares": 60771550.0
+        },
+        {
+          "ticker": "SPOT",
+          "median_adv_shares": 1785600.0
+        },
+        {
+          "ticker": "DUOL",
+          "median_adv_shares": 1617750.0
+        }
+      ]
+    },
+    {
+      "label": "Robotics / automation",
+      "tickers": [
+        {
+          "ticker": "HON",
+          "median_adv_shares": 3764300.0
+        }
+      ]
+    },
+    {
+      "label": "EDA / IP",
+      "tickers": [
+        {
+          "ticker": "ARM",
+          "median_adv_shares": 8001250.0
+        }
+      ]
+    },
+    {
+      "label": "Specialty / second-derivative",
+      "tickers": [
+        {
+          "ticker": "IOT",
+          "median_adv_shares": 5410750.0
+        },
+        {
+          "ticker": "BBAI",
+          "median_adv_shares": 34816500.0
+        },
+        {
+          "ticker": "AI",
+          "median_adv_shares": 4467950.0
+        },
+        {
+          "ticker": "SOUN",
+          "median_adv_shares": 24900050.0
+        },
+        {
+          "ticker": "RKLB",
+          "median_adv_shares": 22803500.0
+        },
+        {
+          "ticker": "ACHR",
+          "median_adv_shares": 28543250.0
+        },
+        {
+          "ticker": "AVAV",
+          "median_adv_shares": 1190800.0
+        },
+        {
+          "ticker": "KTOS",
+          "median_adv_shares": 3846500.0
+        },
+        {
+          "ticker": "LMT",
+          "median_adv_shares": 1363800.0
+        },
+        {
+          "ticker": "RTX",
+          "median_adv_shares": 5062550.0
+        },
+        {
+          "ticker": "GE",
+          "median_adv_shares": 5261500.0
+        },
+        {
+          "ticker": "CAT",
+          "median_adv_shares": 2396050.0
+        },
+        {
+          "ticker": "TT",
+          "median_adv_shares": 1292900.0
+        },
+        {
+          "ticker": "JCI",
+          "median_adv_shares": 3397300.0
+        }
+      ]
+    }
+  ],
+  "survivors": [
+    {
+      "ticker": "AAPL",
+      "median_adv_shares": 41293400.0
+    },
+    {
+      "ticker": "ACHR",
+      "median_adv_shares": 28543250.0
+    },
+    {
+      "ticker": "ADBE",
+      "median_adv_shares": 4832350.0
+    },
+    {
+      "ticker": "ADI",
+      "median_adv_shares": 3525250.0
+    },
+    {
+      "ticker": "ADSK",
+      "median_adv_shares": 1809200.0
+    },
+    {
+      "ticker": "AEHR",
+      "median_adv_shares": 2525900.0
+    },
+    {
+      "ticker": "AEP",
+      "median_adv_shares": 3143350.0
+    },
+    {
+      "ticker": "AES",
+      "median_adv_shares": 10758400.0
+    },
+    {
+      "ticker": "AI",
+      "median_adv_shares": 4467950.0
+    },
+    {
+      "ticker": "ALAB",
+      "median_adv_shares": 5146450.0
+    },
+    {
+      "ticker": "ALB",
+      "median_adv_shares": 1868700.0
+    },
+    {
+      "ticker": "AMAT",
+      "median_adv_shares": 6001350.0
+    },
+    {
+      "ticker": "AMD",
+      "median_adv_shares": 36069100.0
+    },
+    {
+      "ticker": "AMZN",
+      "median_adv_shares": 42185300.0
+    },
+    {
+      "ticker": "ANET",
+      "median_adv_shares": 7340100.0
+    },
+    {
+      "ticker": "APD",
+      "median_adv_shares": 1141500.0
+    },
+    {
+      "ticker": "ARM",
+      "median_adv_shares": 8001250.0
+    },
+    {
+      "ticker": "ASML",
+      "median_adv_shares": 1723900.0
+    },
+    {
+      "ticker": "AVAV",
+      "median_adv_shares": 1190800.0
+    },
+    {
+      "ticker": "AVGO",
+      "median_adv_shares": 21000700.0
+    },
+    {
+      "ticker": "BBAI",
+      "median_adv_shares": 34816500.0
+    },
+    {
+      "ticker": "BWXT",
+      "median_adv_shares": 1024350.0
+    },
+    {
+      "ticker": "CAT",
+      "median_adv_shares": 2396050.0
+    },
+    {
+      "ticker": "CCJ",
+      "median_adv_shares": 3141250.0
+    },
+    {
+      "ticker": "CDNS",
+      "median_adv_shares": 2170500.0
+    },
+    {
+      "ticker": "CE",
+      "median_adv_shares": 2196800.0
+    },
+    {
+      "ticker": "CEG",
+      "median_adv_shares": 2759200.0
+    },
+    {
+      "ticker": "CIEN",
+      "median_adv_shares": 2510400.0
+    },
+    {
+      "ticker": "COHR",
+      "median_adv_shares": 6279800.0
+    },
+    {
+      "ticker": "CRDO",
+      "median_adv_shares": 6600900.0
+    },
+    {
+      "ticker": "CRM",
+      "median_adv_shares": 12367700.0
+    },
+    {
+      "ticker": "CRWV",
+      "median_adv_shares": 25301300.0
+    },
+    {
+      "ticker": "D",
+      "median_adv_shares": 4407350.0
+    },
+    {
+      "ticker": "DD",
+      "median_adv_shares": 3501500.0
+    },
+    {
+      "ticker": "DDOG",
+      "median_adv_shares": 4540350.0
+    },
+    {
+      "ticker": "DLR",
+      "median_adv_shares": 1792450.0
+    },
+    {
+      "ticker": "DUK",
+      "median_adv_shares": 3429550.0
+    },
+    {
+      "ticker": "DUOL",
+      "median_adv_shares": 1617750.0
+    },
+    {
+      "ticker": "EIX",
+      "median_adv_shares": 2765550.0
+    },
+    {
+      "ticker": "EMR",
+      "median_adv_shares": 2906900.0
+    },
+    {
+      "ticker": "ENTG",
+      "median_adv_shares": 2670350.0
+    },
+    {
+      "ticker": "EQIX",
+      "median_adv_shares": 509000.0
+    },
+    {
+      "ticker": "ESTC",
+      "median_adv_shares": 1780800.0
+    },
+    {
+      "ticker": "ETN",
+      "median_adv_shares": 2487100.0
+    },
+    {
+      "ticker": "ETR",
+      "median_adv_shares": 2761700.0
+    },
+    {
+      "ticker": "EXC",
+      "median_adv_shares": 7766700.0
+    },
+    {
+      "ticker": "FCX",
+      "median_adv_shares": 15584700.0
+    },
+    {
+      "ticker": "FLR",
+      "median_adv_shares": 2466600.0
+    },
+    {
+      "ticker": "FORM",
+      "median_adv_shares": 1587400.0
+    },
+    {
+      "ticker": "FTNT",
+      "median_adv_shares": 5608200.0
+    },
+    {
+      "ticker": "GE",
+      "median_adv_shares": 5261500.0
+    },
+    {
+      "ticker": "GEV",
+      "median_adv_shares": 2317850.0
+    },
+    {
+      "ticker": "GLW",
+      "median_adv_shares": 11952150.0
+    },
+    {
+      "ticker": "GOOGL",
+      "median_adv_shares": 25799700.0
+    },
+    {
+      "ticker": "GTLB",
+      "median_adv_shares": 5402650.0
+    },
+    {
+      "ticker": "GVA",
+      "median_adv_shares": 571150.0
+    },
+    {
+      "ticker": "HON",
+      "median_adv_shares": 3764300.0
+    },
+    {
+      "ticker": "HUBB",
+      "median_adv_shares": 573787.0
+    },
+    {
+      "ticker": "INTU",
+      "median_adv_shares": 2819450.0
+    },
+    {
+      "ticker": "IOT",
+      "median_adv_shares": 5410750.0
+    },
+    {
+      "ticker": "IRM",
+      "median_adv_shares": 1363300.0
+    },
+    {
+      "ticker": "J",
+      "median_adv_shares": 859800.0
+    },
+    {
+      "ticker": "JCI",
+      "median_adv_shares": 3397300.0
+    },
+    {
+      "ticker": "KLAC",
+      "median_adv_shares": 948550.0
+    },
+    {
+      "ticker": "KTOS",
+      "median_adv_shares": 3846500.0
+    },
+    {
+      "ticker": "LEU",
+      "median_adv_shares": 791600.0
+    },
+    {
+      "ticker": "LIN",
+      "median_adv_shares": 2140900.0
+    },
+    {
+      "ticker": "LITE",
+      "median_adv_shares": 6132200.0
+    },
+    {
+      "ticker": "LMT",
+      "median_adv_shares": 1363800.0
+    },
+    {
+      "ticker": "LRCX",
+      "median_adv_shares": 9424000.0
+    },
+    {
+      "ticker": "MAS",
+      "median_adv_shares": 2596700.0
+    },
+    {
+      "ticker": "MCHP",
+      "median_adv_shares": 9365850.0
+    },
+    {
+      "ticker": "MDB",
+      "median_adv_shares": 1432700.0
+    },
+    {
+      "ticker": "META",
+      "median_adv_shares": 13318100.0
+    },
+    {
+      "ticker": "MLM",
+      "median_adv_shares": 502700.0
+    },
+    {
+      "ticker": "MOD",
+      "median_adv_shares": 990650.0
+    },
+    {
+      "ticker": "MP",
+      "median_adv_shares": 5590750.0
+    },
+    {
+      "ticker": "MPWR",
+      "median_adv_shares": 556150.0
+    },
+    {
+      "ticker": "MRVL",
+      "median_adv_shares": 23675350.0
+    },
+    {
+      "ticker": "MSFT",
+      "median_adv_shares": 31152550.0
+    },
+    {
+      "ticker": "MTZ",
+      "median_adv_shares": 893550.0
+    },
+    {
+      "ticker": "MU",
+      "median_adv_shares": 43958800.0
+    },
+    {
+      "ticker": "NBIS",
+      "median_adv_shares": 14239200.0
+    },
+    {
+      "ticker": "NEE",
+      "median_adv_shares": 8684950.0
+    },
+    {
+      "ticker": "NET",
+      "median_adv_shares": 2152500.0
+    },
+    {
+      "ticker": "NOW",
+      "median_adv_shares": 21868050.0
+    },
+    {
+      "ticker": "NRG",
+      "median_adv_shares": 2637600.0
+    },
+    {
+      "ticker": "NTAP",
+      "median_adv_shares": 2072750.0
+    },
+    {
+      "ticker": "NVDA",
+      "median_adv_shares": 164815300.0
+    },
+    {
+      "ticker": "NXPI",
+      "median_adv_shares": 3137000.0
+    },
+    {
+      "ticker": "OKLO",
+      "median_adv_shares": 10683350.0
+    },
+    {
+      "ticker": "OKTA",
+      "median_adv_shares": 3149500.0
+    },
+    {
+      "ticker": "ON",
+      "median_adv_shares": 9535950.0
+    },
+    {
+      "ticker": "ORCL",
+      "median_adv_shares": 22437950.0
+    },
+    {
+      "ticker": "PCG",
+      "median_adv_shares": 21423750.0
+    },
+    {
+      "ticker": "PEG",
+      "median_adv_shares": 2611550.0
+    },
+    {
+      "ticker": "PLTR",
+      "median_adv_shares": 41579950.0
+    },
+    {
+      "ticker": "PPL",
+      "median_adv_shares": 7294300.0
+    },
+    {
+      "ticker": "PRGS",
+      "median_adv_shares": 761050.0
+    },
+    {
+      "ticker": "PRIM",
+      "median_adv_shares": 815050.0
+    },
+    {
+      "ticker": "PSTG",
+      "median_adv_shares": 2568455.0
+    },
+    {
+      "ticker": "PWR",
+      "median_adv_shares": 1080900.0
+    },
+    {
+      "ticker": "QCOM",
+      "median_adv_shares": 11493750.0
+    },
+    {
+      "ticker": "RKLB",
+      "median_adv_shares": 22803500.0
+    },
+    {
+      "ticker": "ROK",
+      "median_adv_shares": 778900.0
+    },
+    {
+      "ticker": "RTX",
+      "median_adv_shares": 5062550.0
+    },
+    {
+      "ticker": "S",
+      "median_adv_shares": 7611700.0
+    },
+    {
+      "ticker": "SCCO",
+      "median_adv_shares": 1494077.5
+    },
+    {
+      "ticker": "SMCI",
+      "median_adv_shares": 28895050.0
+    },
+    {
+      "ticker": "SMR",
+      "median_adv_shares": 25704500.0
+    },
+    {
+      "ticker": "SNOW",
+      "median_adv_shares": 4092350.0
+    },
+    {
+      "ticker": "SNPS",
+      "median_adv_shares": 1630050.0
+    },
+    {
+      "ticker": "SO",
+      "median_adv_shares": 4689700.0
+    },
+    {
+      "ticker": "SOUN",
+      "median_adv_shares": 24900050.0
+    },
+    {
+      "ticker": "SPOT",
+      "median_adv_shares": 1785600.0
+    },
+    {
+      "ticker": "SRE",
+      "median_adv_shares": 3258600.0
+    },
+    {
+      "ticker": "STX",
+      "median_adv_shares": 3525000.0
+    },
+    {
+      "ticker": "TECK",
+      "median_adv_shares": 3306550.0
+    },
+    {
+      "ticker": "TEL",
+      "median_adv_shares": 2196750.0
+    },
+    {
+      "ticker": "TER",
+      "median_adv_shares": 3121750.0
+    },
+    {
+      "ticker": "TLN",
+      "median_adv_shares": 691450.0
+    },
+    {
+      "ticker": "TSLA",
+      "median_adv_shares": 60771550.0
+    },
+    {
+      "ticker": "TSM",
+      "median_adv_shares": 13285700.0
+    },
+    {
+      "ticker": "TT",
+      "median_adv_shares": 1292900.0
+    },
+    {
+      "ticker": "UEC",
+      "median_adv_shares": 9248700.0
+    },
+    {
+      "ticker": "VMC",
+      "median_adv_shares": 1099300.0
+    },
+    {
+      "ticker": "VRT",
+      "median_adv_shares": 5639950.0
+    },
+    {
+      "ticker": "VST",
+      "median_adv_shares": 4379250.0
+    },
+    {
+      "ticker": "WDAY",
+      "median_adv_shares": 4492250.0
+    },
+    {
+      "ticker": "WDC",
+      "median_adv_shares": 7419700.0
+    },
+    {
+      "ticker": "WEC",
+      "median_adv_shares": 1819450.0
+    },
+    {
+      "ticker": "XEL",
+      "median_adv_shares": 4305950.0
+    }
+  ],
+  "below_floor": [
+    {
+      "ticker": "EME",
+      "median_adv_shares": 356100.0
+    },
+    {
+      "ticker": "STRL",
+      "median_adv_shares": 479400.0
+    },
+    {
+      "ticker": "EXP",
+      "median_adv_shares": 391250.0
+    },
+    {
+      "ticker": "BMI",
+      "median_adv_shares": 453650.0
+    },
+    {
+      "ticker": "BDC",
+      "median_adv_shares": 401650.0
+    }
+  ],
+  "fetch_failures": [
+    "ANSS",
+    "CFLT",
+    "ABB"
+  ]
+}

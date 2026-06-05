@@ -50,6 +50,27 @@
 # through tools.auto_paper.quant_scanner. The SETUP_REPLAY family is empty.
 #
 # ---------------------------------------------------------------------------
+# TRACK FIELD CONVENTION (added 2026-05-29 per Alfred Delta 4)
+# ---------------------------------------------------------------------------
+# Every deployable row now carries an explicit `track:` field:
+#   track: generic       - universe-agnostic statistical strategy (the
+#                          original 6 deployables)
+#   track: ai_thematic   - strategy clone over an AI-thematic universe
+#                          (ai_thematic_pure_2026q2 / ai_thematic_broad_2026q2)
+#
+# Absence-as-default is NOT permitted - future grep/slice on track: must
+# work everywhere. Tools that read this file (auto_paper.quant_scanner,
+# auto_paper.shell_ledger, the upcoming bias_audit --track filter) all
+# expect the field to be set.
+#
+# Gate profiles per track (Alfred Delta 1 on the AI-thematic plan):
+#   - generic / ai_thematic_broad:
+#       Sharpe > 1.0 AND |MDD| < 25% AND n >= 30 AND per-window >= 50%
+#   - ai_thematic_pure:
+#       Sharpe > 1.2 AND |MDD| < 22% AND n >= 30 AND per-window >= 60%
+# Tighter gate compensates for universe-narrowness concentration.
+#
+# ---------------------------------------------------------------------------
 # METHODOLOGY DISCLOSURES (apply to every row below)
 # ---------------------------------------------------------------------------
 # NOTE: All rolling_agg_sharpe values are computed with zero transaction
@@ -66,6 +87,7 @@
 
 deployable:
   - setup: xs_short_term_reversal
+    track: generic
     variant: "bottom_n=5, weekly rebalance"
     universe: "88-ticker SP500-leaning"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -80,6 +102,7 @@ deployable:
     notes: "Aggregate Sharpe 1.60 (was 1.64 on 3-window — virtually unchanged), DD -24.94% (was -14.48% — WIDENED nearly to the 25% threshold under 8y), n=1497. 5/6 OOS windows clear Sharpe > 0.5; only 2022 fails at -1.43 (mean reversion in bear market — same year that killed dual_ma). DD-at-threshold is the watch flag: a slightly worse year could push this over. Mean-reversion factor — uncorrelated with the parked momentum setups. Source: Lehmann 1990 / Jegadeesh 1990. NOT WIRED LIVE — KIND_REGISTRY family awaiting tools/auto_paper/quant_scanner.py. Full report: journal/backtest/xs_reversal-8y.md."
 
   - setup: connors_rsi2
+    track: generic
     variant: "entry_threshold=15, cooldown_days=3, regime SPY>200d SMA"
     universe: "88-ticker SP500-leaning"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -94,6 +117,7 @@ deployable:
     notes: "MARGINAL PASSER added 2026-05-26 to replenish the live-deployable list after the 8y extension knocked out SEPA-VCP + EP + clenow. Source: Connors, *Short Term Trading Strategies That Work* (2008); quantitativo.com 2025 re-validation. Strategy: per-day eligibility = (SPY > SPY 200d SMA) AND (per-ticker cumulative-RSI(2) < 15). The 200d regime filter is the cross-regime feature — when SPY breaks below 200d (e.g. most of 2022), no new entries fire. EXCEPT — 2022 OOS Sharpe was -21.68 anyway (DD -12.80% in that window). Despite the regime filter, whipsaw periods around the SPY 200d crossover caught the strategy long during 2022 declines. The aggregate Sharpe 1.01 + DD -18.39% pass the doctrine gate cleanly, but the per-window distribution is bimodal: weak in 2020-2023 (0.04 / 0.49 / -21.68 / 0.57) and very strong in 2024-2025 (3.67 / 3.92). Recent edge is real but the 5/6 bar achieved by dual_ma / xs_reversal is NOT met (3/6 here = exactly at the 0.5 floor). DEPLOY HALF-SIZE if wired live; revisit if 2026 OOS doesn't carry the strong 2024-2025 trend forward. Position-sizing constraint: risk_per_trade=0.2% (5x lower than discretionary) because the simulator has no concurrent-position cap; Connors' canonical caps at 3 concurrent. NOT WIRED LIVE — KIND_REGISTRY family awaiting tools/auto_paper/quant_scanner.py. Full report: journal/backtest/connors_rsi2-8y.md."
 
   - setup: clenow_momentum_liquid_us
+    track: generic
     variant: "momentum_lookback=90d, top_k=20, weekly rebalance"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -108,6 +132,7 @@ deployable:
     notes: "Clenow Stocks-on-the-Move on the wide US universe — the variant the ORIGINAL Clenow source (S&P 1500) targeted, vs the 88-ticker mega-cap-leaning version that was knocked out by DD breach in the 2026-05-26 sweep. With liquid_us_2026q2 (1178 tickers) and the concurrent-position cap (=8) enforced, Clenow's top-K ranking + breadth produces honest Sharpe 1.47 + DD -21.03% over 6 OOS windows (5/6 clear individually; only 2022 rate-hike year fails at -2.64). The cap rejected 60% of signals (2826/4720), so 40% of top-K trades made it onto the equity curve — Clenow's selection is the primary filter, the cap is the secondary. Win rate 51.7%, profit factor 1.26, CAGR +17.81%. **Caveats: (a) sp1500 has worse survivor bias than sp500_2026q2 — real-capital needs point-in-time membership validation; (b) backtest has no slippage model, materially more optimistic on small caps than mega caps. DEPLOY HALF-SIZE first month per discipline.** Source: Clenow, Stocks on the Move (2015). Full report: journal/backtest/clenow_momentum-liquid_us.md."
 
   - setup: xs_short_term_reversal_liquid_us
+    track: generic
     variant: "bottom_n=5, weekly rebalance"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -122,6 +147,7 @@ deployable:
     notes: "Cross-sectional 5-day return reversal extended from sp500_leaning_88 (Sharpe 1.60, DD -24.94%) to liquid_us_2026q2. Sharpe modestly lower (1.60 → 1.35) but DD materially better (-25% → -17%) — wider universe gives more breadth of mean-reversion candidates per rebalance. bottom_n=5 keeps concurrent positions below the cap=8, so the cap is non-binding (0 outcomes rejected). Per-window: 4/6 windows clear Sharpe>0.5 — 2022 (-1.00) and 2025 (-0.57) fail; 2022 mean-reversion gets ravaged in choppy rate-hike bear, 2025 is a watch flag. Source: Lehmann 1990 / Jegadeesh 1990 (long-only adaptation). Full report: journal/backtest/xs_short_term_reversal-liquid_us.md."
 
   - setup: residual_momentum_liquid_us
+    track: generic
     variant: "momentum_lookback=90d, top_k=10, weekly rebalance"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -136,6 +162,7 @@ deployable:
     notes: "⚠️ MARGINAL PASSER + HYPOTHESIS FALSIFIED. Per Kakushadze 2018 §3.7 / Blitz-Huij-Martens 2011 — strip market-beta exposure before ranking, then apply Clenow's slope × R² to cumulative residual log-return path. Top-K + ATR stops + SPY 200d regime filter identical to clenow_momentum_liquid_us. The pre-port thesis from the vault gate-2 note (residual momentum top-K Sharpe >= raw Clenow top-K with smaller regime-break DD) was tested empirically and FALSIFIED — only 1/6 combos clears the gate vs Clenow's 3/6, and the top combo (Sharpe 1.09) underperforms Clenow's same-config Sharpe 1.47 on the same universe. Crucially, 2022 OOS Sharpe -3.26 is WORSE than Clenow's -2.64 — the opposite of the regime-break-protection prediction. Diagnosis: OLS-rolling-beta has a regime-shift lag — at the 2022 break, the lookback window still contains late-2021 'normal' betas, so the residuals don't capture the regime change in time. Adds little marginal value over deployed Clenow given similar selection logic + same universe + likely high signal correlation (not measured yet). **DEPLOY ONLY AS DIVERSIFICATION EXPERIMENT** — quarter-size first month + signal-correlation pre-screen vs clenow_momentum_liquid_us before scaling. If signals overlap >0.5, this is research-grade not production-grade. Full report: journal/backtest/residual_momentum-liquid_us.md."
 
   - setup: ts_momentum_liquid_us
+    track: generic
     variant: "lookback=126d, monthly rebalance"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -148,6 +175,74 @@ deployable:
     cleared_under_tightened_gate_at: 2026-05-26
     cleared_under_concurrent_cap_at: 2026-05-26
     notes: "Time-series momentum on the wide US universe. Per-ticker absolute-return-sign signal — long any ticker with positive trailing 126d return at monthly rebalance. Aggregate Sharpe 1.30 + DD -23.18% + n=708 PASS the gate; 5/6 OOS windows clear Sharpe > 0.5. **⚠️ STRUCTURAL CONCERN: the concurrent-position cap (=8) rejected 45375/46083 (98.5%) of signals.** ts_momentum has NO ranking — every name with positive trailing return is a 'long' signal; on a 1178-ticker bull-market month it fires hundreds. The cap keeps only ~1.5% — essentially whichever signals get on book first via the (fill_date, ticker, exit_date) tie-break order. The gate-passing Sharpe is partly an artefact of the tie-break heuristic, not a robust selection mechanism. **Recommended action: add top-K ranking (by trailing return strength) before live deployment. Until then, DEPLOY QUARTER-SIZE (vs Clenow's half-size) and treat as research-grade.** Win rate 51.8%, profit factor 1.34, CAGR +16.27%. Source: Moskowitz-Ooi-Pedersen 2012 (long-only adaptation). Full report: journal/backtest/ts_momentum-liquid_us.md."
+
+  # -------------------------------------------------------------------------
+  # AI-thematic track (added 2026-05-29, Alfred-refined plan).
+  # See plans/polymorphic-tickling-avalanche.md +
+  # journal/backtest-sweep/2026-05-29-ai-thematic.md.
+  # 3/5 sweep variants cleared the split-gate. 2 rejected:
+  #   - connors_rsi2_ai_pure: Sharpe 1.17 < 1.2 ai_thematic_pure floor
+  #   - clenow_momentum_ai_broad: |MDD| 25.87% > 25% ai_thematic_broad floor
+  # SMCI appears as a top-3 contributor in 4 of 5 variants — concentration
+  # risk to monitor in live paper-track P&L vs backtest expectations.
+  #
+  # *** ON HOLD (2026-06-05) ***
+  # All 3 rows carry `hold: true` and are EXCLUDED from the live scan by
+  # tools.auto_paper.config.deployable_setup_names. The AI-thematic plan's
+  # unblock was gated on the auto-paper v2 boundary-refactor eval CLEARING;
+  # that eval FAILED (2026-06-04: every placement orphaned at ledger-write).
+  # These rows leaked into the v2 scan during the HOLD window before the gate
+  # existed (see plans/ AI-thematic leak diagnostic). Backtest evidence is
+  # preserved below. Remove `hold: true` (per row) ONLY after the v2 eval
+  # clears 3 clean parallel days AND the AI-thematic plan is approved.
+  # -------------------------------------------------------------------------
+  - setup: xs_short_term_reversal_ai_pure
+    track: ai_thematic
+    hold: true                       # HOLD 2026-06-05 — excluded from live scan (v2 eval failed)
+    variant: "bottom_n=3, weekly rebalance, ai_thematic_pure gate profile"
+    universe: "ai_thematic_pure_2026q2 (41-ticker AI pure-play)"
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.86
+    rolling_agg_max_dd_pct: -19.34
+    n: 900
+    per_window_pass_rate: 0.83     # 5/6 windows clear Sharpe > 0.5
+    cleared_at: 2026-05-29
+    cleared_under_gate_profile: ai_thematic_pure   # Sharpe>1.2, |MDD|<22%, n>=30, per-window>=0.6
+    top_3_contributor_pnl_pct: 0.390      # Alfred Delta 2 diagnostic (top-3 / total |PnL|)
+    top_3_contributors: ["SMCI", "DDOG", "LITE"]
+    notes: "Strongest sweep verdict: aggregate Sharpe 1.86 + DD -19.34% on the 41-ticker AI pure-play universe; 5/6 OOS windows clear Sharpe>0.5. Top-3 ticker contribution to OOS |PnL| is 39.0% — under the 50% concentration-flag threshold but still elevated (SMCI alone +321.8%). DEPLOY HALF-SIZE first month per ai_thematic_pure-profile prudence (universe-narrowness concentration risk; first variant deployed on this profile). Watch for SMCI-specific contribution drift in live P&L vs backtest. Source: Lehmann 1990 / Jegadeesh 1990. Full report: journal/backtest/xs_short_term_reversal_ai_pure-ai-thematic.md."
+
+  - setup: xs_short_term_reversal_ai_broad
+    track: ai_thematic
+    hold: true                       # HOLD 2026-06-05 — excluded from live scan (v2 eval failed)
+    variant: "bottom_n=5, weekly rebalance, ai_thematic_broad gate profile"
+    universe: "ai_thematic_broad_2026q2 (~132-ticker AI runoff/gushers)"
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.40
+    rolling_agg_max_dd_pct: -22.04
+    n: 1501
+    per_window_pass_rate: 0.83     # 5/6 windows clear Sharpe > 0.5
+    cleared_at: 2026-05-29
+    cleared_under_gate_profile: ai_thematic_broad   # doctrine defaults
+    top_3_contributor_pnl_pct: 0.233      # informational on broad-profile
+    top_3_contributors: ["SMCI", "TSLA", "MP"]
+    notes: "Cross-sectional 5-day reversal on the AI runoff/gushers universe (~132 tickers). Aggregate Sharpe 1.40 + DD -22.04% + n=1501; per-window 5/6. Top-3 contribution 23.3% (broad-profile diagnostic is informational, not load-bearing). DD is 88% of the 25% gate ceiling — watch flag. SMCI and TSLA dominate the broad-track winners as on the pure track. Source: Lehmann 1990 / Jegadeesh 1990. Full report: journal/backtest/xs_short_term_reversal_ai_broad-ai-thematic.md."
+
+  - setup: connors_rsi2_ai_broad
+    track: ai_thematic
+    hold: true                       # HOLD 2026-06-05 — excluded from live scan (v2 eval failed)
+    variant: "entry_threshold=10, cooldown_days=5, regime SPY>200d SMA, ai_thematic_broad gate profile"
+    universe: "ai_thematic_broad_2026q2 (~132-ticker AI runoff/gushers)"
+    backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
+    rolling_agg_sharpe: 1.02
+    rolling_agg_max_dd_pct: -5.11
+    n: 1104
+    per_window_pass_rate: 0.67     # 4/6 windows clear Sharpe > 0.5
+    cleared_at: 2026-05-29
+    cleared_under_gate_profile: ai_thematic_broad   # doctrine defaults
+    top_3_contributor_pnl_pct: 0.142      # informational on broad-profile
+    top_3_contributors: ["SMCI", "NET", "MCHP"]
+    notes: "MARGINAL PASSER. Aggregate Sharpe 1.02 (barely above 1.0 floor) on the AI runoff/gushers universe. DD -5.11% is unusually low because the risk_per_trade=0.002 scaling caps single-trade exposure. Per-window pass rate 4/6 (above the 0.5 floor but below the dual_ma / xs_reversal bar of 5/6). DEPLOY HALF-SIZE per marginal-passer convention; revisit if 2026 OOS does not carry the strong 2024-2025 trend forward. The same 200d SPY regime filter as the generic connors_rsi2 deployable; 2022 OOS Sharpe likely negative for the same reason despite the filter. Source: Connors 2008. Full report: journal/backtest/connors_rsi2_ai_broad-ai-thematic.md."
 
 # Parked because the framework's 8-concurrent-position cap binds tightly on
 # a wide universe, degrading signal capture for strategies with no top-K

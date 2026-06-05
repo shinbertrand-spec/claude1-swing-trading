@@ -97,6 +97,13 @@ DEFAULT_Z_THRESHOLD = 2.0
 DEFAULT_MIN_SAMPLE = 30
 DEFAULT_UNKNOWN_FLAG_PCT = 0.10
 
+# Default strategy-discovery track when meta.track is absent (back-compat for
+# all existing trade-researcher ledgers + pre-Delta-6 shell ledgers).
+DEFAULT_TRACK = "generic"
+
+# Recognised tracks. `all` is a CLI alias for "no filter".
+KNOWN_TRACKS = ("generic", "ai_thematic")
+
 
 @dataclass
 class CandidateBucket:
@@ -108,6 +115,7 @@ class CandidateBucket:
     sector: str | None       # None = sector_etf missing or unmapped
     market_cap_bucket: str | None  # None = market_cap_usd missing
     market_cap_usd: float | None
+    track: str = DEFAULT_TRACK   # "generic" | "ai_thematic" (Alfred Delta 6)
 
 
 @dataclass
@@ -193,6 +201,7 @@ def _extract_bucket(ledger: dict, ledger_path: str) -> CandidateBucket | None:
         market_cap_usd = float(market_cap_usd) if market_cap_usd is not None else None
     except (TypeError, ValueError):
         market_cap_usd = None
+    track = meta.get("track") or DEFAULT_TRACK
     return CandidateBucket(
         ticker=str(ticker).upper(),
         ledger_path=ledger_path,
@@ -200,6 +209,7 @@ def _extract_bucket(ledger: dict, ledger_path: str) -> CandidateBucket | None:
         sector=sector,
         market_cap_bucket=_market_cap_bucket(market_cap_usd),
         market_cap_usd=market_cap_usd,
+        track=str(track),
     )
 
 
@@ -289,6 +299,7 @@ def audit(
     z_threshold: float = DEFAULT_Z_THRESHOLD,
     min_sample: int = DEFAULT_MIN_SAMPLE,
     unknown_flag_pct: float = DEFAULT_UNKNOWN_FLAG_PCT,
+    track: str | None = None,
 ) -> BiasAuditReport:
     """Run the bias audit over candidates in [since, until].
 
@@ -301,12 +312,35 @@ def audit(
         min_sample: minimum N below which findings carry a low-confidence note.
         unknown_flag_pct: portion of candidates missing sector / market-cap
             data above which a separate data-quality flag fires.
+        track: optional strategy-discovery-track filter. When set to "generic"
+            or "ai_thematic", restricts the audit to candidates with that
+            ``meta.track`` value (ledgers missing the field are treated as
+            "generic"). Added 2026-05-29 per Alfred Delta 6 — generic-track
+            skew vs S&P 500 baseline is the doctrine-required signal;
+            ai-thematic-track skew vs the same baseline is informational
+            (see note added in the report when track=ai_thematic).
     """
     baseline = baseline or DEFAULT_BASELINE
     root = Path(candidates_root)
     candidates = _walk_candidate_ledgers(root, since=since, until=until)
+    if track is not None:
+        if track not in KNOWN_TRACKS:
+            raise ValueError(
+                f"unknown track {track!r}; known: {KNOWN_TRACKS} (or pass None for no filter)"
+            )
+        candidates = [c for c in candidates if c.track == track]
     n = len(candidates)
     notes: list[str] = []
+    if track is not None:
+        notes.append(f"track filter applied: only candidates with meta.track == {track!r}")
+    if track == "ai_thematic":
+        notes.append(
+            "track=ai_thematic uses the same S&P 500 sector baseline as the "
+            "generic track; XLK/XLI over-representation is structural to the "
+            "thematic universes, not a discovery-bias signal. Treat this "
+            "slice as INFORMATIONAL — promote a thematic-specific baseline "
+            "before reading sector flags as load-bearing."
+        )
 
     # Date range — actual span (may be tighter than the requested filter).
     if candidates:
@@ -435,6 +469,7 @@ def compute_from_paths(
     baseline_path: str | Path | None = None,
     z_threshold: float = DEFAULT_Z_THRESHOLD,
     min_sample: int = DEFAULT_MIN_SAMPLE,
+    track: str | None = None,
 ) -> TraceEntry:
     baseline = DEFAULT_BASELINE
     if baseline_path:
@@ -448,6 +483,7 @@ def compute_from_paths(
         baseline=baseline,
         z_threshold=z_threshold,
         min_sample=min_sample,
+        track=track,
     )
     return TraceEntry(
         tool=TOOL,
@@ -458,6 +494,7 @@ def compute_from_paths(
             "baseline_path": str(baseline_path) if baseline_path else "<default>",
             "z_threshold": z_threshold,
             "min_sample": min_sample,
+            "track": track,
         },
         output=_report_to_dict(report),
     )
@@ -502,6 +539,14 @@ def main() -> None:
         help="Minimum N below which findings carry a low-confidence note.",
     )
     p.add_argument(
+        "--track",
+        choices=("generic", "ai_thematic", "all"),
+        default="all",
+        help="Strategy-discovery-track filter (Alfred Delta 6). 'all' (default) "
+             "preserves pre-2026-05-29 behavior — no track filter. 'generic' / "
+             "'ai_thematic' slices candidates by meta.track (absent = generic).",
+    )
+    p.add_argument(
         "--format",
         choices=("trace", "markdown"),
         default="trace",
@@ -520,6 +565,7 @@ def main() -> None:
         if args.until:
             until = _parse_date(args.until)
 
+    track_filter = None if args.track == "all" else args.track
     entry = compute_from_paths(
         args.candidates_root,
         since=since,
@@ -527,6 +573,7 @@ def main() -> None:
         baseline_path=args.baseline,
         z_threshold=args.z_threshold,
         min_sample=args.min_sample,
+        track=track_filter,
     )
     if args.format == "trace":
         emit(entry)
@@ -538,6 +585,7 @@ def _render_markdown(entry: TraceEntry) -> str:
     """Render a TraceEntry to a Markdown bias-audit report. Used by the
     /bias-audit slash command output and journal entries."""
     out = entry.output
+    track_filter = entry.inputs.get("track")
     lines: list[str] = []
     lines.append("# Bias audit report")
     lines.append("")
@@ -545,6 +593,10 @@ def _render_markdown(entry: TraceEntry) -> str:
     lines.append(f"- Candidates audited: **{out['n_candidates']}**")
     lines.append(f"- Sample size adequate (>={out['min_sample']}): **{out['sample_size_adequate']}**")
     lines.append(f"- z-score threshold for flagging: |z| >= {out['z_threshold']}")
+    if track_filter:
+        lines.append(f"- Strategy-track filter: **{track_filter}** (Alfred Delta 6)")
+    else:
+        lines.append("- Strategy-track filter: _none_ (all tracks combined)")
     lines.append("")
     if out["notes"]:
         lines.append("## Notes")

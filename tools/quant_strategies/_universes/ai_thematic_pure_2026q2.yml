@@ -1,0 +1,96 @@
+# ai_thematic_pure_2026q2 - AI primes pure-play universe (~41 tickers), pinned 2026-05-29.
+#
+# Tight pure-play AI universe: AI primes + compute leaders + hyperscalers + power gen + cooling + DC REITs + networking + memory + semicap + AI software/infra. Liquidity-only floor (ADV >= 500K).
+#
+# Build provenance:
+#   candidate_pool = 41 tickers (hand-curated)
+#   survivors      = 41 (passed ADV floor)
+#   below_floor    = 0
+#   fetch_failures = 0
+#   built by scripts/build_ai_thematic_universes.py on 2026-05-29
+#
+# Sourcing caveat: hand-curated from the swing morning-research process on
+# 2026-05-29. The three vault Tier 3 wikilinks ([[ai-capex-announcements]],
+# [[power-sector]], [[semi-inventory]]) are sources:0 placeholders, not
+# sourced taxonomies. Hand-curation is the only available source-of-truth
+# this iteration. Backlog: source those concept pages before iteration 2.
+#
+# Cap segmentation: this universe is intentionally cap-agnostic. The
+# framework's liquidity floor (ADV >= 500,000 shares) is the sole
+# gate; market cap is recorded but not filtered.
+#
+# Ticker formatting: yfinance convention - share-class separators are
+# hyphens, not dots (BRK-B, not BRK.B).
+#
+# CAVEAT (survivor bias): current-extant membership. Tickers delisted
+# between the backtest start and the as-of date are NOT in this list.
+# Paper-trade is acceptable; real-capital deployment (gated to Q3 2026)
+# MUST be re-validated against a point-in-time membership feed.
+#
+# CAVEAT (slippage): tools/backtest/simulator.py fills limit orders at
+# OHLCV levels with no spread/slippage model. Backtest Sharpe on this
+# universe will overstate live-realised Sharpe.
+
+# Bucket assignments (audit trail; ticker list is flat alphabetical below):
+#   - AI primes / compute leaders (6): NVDA, AMD, AVGO, MRVL, ASML, QCOM
+#   - Hyperscalers / inference platforms (5): MSFT, GOOGL, META, AMZN, ORCL
+#   - Power generation (nuclear + IPP) (5): CEG, VST, TLN, NRG, BWXT
+#   - Cooling / thermal management (4): VRT, ETN, MOD, SMCI
+#   - Data-center REITs (3): EQIX, DLR, IRM
+#   - Networking / optical / interconnect (5): ANET, CIEN, COHR, LITE, CRDO
+#   - Memory / HBM (3): MU, WDC, STX
+#   - Semicap (2): AMAT, LRCX
+#   - Software inference / accelerated AI infra (4): PLTR, SNOW, NOW, DDOG
+#   - AI-native compute / cloud (2): NBIS, CRWV
+#   - Smaller pure-play infra (2): ALAB, AEHR
+
+name: ai_thematic_pure_2026q2
+pinned_at: 2026-05-29
+provenance: |
+  Hand-curated AI-thematic ticker list (2026-05-29 morning research),
+  filtered to trailing-60d median daily volume >= 500,000
+  shares. Built 2026-05-29 via scripts/build_ai_thematic_universes.py.
+notes: |
+  Tight pure-play AI universe: AI primes + compute leaders + hyperscalers + power gen + cooling + DC REITs + networking + memory + semicap + AI software/infra. Liquidity-only floor (ADV >= 500K).
+tickers:
+  - "AEHR"
+  - "ALAB"
+  - "AMAT"
+  - "AMD"
+  - "AMZN"
+  - "ANET"
+  - "ASML"
+  - "AVGO"
+  - "BWXT"
+  - "CEG"
+  - "CIEN"
+  - "COHR"
+  - "CRDO"
+  - "CRWV"
+  - "DDOG"
+  - "DLR"
+  - "EQIX"
+  - "ETN"
+  - "GOOGL"
+  - "IRM"
+  - "LITE"
+  - "LRCX"
+  - "META"
+  - "MOD"
+  - "MRVL"
+  - "MSFT"
+  - "MU"
+  - "NBIS"
+  - "NOW"
+  - "NRG"
+  - "NVDA"
+  - "ORCL"
+  - "PLTR"
+  - "QCOM"
+  - "SMCI"
+  - "SNOW"
+  - "STX"
+  - "TLN"
+  - "VRT"
+  - "VST"
+  - "WDC"

@@ -1,0 +1,55 @@
+# Cross-sectional short-term reversal on the ai_thematic_broad universe.
+# Clone of xs_short_term_reversal_liquid_us.yml pointing at the ~132-ticker
+# AI-runoff/gushers universe. Same params + period; bottom_n=5 matches
+# the original liquid_us deployable's selection (under cap=8).
+#
+# Gate: ai_thematic_broad (default doctrine — Sharpe>1.0, |MDD|<25%,
+# per-window>=50%). Universe width is intermediate between 41-pure and
+# 1178-liquid_us; default gate is appropriate.
+
+meta:
+  name: xs_short_term_reversal_ai_broad
+  version: "1.0"
+  source: "Lehmann 1990 / Jegadeesh 1990 — ai_thematic_broad variant"
+  description: |
+    Cross-sectional 5-day return reversal on ai_thematic_broad_2026q2
+    (~132-ticker AI runoff/gushers universe). Weekly rebalance into
+    bottom-5 largest 1-week losers. Long-only adaptation.
+  horizon_days: 5
+  status: candidate
+
+kind: xs_short_term_reversal
+
+universe:
+  name: ai_thematic_broad_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: 5
+  bottom_n: 5
+  rebalance_period_days: 5
+  max_hold_days: 5
+  atr_period: 20
+  atr_stop_multiple: 2.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  # ai_thematic_broad profile = doctrine defaults.
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5

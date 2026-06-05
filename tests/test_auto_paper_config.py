@@ -61,6 +61,11 @@ def test_deployable_setup_names_extracts():
     assert "SEPA-VCP" not in names    # parked by tightened gate
     assert "clenow_momentum" not in names  # parked by 8y extension (DD breach)
     assert "Pullback-20SMA" not in names
+    # HOLD gate (2026-06-05): the 3 ai_thematic rows carry hold: true and are
+    # excluded from the live scan until the v2 eval clears + plan approval.
+    assert "xs_short_term_reversal_ai_pure" not in names
+    assert "xs_short_term_reversal_ai_broad" not in names
+    assert "connors_rsi2_ai_broad" not in names
 
 
 def test_is_deployable():
@@ -102,3 +107,20 @@ def test_malformed_row_ignored(tmp_path):
         ],
     })
     assert deployable_setup_names(custom) == {"Good", "Also-Good"}
+
+
+def test_hold_gate_excludes_held_rows(tmp_path):
+    """HOLD gate (2026-06-05): a row with hold: true is backtest-cleared but
+    NOT live-approved, so it is excluded from the live scan. hold absent or
+    false = live (back-compat)."""
+    custom = _write(tmp_path, {
+        "deployable": [
+            {"setup": "Live-Default"},                 # hold absent → live
+            {"setup": "Live-Explicit", "hold": False}, # hold false → live
+            {"setup": "Held", "hold": True},           # hold true → excluded
+        ],
+    })
+    names = deployable_setup_names(custom)
+    assert names == {"Live-Default", "Live-Explicit"}
+    assert is_deployable("Held", custom) is False
+    assert is_deployable("Live-Default", custom) is True

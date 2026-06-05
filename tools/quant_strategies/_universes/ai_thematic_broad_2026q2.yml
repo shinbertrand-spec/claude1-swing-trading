@@ -1,0 +1,202 @@
+# ai_thematic_broad_2026q2 - AI runoff/gushers broad universe (~140 tickers), pinned 2026-05-29.
+#
+# Broad AI-runoff/gushers universe: superset of ai_thematic_pure_2026q2 + power & utilities + nuclear fuel/SMR + grid/transmission + industrial gases + copper metals + construction/DC + semi/networking/software/data-infra adjacencies + application AI + robotics + EDA + specialty. Liquidity-only floor (ADV >= 500K).
+#
+# Build provenance:
+#   candidate_pool = 140 tickers (hand-curated)
+#   survivors      = 132 (passed ADV floor)
+#   below_floor    = 5
+#   fetch_failures = 3
+#   built by scripts/build_ai_thematic_universes.py on 2026-05-29
+#
+# Sourcing caveat: hand-curated from the swing morning-research process on
+# 2026-05-29. The three vault Tier 3 wikilinks ([[ai-capex-announcements]],
+# [[power-sector]], [[semi-inventory]]) are sources:0 placeholders, not
+# sourced taxonomies. Hand-curation is the only available source-of-truth
+# this iteration. Backlog: source those concept pages before iteration 2.
+#
+# Cap segmentation: this universe is intentionally cap-agnostic. The
+# framework's liquidity floor (ADV >= 500,000 shares) is the sole
+# gate; market cap is recorded but not filtered.
+#
+# Ticker formatting: yfinance convention - share-class separators are
+# hyphens, not dots (BRK-B, not BRK.B).
+#
+# CAVEAT (survivor bias): current-extant membership. Tickers delisted
+# between the backtest start and the as-of date are NOT in this list.
+# Paper-trade is acceptable; real-capital deployment (gated to Q3 2026)
+# MUST be re-validated against a point-in-time membership feed.
+#
+# CAVEAT (slippage): tools/backtest/simulator.py fills limit orders at
+# OHLCV levels with no spread/slippage model. Backtest Sharpe on this
+# universe will overstate live-realised Sharpe.
+
+# Bucket assignments (audit trail; ticker list is flat alphabetical below):
+#   - AI primes / compute leaders (6): NVDA, AMD, AVGO, MRVL, ASML, QCOM
+#   - Hyperscalers / inference platforms (5): MSFT, GOOGL, META, AMZN, ORCL
+#   - Power generation (nuclear + IPP) (5): CEG, VST, TLN, NRG, BWXT
+#   - Cooling / thermal management (4): VRT, ETN, MOD, SMCI
+#   - Data-center REITs (3): EQIX, DLR, IRM
+#   - Networking / optical / interconnect (5): ANET, CIEN, COHR, LITE, CRDO
+#   - Memory / HBM (3): MU, WDC, STX
+#   - Semicap (2): AMAT, LRCX
+#   - Software inference / accelerated AI infra (4): PLTR, SNOW, NOW, DDOG
+#   - AI-native compute / cloud (2): NBIS, CRWV
+#   - Smaller pure-play infra (2): ALAB, AEHR
+#   - Power & utilities runoff (15): AEP, D, DUK, EXC, NEE, SO, XEL, PEG, PCG, EIX, SRE, ETR, WEC, AES, PPL
+#   - Nuclear fuel / SMR (5): CCJ, UEC, LEU, OKLO, SMR
+#   - Grid / transmission / electrification (9): GEV, MTZ, PWR, FLR, J, PRIM, ROK, EMR, HUBB
+#   - Industrial gases / cooling fluids (4): APD, LIN, CE, DD
+#   - Copper / electrification metals (5): FCX, SCCO, TECK, ALB, MP
+#   - Construction / DC build-out (4): GVA, MLM, VMC, MAS
+#   - Networking adjacencies (3): PRGS, TEL, GLW
+#   - Semiconductor adjacencies (10): TSM, KLAC, ON, MCHP, NXPI, ADI, MPWR, ENTG, TER, FORM
+#   - Memory / storage adjacencies (2): NTAP, PSTG
+#   - AI-enabled software (9): ADBE, CRM, INTU, WDAY, CDNS, SNPS, ADSK, MDB, FTNT
+#   - Data infrastructure / observability (5): ESTC, GTLB, NET, OKTA, S
+#   - Application AI / consumer (4): AAPL, TSLA, SPOT, DUOL
+#   - Robotics / automation (1): HON
+#   - EDA / IP (1): ARM
+#   - Specialty / second-derivative (14): IOT, BBAI, AI, SOUN, RKLB, ACHR, AVAV, KTOS, LMT, RTX, GE, CAT, TT, JCI
+
+name: ai_thematic_broad_2026q2
+pinned_at: 2026-05-29
+provenance: |
+  Hand-curated AI-thematic ticker list (2026-05-29 morning research),
+  filtered to trailing-60d median daily volume >= 500,000
+  shares. Built 2026-05-29 via scripts/build_ai_thematic_universes.py.
+notes: |
+  Broad AI-runoff/gushers universe: superset of ai_thematic_pure_2026q2 + power & utilities + nuclear fuel/SMR + grid/transmission + industrial gases + copper metals + construction/DC + semi/networking/software/data-infra adjacencies + application AI + robotics + EDA + specialty. Liquidity-only floor (ADV >= 500K).
+tickers:
+  - "AAPL"
+  - "ACHR"
+  - "ADBE"
+  - "ADI"
+  - "ADSK"
+  - "AEHR"
+  - "AEP"
+  - "AES"
+  - "AI"
+  - "ALAB"
+  - "ALB"
+  - "AMAT"
+  - "AMD"
+  - "AMZN"
+  - "ANET"
+  - "APD"
+  - "ARM"
+  - "ASML"
+  - "AVAV"
+  - "AVGO"
+  - "BBAI"
+  - "BWXT"
+  - "CAT"
+  - "CCJ"
+  - "CDNS"
+  - "CE"
+  - "CEG"
+  - "CIEN"
+  - "COHR"
+  - "CRDO"
+  - "CRM"
+  - "CRWV"
+  - "D"
+  - "DD"
+  - "DDOG"
+  - "DLR"
+  - "DUK"
+  - "DUOL"
+  - "EIX"
+  - "EMR"
+  - "ENTG"
+  - "EQIX"
+  - "ESTC"
+  - "ETN"
+  - "ETR"
+  - "EXC"
+  - "FCX"
+  - "FLR"
+  - "FORM"
+  - "FTNT"
+  - "GE"
+  - "GEV"
+  - "GLW"
+  - "GOOGL"
+  - "GTLB"
+  - "GVA"
+  - "HON"
+  - "HUBB"
+  - "INTU"
+  - "IOT"
+  - "IRM"
+  - "J"
+  - "JCI"
+  - "KLAC"
+  - "KTOS"
+  - "LEU"
+  - "LIN"
+  - "LITE"
+  - "LMT"
+  - "LRCX"
+  - "MAS"
+  - "MCHP"
+  - "MDB"
+  - "META"
+  - "MLM"
+  - "MOD"
+  - "MP"
+  - "MPWR"
+  - "MRVL"
+  - "MSFT"
+  - "MTZ"
+  - "MU"
+  - "NBIS"
+  - "NEE"
+  - "NET"
+  - "NOW"
+  - "NRG"
+  - "NTAP"
+  - "NVDA"
+  - "NXPI"
+  - "OKLO"
+  - "OKTA"
+  - "ON"
+  - "ORCL"
+  - "PCG"
+  - "PEG"
+  - "PLTR"
+  - "PPL"
+  - "PRGS"
+  - "PRIM"
+  - "PSTG"
+  - "PWR"
+  - "QCOM"
+  - "RKLB"
+  - "ROK"
+  - "RTX"
+  - "S"
+  - "SCCO"
+  - "SMCI"
+  - "SMR"
+  - "SNOW"
+  - "SNPS"
+  - "SO"
+  - "SOUN"
+  - "SPOT"
+  - "SRE"
+  - "STX"
+  - "TECK"
+  - "TEL"
+  - "TER"
+  - "TLN"
+  - "TSLA"
+  - "TSM"
+  - "TT"
+  - "UEC"
+  - "VMC"
+  - "VRT"
+  - "VST"
+  - "WDAY"
+  - "WDC"
+  - "WEC"
+  - "XEL"

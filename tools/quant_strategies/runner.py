@@ -173,6 +173,7 @@ def _run_one_combo(
             "windows": windows,
             "per_ticker": per_ticker,
             "n_signals": len(all_signals),
+            "concat_oos_outcomes": concat_oos,
         }
     else:
         is_fraction = float(wf.get("is_fraction", 0.70))

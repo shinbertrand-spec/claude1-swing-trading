@@ -1,0 +1,60 @@
+# Cross-sectional short-term reversal on the ai_thematic_pure universe.
+# Clone of xs_short_term_reversal_liquid_us.yml pointing at the 41-ticker
+# AI-pure universe instead of liquid_us_2026q2 (1178 tickers). Same params
+# + period for like-for-like comparability; bottom_n narrowed to 3 since
+# the universe is ~30x more concentrated.
+#
+# Gate: ai_thematic_pure (tighter — Sharpe>1.2, |MDD|<22%, per-window>=60%)
+# per Alfred Delta 1 on the AI-thematic auto-paper plan. Rationale:
+# 41-ticker universe is concentration-of-concentration math vs liquid_us
+# (1178); the deployment-gate false-positive rate scales with universe
+# narrowness, so the gate tightens to compensate.
+
+meta:
+  name: xs_short_term_reversal_ai_pure
+  version: "1.0"
+  source: "Lehmann 1990 / Jegadeesh 1990 — ai_thematic_pure variant"
+  description: |
+    Cross-sectional 5-day return reversal on ai_thematic_pure_2026q2
+    (~41-ticker AI pure-play universe). Weekly rebalance into bottom-3
+    largest 1-week losers. Long-only adaptation. Tighter gate per
+    ai_thematic_pure profile (Sharpe>1.2 / |MDD|<22% / per-window>=60%)
+    to compensate for universe narrowness.
+  horizon_days: 5
+  status: candidate
+
+kind: xs_short_term_reversal
+
+universe:
+  name: ai_thematic_pure_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: 5
+  bottom_n: 3
+  rebalance_period_days: 5
+  max_hold_days: 5
+  atr_period: 20
+  atr_stop_multiple: 2.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  # ai_thematic_pure profile (Alfred Delta 1).
+  sharpe_min: 1.2
+  max_dd_pct: 22.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.6

@@ -1,0 +1,53 @@
+# Connors Cumulative RSI(2) on the ai_thematic_pure universe.
+# Clone of connors_rsi2.yml pointing at the 41-ticker AI pure-play
+# universe. Same params + period; SPY 200d regime filter preserved.
+#
+# Gate: ai_thematic_pure (tighter — Sharpe>1.2, |MDD|<22%, per-window>=60%)
+# per Alfred Delta 1.
+
+meta:
+  name: connors_rsi2_ai_pure
+  version: "1.0"
+  source: "Connors, *Short Term Trading Strategies That Work* (2008) — ai_thematic_pure variant"
+  description: |
+    Per-day eligibility = (SPY > SPY 200d SMA) AND (per-ticker
+    cumulative-RSI(2) < entry_threshold) on the ai_thematic_pure_2026q2
+    universe (~41 tickers). Tighter gate per ai_thematic_pure profile.
+  horizon_days: 5
+  status: v1_candidate
+
+kind: connors_rsi2
+
+universe:
+  name: ai_thematic_pure_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  rsi_period: 2
+  cumulative_period: 2
+  entry_threshold: [5, 10, 15]
+  cooldown_days: [3, 5]
+  regime_sma_period: 200
+  atr_period: 20
+  atr_stop_multiple: 2.0
+  max_hold_days: 5
+  target_r_multiple: null
+  risk_per_trade: 0.002
+
+gate:
+  # ai_thematic_pure profile (Alfred Delta 1).
+  sharpe_min: 1.2
+  max_dd_pct: 22.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.6

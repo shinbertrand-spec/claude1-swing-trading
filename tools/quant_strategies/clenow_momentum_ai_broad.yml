@@ -1,0 +1,58 @@
+# Clenow Stocks-on-the-Move on the ai_thematic_broad universe.
+# Clone of clenow_momentum_liquid_us.yml pointing at the ~132-ticker
+# AI runoff/gushers universe. Same params + period; top_k=10 narrowed
+# from the [10, 20] grid since the universe is ~9x narrower than
+# liquid_us_2026q2.
+#
+# Gate: ai_thematic_broad (default doctrine — Sharpe>1.0, |MDD|<25%,
+# per-window>=50%).
+
+meta:
+  name: clenow_momentum_ai_broad
+  version: "1.0"
+  source: "Clenow, *Stocks on the Move* (2015) — ai_thematic_broad variant"
+  description: |
+    Clenow Stocks-on-the-Move on ai_thematic_broad_2026q2 (~132 tickers).
+    Top-K = 10 (vs the [10, 20] grid on liquid_us — 132 universe ~9x
+    narrower so top_k=20 would over-select). Concurrent-position cap (=8)
+    enforced at the metrics layer per CLAUDE.md hard rule.
+  horizon_days: 60
+  status: candidate
+
+kind: clenow_momentum
+
+universe:
+  name: ai_thematic_broad_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  momentum_lookback_days: [60, 90, 120]
+  top_k: 10
+  regime_filter_period: 200
+  rebalance_period_days: 5
+  atr_period: 20
+  atr_stop_multiple: 3.0
+  max_hold_days: 5
+  target_r_multiple: null
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  # ai_thematic_broad profile = doctrine defaults.
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5

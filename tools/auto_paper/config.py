@@ -40,15 +40,26 @@ def load(path: str | None = None) -> dict[str, Any]:
 
 
 def deployable_setup_names(path: str | None = None) -> set[str]:
-    """Return the set of setup-type names that have cleared the deployment gate.
+    """Return the set of setup-type names that are LIVE on the deployment gate.
 
     Variant (sell-aware / loosened+ma_trail / etc.) is NOT part of the key —
     the morning routine only knows the setup TYPE. If you need variant
     awareness, read :func:`load` directly.
+
+    HOLD gate (added 2026-06-05): a row with ``hold: true`` has cleared the
+    backtest gate but is NOT approved for live placement, so it is excluded
+    here. This decouples "backtest-cleared" from "live-approved" — previously
+    list-membership alone meant live placement, which let the ai_thematic
+    clones leak into the v2 scan during their HOLD window (the v2-eval-gated
+    unblock had not been met). ``hold`` absent / false = live (back-compat:
+    the 6 generic rows are unaffected).
     """
     data = load(path)
     items = data.get("deployable", []) or []
-    return {row["setup"] for row in items if isinstance(row, dict) and "setup" in row}
+    return {
+        row["setup"] for row in items
+        if isinstance(row, dict) and "setup" in row and not row.get("hold", False)
+    }
 
 
 def is_deployable(setup_type: str, path: str | None = None) -> bool:
