@@ -13,8 +13,12 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from tools.auto_paper import reconcile, state
-from tools.auto_paper.reconcile import ReconcileResult, reconcile_today
+from tools.auto_paper import critic_panel, reconcile, state
+from tools.auto_paper.reconcile import (
+    ReconcileResult,
+    reconcile_stop_outs,
+    reconcile_today,
+)
 
 
 # ------------------------------------------------------- fakes
@@ -110,6 +114,9 @@ def paper_dirs(tmp_path, monkeypatch):
     positions_json = tmp_path / "journal" / "paper-auto" / "positions.json"
     monkeypatch.setattr(state, "PAPER_AUTO_LEDGER_DIR", str(ledger_dir))
     monkeypatch.setattr(state, "PAPER_AUTO_POSITIONS_JSON", str(positions_json))
+    # Isolate calibration-outcome writes (record_calibration_outcome, called by
+    # _apply_realized_close on every close) to tmp — never the real ledger dir.
+    monkeypatch.setattr(critic_panel, "_PANEL_LEDGER_DIR", tmp_path / "swing-critics")
     return ledger_dir, positions_json
 
 
@@ -543,3 +550,108 @@ def test_reconcile_today_invokes_refresh_for_starters(paper_dirs):
     actions = {r.ticker: r.action for r in results}
     assert actions.get("MXL") == "stop_replaced", f"MXL stop should refresh; got {actions}"
     assert actions.get("NVDA") == "filled", f"NVDA submitted should fill; got {actions}"
+
+
+# ------------------------------------------------------- reconcile_stop_outs (2026-06-05)
+#
+# A starter position whose protective STP fills (price hit the stop) must be
+# detected + closed — otherwise the ledger stays stale in `starter`, the
+# realized loss never reaches calibration, and refresh would re-arm a stop on
+# a position we no longer hold.
+
+
+def _fake_stop_fill(*, order_id, symbol, qty, avg_fill_price):
+    return SimpleNamespace(
+        id=order_id, contract=SimpleNamespace(symbol=symbol),
+        action="SELL", order_type="STP", quantity=qty,
+        filled=qty, avg_fill_price=avg_fill_price,
+        limit_price=None, status="Filled",
+        trade_time="2026-06-05T14:30:00Z",
+    )
+
+
+def _read_outcomes(tmp_path):
+    cal = tmp_path / "swing-critics" / "_calibration"
+    rows = []
+    if cal.is_dir():
+        for fp in cal.glob("*.jsonl"):
+            for line in fp.read_text().splitlines():
+                if line.strip():
+                    rows.append(json.loads(line))
+    return [r for r in rows if r.get("record_type") == "outcome"]
+
+
+def test_stop_out_closes_and_records_outcome(paper_dirs, tmp_path):
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    client = _client(filled=[
+        _fake_stop_fill(order_id=55001, symbol="NVDA", qty=10, avg_fill_price=810.00),
+    ])
+    results = reconcile_stop_outs(client=client)
+    assert len(results) == 1
+    assert results[0].action == "stopped_out"
+    assert results[0].avg_fill_price == 810.00
+    # Ledger closed
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    assert doc["meta"]["state"] == "closed"
+    # Removed from positions.json
+    assert all(p["ticker"] != "NVDA" for p in state.load_positions_json()["positions"])
+    # Calibration outcome captured: entry 850.50, exit 810, stop 820
+    outs = _read_outcomes(tmp_path)
+    assert len(outs) == 1
+    o = outs[0]
+    assert o["ticker"] == "NVDA"
+    assert o["realized_pnl"] == round((810.00 - 850.50) * 10, 2)   # -405.0
+    assert o["realized_r"] == round((810.00 - 850.50) / (850.50 - 820.00), 4)  # ~ -1.328
+    assert "stop" in o["exit_reason"].lower()
+
+
+def test_stop_out_noop_when_stop_still_resting(paper_dirs):
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    # Filled list does NOT contain the stop order -> still resting -> no-op.
+    client = _client(filled=[])
+    results = reconcile_stop_outs(client=client)
+    assert results == []
+    assert yaml.safe_load(open(state.ledger_path("NVDA")))["meta"]["state"] == "starter"
+
+
+def test_stop_out_dry_run_does_not_close(paper_dirs, tmp_path):
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    client = _client(filled=[
+        _fake_stop_fill(order_id=55001, symbol="NVDA", qty=10, avg_fill_price=810.00),
+    ])
+    results = reconcile_stop_outs(client=client, dry_run=True)
+    assert results[0].action == "stop_out_dry_run"
+    # Unchanged
+    assert yaml.safe_load(open(state.ledger_path("NVDA")))["meta"]["state"] == "starter"
+    assert any(p["ticker"] == "NVDA" for p in state.load_positions_json()["positions"])
+    assert _read_outcomes(tmp_path) == []
+
+
+def test_stop_out_skips_starter_without_stop_id(paper_dirs):
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    # Remove the stop_order_id from the ledger -> nothing to match.
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    doc["position_state"].pop("stop_order_id", None)
+    with open(state.ledger_path("NVDA"), "w") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+    client = _client(filled=[
+        _fake_stop_fill(order_id=55001, symbol="NVDA", qty=10, avg_fill_price=810.00),
+    ])
+    assert reconcile_stop_outs(client=client) == []
+
+
+def test_reconcile_today_detects_stop_out_with_no_submitted(paper_dirs):
+    """Integration: reconcile_today must run stop-out detection even when there
+    are NO submitted positions (the early-return fix)."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    client = _client(filled=[
+        _fake_stop_fill(order_id=55001, symbol="NVDA", qty=10, avg_fill_price=810.00),
+    ])
+    results = reconcile_today(client=client, dry_run=False)
+    assert any(r.action == "stopped_out" and r.ticker == "NVDA" for r in results)
+    assert yaml.safe_load(open(state.ledger_path("NVDA")))["meta"]["state"] == "closed"

@@ -45,24 +45,37 @@ The module:
 
 If no positions are in `starter` state, returns `[]` and the command exits with `AUTO_PAPER_MONITOR_NOTHING_OPEN`.
 
-## Step 1a — Refresh DAY-expired broker stops (self-healing)
+## Step 1a — Close stop-outs, then refresh DAY-expired broker stops (self-healing)
 
-Before evaluating exits and before ratcheting, ensure every `starter` position has a live broker-side STP. Tiger paper STP orders are DAY-only and auto-cancel at session close; a fresh stop must be re-armed on the first monitor pass of the new session. The composer in Step 1 also depends on a live stop to cancel before exit — without this refresh, the exit path would try to cancel a non-existent order.
+Two broker-state reconciliations, IN THIS ORDER (the order is load-bearing):
 
 ```python
-from tools.auto_paper.reconcile import refresh_starter_stops
+from tools.auto_paper.reconcile import reconcile_stop_outs, refresh_starter_stops
 from tools.broker.tiger import TigerClient
 client = TigerClient()
+# 1. Detect + close positions whose protective STP filled. MUST run before the
+#    refresh: a stopped-out position's stop_order_id is in the broker's FILLED
+#    list (not open_orders), so refresh would otherwise see "no live stop" and
+#    re-arm a STP on a position we no longer hold.
+stop_out_results = reconcile_stop_outs(client=client, dry_run=<args.dry_run>)
+# 2. Re-arm DAY-expired stops on positions that are STILL open.
 refresh_results = refresh_starter_stops(client=client, dry_run=<args.dry_run>)
 ```
 
-Outcomes per starter:
+**Why stop-out detection (added 2026-06-05):** Tiger paper STP fills are not otherwise reconciled — without this, a stopped-out position's ledger stays stale in `starter` forever, its realized loss never reaches the calibration log, and the refresh would re-arm a phantom stop. `reconcile_stop_outs` closes the ledger at the stop's `avg_fill_price` (via `_apply_realized_close`, which also records the Phase-3 calibration outcome) and removes it from positions.json.
+
+`reconcile_stop_outs` outcomes:
+- `stopped_out` — protective STP filled; ledger closed + removed from positions.json + calibration outcome recorded
+- `stop_out_dry_run` — would close (`--dry-run`)
+- `error` — broker/data issue; manual review
+
+`refresh_starter_stops` outcomes per starter:
 - `stop_intact` — ledger's `stop_order_id` is live at the broker; no-op
 - `stop_replaced` — placed a fresh STP at the ledger's `current_stop`, recorded the new `stop_order_id` on the ledger
 - `stop_dry_run` — would have placed a fresh STP (`--dry-run`)
 - `error` — could not refresh; ledger / broker state may need manual review
 
-Surface `stop_replaced` and `error` rows in the summary so the operator can audit. `stop_intact` is the steady-state expectation post-fix.
+Surface `stopped_out`, `stop_replaced`, and `error` rows in the summary so the operator can audit. `stop_intact` is the steady-state expectation post-fix.
 
 ## Step 1b — Trailing-stop ratchet (post-exit pass)
 

@@ -289,13 +289,19 @@ def _pending_close_ledgers() -> list[dict[str, Any]]:
     return pending
 
 
-def _update_ledger_closed_from_pending(
+def _apply_realized_close(
     ticker: str,
     *,
     exit_price: float,
     exit_reason: str,
 ) -> None:
-    """Mutate the ledger: pending_close -> closed; clear pending_sell_order_id."""
+    """Transition a paper-auto ledger to ``closed`` at a realized exit price,
+    clear the resolved order ids, and capture the Phase-3 calibration outcome.
+
+    Shared by the ``pending_close`` -> ``closed`` path (sell-composer / manual
+    exits) and the stop-out path (protective STP filled at broker) so BOTH
+    realized exits close the ledger identically and BOTH feed calibration.
+    """
     p = state.ledger_path(ticker)
     if not os.path.isfile(p):
         raise state.PaperAutoStateError(f"no paper-auto ledger for {ticker}")
@@ -309,12 +315,12 @@ def _update_ledger_closed_from_pending(
 
     ps = doc.setdefault("position_state", {})
     ps.pop("pending_sell_order_id", None)
-    ps.pop("stop_order_id", None)  # stop is cancelled separately when we close
+    ps.pop("stop_order_id", None)  # any resting order is resolved at close
 
     existing = doc.get("notes", "")
     new_note = (
         f"Closed by auto_paper/reconcile on {_today_iso()} at ${exit_price:.4f} — "
-        f"reason: {exit_reason} (fill confirmed)"
+        f"reason: {exit_reason}"
     )
     doc["notes"] = f"{existing}\n{new_note}".strip() if existing else new_note
 
@@ -343,6 +349,19 @@ def _update_ledger_closed_from_pending(
             )
     except Exception:
         pass
+
+
+def _update_ledger_closed_from_pending(
+    ticker: str,
+    *,
+    exit_price: float,
+    exit_reason: str,
+) -> None:
+    """Mutate the ledger: pending_close -> closed; clear pending_sell_order_id."""
+    _apply_realized_close(
+        ticker, exit_price=exit_price,
+        exit_reason=f"{exit_reason} (fill confirmed)",
+    )
 
 
 def _revert_ledger_to_starter_from_pending(ticker: str, reason: str) -> None:
@@ -580,6 +599,105 @@ def refresh_starter_stops(
     return results
 
 
+def reconcile_stop_outs(
+    *,
+    client: TigerClient,
+    filled_by_id: dict[Any, dict[str, Any]] | None = None,
+    dry_run: bool = False,
+) -> list[ReconcileResult]:
+    """Detect + close ``starter`` positions whose protective STP filled.
+
+    A ``starter`` position whose recorded ``stop_order_id`` appears in the
+    broker's FILLED list means the protective stop triggered (price hit the
+    stop). Without this the ledger stays stale in ``starter`` forever, the
+    realized loss never reaches calibration, and the next
+    :func:`refresh_starter_stops` pass re-arms a STP on a position we no longer
+    hold. Run this BEFORE refresh on every reconcile / monitor pass.
+
+    For each stopped-out position: close the ledger at the stop's
+    ``avg_fill_price`` (via :func:`_apply_realized_close`, which also records
+    the calibration outcome) and remove it from positions.json.
+
+    Args:
+        client: paper-routed :class:`TigerClient`.
+        filled_by_id: optional pre-fetched ``{order_id: order}`` map of FILLED
+            orders (avoids a second ``get_filled_orders`` when called from
+            :func:`reconcile_today`). Fetched here when None.
+        dry_run: when True, reports what would close without writing or closing.
+
+    Returns:
+        list[ReconcileResult] — one per starter that actually stopped out
+        (``stopped_out`` / ``stop_out_dry_run`` / ``error``). Positions whose
+        stop is still resting produce no result.
+    """
+    starters = _starter_positions()
+    if not starters:
+        return []
+
+    if filled_by_id is None:
+        start = (_dt.date.today() - _dt.timedelta(days=DEFAULT_LOOKBACK_DAYS)).isoformat()
+        end = (_dt.date.today() + _dt.timedelta(days=1)).isoformat()
+        try:
+            filled_entry = client.get_filled_orders(start_time=start, end_time=end)
+        except BrokerOrderError as exc:
+            return [
+                ReconcileResult(ticker=p["ticker"], action="error",
+                                reason=f"get_filled_orders: {exc}")
+                for p in starters
+            ]
+        filled_by_id = {
+            o.get("order_id"): o for o in filled_entry.output.get("orders", [])
+            if o.get("order_id") is not None
+        }
+
+    results: list[ReconcileResult] = []
+    for entry in starters:
+        ticker = entry["ticker"]
+        sid = _existing_stop_order_id(ticker)
+        if sid is None:
+            continue
+        filled = filled_by_id.get(sid)
+        if filled is None:
+            continue  # stop still resting / not filled — no-op
+
+        exit_price = filled.get("avg_fill_price")
+        filled_qty = int(filled.get("filled_quantity") or 0)
+        if exit_price is None or filled_qty <= 0:
+            results.append(ReconcileResult(
+                ticker=ticker, action="error", stop_order_id=sid,
+                reason=f"stop in filled list but missing qty/avg_fill: {filled}",
+            ))
+            continue
+
+        if dry_run:
+            results.append(ReconcileResult(
+                ticker=ticker, action="stop_out_dry_run", stop_order_id=sid,
+                avg_fill_price=float(exit_price), filled_qty=filled_qty,
+                reason=f"would close — protective stop filled @ ${float(exit_price):.4f}",
+            ))
+            continue
+
+        try:
+            _apply_realized_close(
+                ticker, exit_price=float(exit_price),
+                exit_reason="protective stop filled at broker",
+            )
+            _update_positions_json_closed_from_pending(ticker)
+        except state.PaperAutoStateError as exc:
+            results.append(ReconcileResult(
+                ticker=ticker, action="error", stop_order_id=sid,
+                reason=f"stop-out close: {exc}",
+            ))
+            continue
+
+        results.append(ReconcileResult(
+            ticker=ticker, action="stopped_out", stop_order_id=sid,
+            avg_fill_price=float(exit_price), filled_qty=filled_qty,
+            reason="protective stop filled at broker",
+        ))
+    return results
+
+
 def reconcile_today(
     *,
     client: TigerClient | None = None,
@@ -602,7 +720,11 @@ def reconcile_today(
         Empty list if nothing pending.
     """
     pending = _pending_submitted_ledgers()
-    if not pending:
+    # Reconcile must also run when there are only starter / pending_close
+    # positions (no new submissions) — otherwise stop-outs + pending_close
+    # fills + self-healing stop refresh are silently skipped on quiet days.
+    affected = pending + _pending_close_ledgers() + _starter_positions()
+    if not affected:
         return []
 
     try:
@@ -613,7 +735,7 @@ def reconcile_today(
                 ticker=p.get("ticker", "UNKNOWN"),
                 action="error",
                 reason=f"broker config: {exc}",
-            ) for p in pending
+            ) for p in affected
         ]
 
     start = (_dt.date.today() - _dt.timedelta(days=lookback_days)).isoformat()
@@ -628,7 +750,7 @@ def reconcile_today(
                 ticker=p.get("ticker", "UNKNOWN"),
                 action="error",
                 reason=f"broker fetch: {exc}",
-            ) for p in pending
+            ) for p in affected
         ]
 
     filled_by_id = {
@@ -641,6 +763,14 @@ def reconcile_today(
     }
 
     results: list[ReconcileResult] = []
+    # Stop-out detection MUST run BEFORE the refresh: a position whose
+    # protective STP filled has its stop_order_id in the FILLED list (not
+    # open_orders), so refresh would otherwise see "no live stop" and re-arm a
+    # STP on a position we no longer hold. Closing it here removes it from the
+    # starter set the refresh re-reads.
+    results.extend(reconcile_stop_outs(
+        client=c, filled_by_id=filled_by_id, dry_run=dry_run,
+    ))
     # Self-healing stop refresh — run BEFORE processing submitted fills so
     # the post-fill stop-placement path stays unchanged. See
     # :func:`refresh_starter_stops` docstring for the recurrence-prevention
