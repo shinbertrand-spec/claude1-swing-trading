@@ -516,6 +516,96 @@ def append_calibration_log(
     return path
 
 
+def record_calibration_outcome(
+    ticker: str,
+    *,
+    entry_price: float,
+    exit_price: float,
+    stop_price: float,
+    shares: int,
+    exit_reason: str,
+    entry_date: str,
+    closed_at: str | None = None,
+    panel_dir: Path | None = None,
+) -> Optional[Path]:
+    """Close the Phase-3 calibration loop: append a realized-OUTCOME record to
+    the calibration log, linked to the panel verdict that sized this position.
+
+    The verdict is looked up from the saved ``_panel.json`` at
+    ``ledgers/swing-critics/<entry_date>/<TICKER>/`` (written by
+    :func:`save_panel_verdict` at placement time). The outcome record carries
+    ``record_type: "outcome"`` to distinguish it from the entry-time
+    verdict records (which have no ``record_type``); the two are joined on
+    ``panel_call_id`` by :mod:`tools.auto_paper.calibration_analysis`.
+
+    Without this, the calibration log only stored the verdict + the placement
+    decision — never the realized result — so the doctrine's flip-gate ("flip
+    panel sizing live once verdicts correlate with realized P&L") had no data.
+
+    Args:
+        entry_price: actual fill price of the entry leg.
+        exit_price: realized exit price.
+        stop_price: the position's stop at entry (for the R denominator).
+        shares: filled share count.
+        exit_reason: why the position closed (sell-composer action / stop / etc.).
+        entry_date: ISO date (YYYY-MM-DD) the panel scored this candidate —
+            used to locate ``_panel.json``. Usually the ledger's created_at date.
+        closed_at: ISO timestamp of the close. Defaults to now.
+
+    Returns:
+        The calibration file path, or ``None`` if it could not be written.
+    """
+    if panel_dir is None:
+        panel_dir = _PANEL_LEDGER_DIR
+    if closed_at is None:
+        closed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    # Look up the panel verdict that sized this entry (best-effort — a manual
+    # or pre-panel position simply has no _panel.json, and we still record the
+    # outcome with null verdict fields so realized P&L is never lost).
+    verdict_action: Optional[str] = None
+    sizing_multiplier: Optional[float] = None
+    panel_call_id: Optional[str] = None
+    panel_path = panel_dir / entry_date / ticker.upper() / "_panel.json"
+    if panel_path.is_file():
+        try:
+            with open(panel_path, encoding="utf-8") as fh:
+                v = json.load(fh)
+            verdict_action = v.get("action")
+            sizing_multiplier = v.get("sizing_multiplier")
+            panel_call_id = v.get("panel_call_id")
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    risk_per_share = float(entry_price) - float(stop_price)
+    realized_r = (
+        round((float(exit_price) - float(entry_price)) / risk_per_share, 4)
+        if risk_per_share > 0 else None
+    )
+    entry = {
+        "record_type": "outcome",
+        "ticker": ticker.upper(),
+        "panel_call_id": panel_call_id,
+        "verdict_action": verdict_action,
+        "sizing_multiplier": sizing_multiplier,
+        "entry_price": round(float(entry_price), 4),
+        "exit_price": round(float(exit_price), 4),
+        "stop_price": round(float(stop_price), 4),
+        "shares": int(shares),
+        "realized_pnl": round((float(exit_price) - float(entry_price)) * int(shares), 2),
+        "realized_r": realized_r,
+        "exit_reason": exit_reason,
+        "entry_date": entry_date,
+        "closed_at": closed_at,
+    }
+    cal_dir = panel_dir / "_calibration"
+    cal_dir.mkdir(parents=True, exist_ok=True)
+    path = cal_dir / f"{closed_at[:10]}.jsonl"
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry) + "\n")
+    return path
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------

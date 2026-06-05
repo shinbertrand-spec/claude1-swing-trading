@@ -43,7 +43,7 @@ from typing import Any, Optional
 import yaml
 
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
-from . import state
+from . import critic_panel, state
 
 DEFAULT_LOOKBACK_DAYS = 5
 
@@ -321,6 +321,28 @@ def _update_ledger_closed_from_pending(
     _validate_against_schema(doc)
     with open(p, "w", encoding="utf-8") as fh:
         yaml.safe_dump(doc, fh, sort_keys=False)
+
+    # Close the Phase-3 calibration loop: pair this realized exit with the
+    # panel verdict that sized the entry. Best-effort — calibration is
+    # observational and must NEVER break the trade-lifecycle close.
+    try:
+        starter = (doc.get("position_state") or {}).get("starter") or {}
+        entry_price = starter.get("fill_price")
+        stop_price = starter.get("initial_stop")
+        shares = starter.get("shares")
+        entry_date = (doc.get("meta") or {}).get("created_at", "")[:10]
+        if entry_price and stop_price and shares and entry_date:
+            critic_panel.record_calibration_outcome(
+                ticker,
+                entry_price=float(entry_price),
+                exit_price=float(exit_price),
+                stop_price=float(stop_price),
+                shares=int(shares),
+                exit_reason=exit_reason,
+                entry_date=entry_date,
+            )
+    except Exception:
+        pass
 
 
 def _revert_ledger_to_starter_from_pending(ticker: str, reason: str) -> None:
