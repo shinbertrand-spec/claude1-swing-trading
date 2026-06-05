@@ -18,9 +18,11 @@ This command answers the question that justifies the paper-auto track existing a
 
 ```python
 from tools.auto_paper.performance import compute_performance, compute_open_pnl
+from tools.auto_paper.calibration_analysis import compute as compute_calibration
 report = compute_performance(setup_filter=<args.setup or None>,
                               risk_per_trade=<args.risk_per_trade or 0.01>)
 open_pnl = compute_open_pnl()   # constructs TigerClient() internally
+calib = compute_calibration()   # Phase-3 swing-critic-panel calibration (flip gate)
 ```
 
 `compute_performance` reads `journal/paper-auto/positions.json` + each per-ticker ledger. Closed ledgers contribute to realized stats only if they have `position_state.exit_price` set (Session 3's close-out writer). Closed ledgers without `exit_price` (DAY-expired unfilled, or pre-Session-3 closes) are flagged in `report.notes`, not counted toward realized.
@@ -81,6 +83,25 @@ Render each entry in `report.notes` as a bullet. Always include:
 - "Equity curve simplification: Sharpe / max-DD computed via trade-sequence equity at <risk_per_trade>%; intra-trade drawdown not captured."
 - Any "<TICKER>: closed ledger has no exit_price …" entries — these are positions that Session 3's close-out path should have written; flag for manual inspection.
 
+### 6. Swing-critic panel — calibration / flip gate
+
+The multi-rater critic panel runs in **shadow mode** (verdict logged, sizing NOT applied) until its verdicts are shown to correlate with realized P&L. This section reads `calib` (from `tools.auto_paper.calibration_analysis`) — it joins entry-time panel verdicts with realized outcomes on `panel_call_id`.
+
+```
+- Verdict records: <calib.n_verdict_records>  |  Outcomes: <calib.n_outcome_records>  |  Joined: <calib.n_joined>
+
+| Verdict action | n | win% | avg R | total P&L |
+| preserve | <s.n> | <s.win_rate%> | <s.avg_realized_r +.2f> | $<s.total_pnl> |
+| reduce_20 | ... |
+| half_size_review | ... |
+(one row per action present in calib.by_action; order preserve -> reduce_20 -> half_size_review)
+
+**Discrimination:** <calib.discrimination>
+**Ready to flip panel sizing live:** <YES if calib.ready_to_flip else NO>
+```
+
+Interpretation: the flip from shadow to live is justified when the panel **separates winners from its low-confidence bucket** — `preserve` trades realize better R than `half_size_review` trades — on a sample of `>= 20` joined closed trades. Until `calib.ready_to_flip` is `True`, leave the panel in shadow mode. (Shortcut: `uv run python -m tools.auto_paper.calibration_analysis` renders this section standalone.)
+
 ## Step 3 — Deliver
 
 ### If a Telegram channel tag is in the immediate conversation context
@@ -105,6 +126,8 @@ Append a single-line "what to do" hint based on what surfaced:
 - ⚠ status with n < 30 → "Verdict preliminary; need <30 - n> more closed trades for a meaningful read."
 - Notes contain "no exit_price" → "<N> closed ledger(s) missing `position_state.exit_price`. Session 3's close-out writer may have skipped them — manual inspection via `cat ledgers/paper-auto/<TICKER>.yml`."
 - `open_pnl.error` populated → "Tiger paper account unreachable; rerun later or check `C:/Users/User/Desktop/tiger/tiger_openapi_config.properties`."
+- `calib.ready_to_flip` is `True` → "Panel calibration gate PASSED (<calib.n_joined> joined trades, panel discriminates) — panel sizing is ready to go live: add `--apply-panel-sizing` to `/auto-paper-v2` Step 5 + update the shadow-mode docs."
+- `calib.ready_to_flip` is `False` AND `calib.n_joined > 0` → "Panel calibration accumulating (<calib.n_joined>/20 joined closed trades). Keep sizing in shadow mode."
 
 DO NOT auto-promote, auto-park, or auto-edit anything. Performance reporting is observational — decisions belong to Bertrand.
 
