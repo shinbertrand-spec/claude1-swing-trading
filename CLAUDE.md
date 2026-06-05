@@ -613,6 +613,103 @@ EP loosened target 2.13).
   position. Pyramid leg management is a future enhancement.
 - OCA stop+target groups deferred; STP SELL only.
 
+### AI-thematic track (shipped 2026-05-29, Alfred-refined plan)
+
+Sub-track inside the paper-auto carve-out: focuses auto-paper thematically
+on "all AI industries and run-offs / gushers" while the existing 6 generic
+strategies keep running in parallel. Same `journal/paper-auto/positions.json`
++ `ledgers/paper-auto/<TICKER>.yml` storage, shared 8-position cap; the only
+new identity is the `track:` field on each `deployable_setups.yml` row.
+
+**Plan reference:** `plans/polymorphic-tickling-avalanche.md`
+(approved 2026-05-29). Refines the source draft at
+`can-we-focus-thematically-zippy-hartmanis.md` with the six Alfred
+deltas. Vault note: `wiki/notes/swing-ai-thematic-auto-paper-plan.md`
+("## Alfred's review (2026-05-29)" section).
+
+**Universes (Step 1 of plan, built 2026-05-29):**
+- `tools/quant_strategies/_universes/ai_thematic_pure_2026q2.yml` —
+  41 tickers (AI primes / hyperscalers / power / cooling / DC REITs /
+  networking / memory / semicap / AI software). Includes QCOM as 41st.
+- `tools/quant_strategies/_universes/ai_thematic_broad_2026q2.yml` —
+  ~132 tickers (superset of pure + power/utilities + nuclear/SMR + grid +
+  industrial gases + electrification metals + DC construction + adjacent
+  semi/networking/software + application AI + robotics + EDA + specialty).
+
+Both built via `scripts/build_ai_thematic_universes.py` with audit-JSON
+sidecars recording per-ticker ADV + bucket assignments + drop reasons.
+
+**Strategy clones (Step 2 of plan):** five YAMLs under
+`tools/quant_strategies/`:
+- `xs_short_term_reversal_ai_pure.yml`, `xs_short_term_reversal_ai_broad.yml`
+- `connors_rsi2_ai_pure.yml`, `connors_rsi2_ai_broad.yml`
+- `clenow_momentum_ai_broad.yml`
+
+Each is a mechanical clone of its generic-track source — only
+`meta.name`, `meta.description`, `universe.name`, the relevant param
+(`bottom_n` / `top_k`), and the `gate:` block change. **`gate:` is split by
+universe narrowness (Alfred Delta 1):**
+
+| Profile | Used for | Clauses (BOTH must pass) |
+|---|---|---|
+| `ai_thematic_pure` | ai-pure variants (41 tickers) | Sharpe>1.2 ∧ \|MDD\|<22% ∧ n≥30 ∧ per-window≥60% |
+| `ai_thematic_broad` | ai-broad variants (~132 tickers) | Sharpe>1.0 ∧ \|MDD\|<25% ∧ n≥30 ∧ per-window≥50% (default) |
+
+Tighter gate on the pure track compensates for universe-narrowness
+concentration. Plus a **top-3-contributor diagnostic** (Alfred Delta 2)
+on ai-pure variants: >50% of OOS |PnL| from top-3 tickers triggers a
+REVIEW flag (catches single-name idiosyncrasy on narrow universes).
+
+**Sweep (Step 3-4): 3 of 5 variants cleared (2026-05-29).** DEPLOY:
+`xs_short_term_reversal_ai_pure` (Sharpe 1.86, |MDD| 19.34%, top-3 39%),
+`xs_short_term_reversal_ai_broad` (Sharpe 1.40, |MDD| 22.04%),
+`connors_rsi2_ai_broad` (Sharpe 1.02, |MDD| 5.11% — marginal). REJECT:
+`connors_rsi2_ai_pure` (Sharpe 1.17 below 1.2 floor),
+`clenow_momentum_ai_broad` (|MDD| 25.87% above 25% floor). Sweep report:
+`journal/backtest-sweep/2026-05-29-ai-thematic.md`. Per-variant detail:
+`journal/backtest/<variant>-ai-thematic.md`.
+
+**`residual_momentum_ai_broad` deferred (Alfred Delta 3):** not in v1
+sweep. Re-evaluate after 60 days of broad-track paper P&L.
+
+**`track:` field convention (Alfred Delta 4, codified
+2026-05-29):** every row in `tools/deployable_setups.yml` carries an
+explicit `track:` — `generic` (original 6 deployables) or `ai_thematic`
+(the 3 new rows). Absence-as-default is not permitted; future
+grep/slice on the field would break. The 6 existing generic rows were
+backfilled in the same edit that added the 3 ai-thematic rows.
+
+**Doctrine guardrail (Alfred Delta 5):** universe additions must reuse
+algorithmically-identical clones of existing deployables. If a thematic
+track ever requires a novel signal (not just param tuning + universe
+swap), re-enter doctrine review against
+`[[swing-discipline-gap-bot-over-human]]` (vault) before deploying.
+
+**Held-position double-up (Alfred Delta 5, second half — INTENTIONAL):**
+when an ai-thematic universe contains a name already in the
+human-discretionary track (e.g. CEG / MRVL / NBIS / QCOM / VRT), the
+quant scanner may double up on it. This is by design — tracks are
+economically independent in paper-account terms; the per-position 5%
+net-liq cap and the 8-concurrent cap are the sufficient safeguards.
+No code-level refusal; the only mitigation is the cap binding sooner.
+
+**Bias-audit `--track` filter (Alfred Delta 6):** `tools.bias_audit`
+takes `--track {generic, ai_thematic, all}` (default `all` = pre-Delta-6
+behaviour). When set, slices candidates by the new `meta.track` field
+written by `tools/auto_paper/shell_ledger.py` (default `generic`). The
+generic-track slice carries the doctrine-required discovery-bias signal
+vs the S&P 500 baseline. The ai-thematic-track slice uses the same
+baseline but the report flags it as INFORMATIONAL — a thematic-specific
+baseline is needed before its sector flags are load-bearing.
+
+**Anti-goals (sequencing discipline; do not parallelize):**
+- Do NOT touch Process B (`thematic-portfolio` subagent stack) in this
+  window. Orthogonal architecture per Alfred Angle 4.
+- Do NOT touch Loop 6 (`drift_analysis` + `ensemble_lead_score`).
+- A comparative Alfred deep-dive auto-triggers once both this first
+  sweep AND Loop 6 first firing (~2026-08-20) land — no further action
+  needed from the swing-session to kick that off.
+
 ## Sensitive Information
 
 Telegram messages, journal entries, and any other channel that leaves this
