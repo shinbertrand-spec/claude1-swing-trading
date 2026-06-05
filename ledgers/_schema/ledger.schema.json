@@ -69,12 +69,16 @@
           "description": "The point in time this ledger snapshot represents. For candidates: the moment trade-researcher built the candidate report. For positions: the last update timestamp."
         },
         "state": {
-          "enum": ["candidate", "rejected", "submitted", "starter", "stage-2", "stage-3", "trailing", "closed"],
-          "description": "Lifecycle state. candidate=pre-trade research; rejected=did not pass risk-and-compliance; submitted=auto-paper order placed but not yet filled (paper-auto track only); starter/stage-2/stage-3=open and at the named pyramid stage per swing-momentum-execution; trailing=full size, no further adds, normal trail; closed=exited."
+          "enum": ["candidate", "rejected", "submitted", "starter", "stage-2", "stage-3", "trailing", "pending_close", "closed"],
+          "description": "Lifecycle state. candidate=pre-trade research; rejected=did not pass risk-and-compliance; submitted=auto-paper order placed but not yet filled (paper-auto track only); starter/stage-2/stage-3=open and at the named pyramid stage per swing-momentum-execution; trailing=full size, no further adds, normal trail; pending_close=exit limit-sell placed at broker but not yet confirmed filled (paper-auto track only — set by exits.py, resolved by reconcile.py); closed=exited."
         },
         "account_track": {
           "enum": ["human", "paper-auto"],
           "description": "Which track owns this position. Absent = human (default; back-compat with pre-2026-05-24 ledgers). paper-auto = autonomous paper-trading track (validation-only, no live capital). Track separation keeps existing tooling (check-positions, news-research Scout, EOD sell-eval) untouched in v1 — those read journal/positions.json which only contains human-track positions."
+        },
+        "track": {
+          "enum": ["generic", "ai_thematic"],
+          "description": "Strategy-discovery track for bias-audit slicing. Absent = generic (default; back-compat). ai_thematic = candidate was surfaced by a strategy on the ai_thematic_pure / ai_thematic_broad universe. Orthogonal to account_track (which is the broker-account distinction). Added 2026-05-29 per Alfred Delta 6 on the AI-thematic auto-paper plan so tools.bias_audit can slice generic-track sector skew separately from ai-thematic-track skew."
         },
         "ledger_path": {
           "type": "string",
@@ -254,8 +258,8 @@
       "description": "Per swing-setup-library: a candidate trade is tagged with exactly one setup type plus a grade. Grading shape depends on type (SEPA-VCP uses A+/A/B/C; EP uses Super Swan / Swan / Duck / Chicken / Golden EP).",
       "properties": {
         "type": {
-          "enum": ["SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout", "Manual", "dual_ma_trend_following", "xs_short_term_reversal", "connors_rsi2", "clenow_momentum", "clenow_momentum_liquid_us", "residual_momentum_liquid_us", "xs_short_term_reversal_liquid_us", "ts_momentum_liquid_us"],
-          "description": "Named setup tag. Manual is reserved for the portfolio-manager onboard mode (pre-framework positions imported retroactively) — risk-and-compliance morning-routine paths should never accept type=Manual at entry; only the onboard path emits it. The KIND_REGISTRY family (dual_ma_trend_following, xs_short_term_reversal, connors_rsi2, clenow_momentum) was added 2026-05-26 to allow tools/auto_paper/quant_scanner.py to write submitted-state ledgers for cleared quant strategies. The _liquid_us variants (clenow_momentum_liquid_us, residual_momentum_liquid_us, xs_short_term_reversal_liquid_us, ts_momentum_liquid_us) were added 2026-05-26 evening for the wide-universe deployable family — same kinds, different universe spec, so they get distinct setup_type values for ledger-level traceability."
+          "enum": ["SEPA-VCP", "EP", "Pullback-20SMA", "RSI-Divergence", "Resistance-Breakout", "Manual", "dual_ma_trend_following", "xs_short_term_reversal", "connors_rsi2", "clenow_momentum", "clenow_momentum_liquid_us", "residual_momentum_liquid_us", "xs_short_term_reversal_liquid_us", "ts_momentum_liquid_us", "xs_short_term_reversal_ai_broad"],
+          "description": "Named setup tag. Manual is reserved for the portfolio-manager onboard mode (pre-framework positions imported retroactively) — risk-and-compliance morning-routine paths should never accept type=Manual at entry; only the onboard path emits it. The KIND_REGISTRY family (dual_ma_trend_following, xs_short_term_reversal, connors_rsi2, clenow_momentum) was added 2026-05-26 to allow tools/auto_paper/quant_scanner.py to write submitted-state ledgers for cleared quant strategies. The _liquid_us variants (clenow_momentum_liquid_us, residual_momentum_liquid_us, xs_short_term_reversal_liquid_us, ts_momentum_liquid_us) were added 2026-05-26 evening for the wide-universe deployable family — same kinds, different universe spec, so they get distinct setup_type values for ledger-level traceability. The ai_thematic variant xs_short_term_reversal_ai_broad was added 2026-06-05 to stop the v2-shadow enum-validation failure (VST 2026-06-04); the broader question of whether ai-thematic clones should be in the deployable scan during the HOLD window is tracked separately (see plans/ AI-thematic leak diagnostic)."
         },
         "grade": {
           "description": "Grade per the grading scale appropriate to the setup type. SEPA-VCP / Pullback / RSI-Div / Resistance-Break use {A+, A, B, C}. EP uses {SuperSwan, Swan, Duck, Chicken, GoldenEP}.",
@@ -378,7 +382,15 @@
         "current_stop": { "type": "number", "exclusiveMinimum": 0 },
         "stop_order_id": {
           "type": "integer",
-          "description": "Broker-side global order ID for the active protective stop, when one is resting at the broker. Populated by tools.auto_paper.reconcile after submitted->starter transition (Session 3); cleared by tools.auto_paper.exits when the position closes and the stop is cancelled. Absent for human-track positions or paper-auto positions before a stop has been placed."
+          "description": "Broker-side global order ID for the active protective stop, when one is resting at the broker. Populated by tools.auto_paper.reconcile after submitted->starter transition (Session 3); cleared by tools.auto_paper.reconcile when the position closes (pending_close->closed) and the stop is cancelled. Absent for human-track positions or paper-auto positions before a stop has been placed."
+        },
+        "pending_sell_order_id": {
+          "type": "integer",
+          "description": "Broker-side global order ID for the in-flight exit limit-sell, populated when tools.auto_paper.exits transitions the ledger to pending_close. Cleared by tools.auto_paper.reconcile on fill (state -> closed) or expiry (state -> starter). Paper-auto track only."
+        },
+        "operator_locked": {
+          "type": "boolean",
+          "description": "When true, tools.auto_paper.exits refuses to cancel stop_order_id and refuses to place new limit-sells against this position — only records the sell_eval_history entry. Set manually when an operator restores a stop or wants to override the automated monitor for a specific position. Paper-auto track only."
         },
         "trail_ma": {
           "enum": ["lows_of_day", "5_day_MA", "10_day_MA", "20_day_MA", "50_day_MA", "combined_breakeven"],

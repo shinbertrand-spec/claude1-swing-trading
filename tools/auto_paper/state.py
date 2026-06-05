@@ -149,6 +149,133 @@ def _trigger_for(setup_type: str) -> str:
     return "VCPBreakout"
 
 
+def _build_submitted_doc(
+    *,
+    ticker: str,
+    setup_type: str,
+    setup_grade: str | None,
+    pivot_price: float,
+    limit_price: float,
+    stop_price: float,
+    shares: int,
+    broker_order_id: int | None,
+    broker: str,
+    sector_etf: str | None = None,
+    reasoning_trace: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Compose the ``submitted``-state ledger dict. Pure — no I/O, no schema
+    validation. Shared by :func:`validate_submitted_ledger` (pre-place gate)
+    and :func:`write_submitted_ledger` (post-place persist) so both operate on
+    a byte-for-byte identical structure (modulo timestamps + broker_order_id).
+    """
+    now = _now_iso()
+    doc: dict[str, Any] = {
+        "meta": {
+            "schema_version": "1.0",
+            "ticker": ticker.upper(),
+            "asof": now,
+            "state": "submitted",
+            "account_track": "paper-auto",
+            "ledger_path": ledger_path(ticker).replace("\\", "/"),
+            "created_by": "auto_paper/pipeline",
+            "created_at": now,
+        },
+        "setup_classification": {
+            "type": setup_type,
+            "pivot_price": float(pivot_price),
+            "stop_price": float(stop_price),
+            "stop_distance_pct": (limit_price - stop_price) / limit_price if limit_price > 0 else 0.0,
+            "trace_refs": [],
+            "confluence_checklist": [],
+        },
+        "position_state": {
+            "stage": "STARTER",
+            "intended_full_shares": int(shares),
+            "starter": {
+                "trigger": _trigger_for(setup_type),
+                "fill_date": _today(),
+                # On `submitted`, no fill yet — set fill_price to the limit
+                # so the schema's required-field check passes. EOD
+                # reconciliation overwrites with the actual avg_fill_price.
+                "shares": int(shares),
+                "fill_price": float(limit_price),
+                "limit_price_placed": float(limit_price),
+                "initial_stop": float(stop_price),
+                "trace_refs": [],
+            },
+            "current_stop": float(stop_price),
+            "trail_state_legacy": "initial",
+            "alerts_sent": [],
+        },
+        # 2026-05-28: assign sequential ids to reasoning_trace entries that
+        # arrive id-less. TraceEntry's contract is `id: int | None — set when
+        # appended to a ledger reasoning_trace`; this is where the appending
+        # happens, so this is where ids are assigned. Without this, the ledger
+        # schema's `id: required` rule rejects the doc.
+        "reasoning_trace": _assign_trace_ids(reasoning_trace or []),
+    }
+    if setup_grade is not None:
+        doc["setup_classification"]["grade"] = setup_grade
+    if broker_order_id is not None:
+        doc["position_state"]["starter"]["broker_order_id"] = int(broker_order_id)
+    if broker:
+        doc["position_state"]["starter"]["broker"] = broker
+    if sector_etf:
+        doc["regime"] = {
+            "sector_etf": sector_etf,
+            "computed_at": now,
+        }
+    return doc
+
+
+def validate_submitted_ledger(
+    *,
+    ticker: str,
+    setup_type: str,
+    setup_grade: str | None,
+    pivot_price: float,
+    limit_price: float,
+    stop_price: float,
+    shares: int,
+    broker: str,
+    sector_etf: str | None = None,
+    reasoning_trace: list[dict[str, Any]] | None = None,
+    overwrite: bool = False,
+) -> None:
+    """Pre-flight gate: build + schema-validate a submitted ledger WITHOUT
+    writing or any broker call.
+
+    The pipeline calls this BEFORE ``place_limit_buy`` so a schema failure
+    aborts the placement instead of orphaning a live broker order (the
+    2026-06-04 v2-shadow failure mode). ``broker_order_id`` is intentionally
+    omitted — it is unknown pre-place and is an *optional* schema field, so its
+    later addition in :func:`write_submitted_ledger` cannot introduce a new
+    validation error on an already-valid doc.
+
+    Raises:
+        PaperAutoStateError: on attempted overwrite or schema-validation failure.
+    """
+    p = ledger_path(ticker)
+    if os.path.isfile(p) and not overwrite:
+        raise PaperAutoStateError(
+            f"paper-auto ledger for {ticker} already exists at {p}; pass overwrite=True"
+        )
+    doc = _build_submitted_doc(
+        ticker=ticker,
+        setup_type=setup_type,
+        setup_grade=setup_grade,
+        pivot_price=pivot_price,
+        limit_price=limit_price,
+        stop_price=stop_price,
+        shares=shares,
+        broker_order_id=None,
+        broker=broker,
+        sector_etf=sector_etf,
+        reasoning_trace=reasoning_trace,
+    )
+    _validate_against_schema(doc)
+
+
 def write_submitted_ledger(
     *,
     ticker: str,
@@ -180,67 +307,19 @@ def write_submitted_ledger(
         )
 
     os.makedirs(PAPER_AUTO_LEDGER_DIR, exist_ok=True)
-    now = _now_iso()
-    doc: dict[str, Any] = {
-        "meta": {
-            "schema_version": "1.0",
-            "ticker": ticker.upper(),
-            "asof": now,
-            "state": "submitted",
-            "account_track": "paper-auto",
-            "ledger_path": p.replace("\\", "/"),
-            "created_by": "auto_paper/pipeline",
-            "created_at": now,
-        },
-        "setup_classification": {
-            "type": setup_type,
-            "pivot_price": float(pivot_price),
-            "stop_price": float(stop_price),
-            "stop_distance_pct": (limit_price - stop_price) / limit_price if limit_price > 0 else 0.0,
-            "trace_refs": [],
-            "confluence_checklist": [],
-        },
-        "position_state": {
-            "stage": "STARTER",
-            "intended_full_shares": int(shares),
-            "starter": {
-                "trigger": _trigger_for(setup_type),
-                "fill_date": _today(),
-                "shares": int(shares),
-                # On `submitted`, no fill yet — set fill_price to the limit
-                # so the schema's required-field check passes. EOD
-                # reconciliation overwrites with the actual avg_fill_price.
-                "fill_price": float(limit_price),
-                "limit_price_placed": float(limit_price),
-                "initial_stop": float(stop_price),
-                "trace_refs": [],
-            },
-            "current_stop": float(stop_price),
-            "trail_state_legacy": "initial",
-            "alerts_sent": [],
-        },
-        # 2026-05-28: assign sequential ids to reasoning_trace entries that
-        # arrive id-less. TraceEntry's contract is `id: int | None — set
-        # when appended to a ledger reasoning_trace`; this is where the
-        # appending happens, so this is where ids are assigned. Without
-        # this, the ledger schema's `id: required` rule rejects the doc
-        # and the broker_order_id is already at Tiger — producing an
-        # orphan order. (Exactly what happened on 2026-05-28 with COIN /
-        # WMT / XOM / GKOS / VAL after the quant_scanner eligibility_evidence
-        # trace was added at dc25fe3 without id assignment downstream.)
-        "reasoning_trace": _assign_trace_ids(reasoning_trace or []),
-    }
-    if setup_grade is not None:
-        doc["setup_classification"]["grade"] = setup_grade
-    if broker_order_id is not None:
-        doc["position_state"]["starter"]["broker_order_id"] = int(broker_order_id)
-    if broker:
-        doc["position_state"]["starter"]["broker"] = broker
-    if sector_etf:
-        doc["regime"] = {
-            "sector_etf": sector_etf,
-            "computed_at": now,
-        }
+    doc = _build_submitted_doc(
+        ticker=ticker,
+        setup_type=setup_type,
+        setup_grade=setup_grade,
+        pivot_price=pivot_price,
+        limit_price=limit_price,
+        stop_price=stop_price,
+        shares=shares,
+        broker_order_id=broker_order_id,
+        broker=broker,
+        sector_etf=sector_etf,
+        reasoning_trace=reasoning_trace,
+    )
 
     _validate_against_schema(doc)
 

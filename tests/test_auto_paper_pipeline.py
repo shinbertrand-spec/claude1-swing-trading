@@ -629,3 +629,63 @@ def test_panel_no_verdict_passes_through_unchanged(paper_client, paper_dirs):
     assert "10 NVDA" in result.reason
     assert result.panel_verdict is None
     assert result.panel_sizing_applied is False
+
+
+# ---------------------------------------------------------- validate-before-place
+#
+# 2026-06-05 fix for the 2026-06-04 v2-shadow orphan-order failure mode:
+# place_candidate now schema-validates the submitted ledger BEFORE the broker
+# call, so a validation failure aborts the placement instead of leaving a live,
+# unledgered, unstopped order. Pairs with the run_dir trace reshape (the append
+# is now a valid trace_step, not a bespoke {tool,kind,auto_paper_run_dir} dict).
+
+
+def test_pre_place_validation_failure_does_not_place(paper_client, paper_dirs, monkeypatch):
+    """LOAD-BEARING: a candidate whose ledger fails schema validation must be
+    rejected BEFORE any broker call — no place_order, no ledger, no positions.json.
+
+    Reproduces the real failure: a deployable setup_type that is NOT in the
+    schema's setup_classification.type enum (e.g. an ai-thematic clone whose
+    enum entry is missing). Pre-2026-06-05 this placed the order then threw on
+    write → orphan. Now the pre-place gate catches it cleanly."""
+    from tools.auto_paper import pipeline as _pipeline
+    # Deployable but NOT in the schema enum → ledger build fails validation.
+    monkeypatch.setattr(
+        _pipeline.config, "is_deployable", lambda t: t == "NOT_IN_ENUM_SETUP",
+    )
+    cand = _vcp_cand(setup_type="NOT_IN_ENUM_SETUP")
+    result = place_candidate(cand, client=paper_client, dry_run=False)
+
+    assert result.status == "rejected"
+    assert "validation failed pre-place" in result.reason
+    assert "no order placed" in result.reason
+    # CRITICAL — the broker was never touched (this is the anti-orphan guarantee)
+    place_calls = [c for c in paper_client._tc.calls if c[0] == "place_order"]
+    assert place_calls == []
+    # And no persistence happened
+    assert not state.ledger_exists("NVDA")
+    assert state.load_positions_json()["positions"] == []
+
+
+def test_run_dir_reference_is_schema_valid_and_places(paper_client, paper_dirs):
+    """The run_dir back-reference appended to reasoning_trace must be a valid
+    trace_step. Regression for the orphan bug: the old bespoke
+    {tool, kind, auto_paper_run_dir} dict was malformed vs $defs.trace_step
+    (extra keys + missing required id/output/fetched_at) and failed validation
+    AFTER the order was placed. The reshaped TraceEntry validates and places."""
+    result = place_candidate(
+        _vcp_cand(), client=paper_client, dry_run=False,
+        auto_paper_run_dir="ledgers/_auto_paper_runs/2026-06-05T00-00-00",
+    )
+    assert result.status == "placed"
+    assert state.ledger_exists("NVDA")
+    led = state.load_ledger("NVDA")
+    run_dir_steps = [
+        t for t in led["reasoning_trace"]
+        if isinstance(t.get("output"), dict) and t["output"].get("auto_paper_run_dir")
+    ]
+    assert len(run_dir_steps) == 1
+    step = run_dir_steps[0]
+    assert isinstance(step["id"], int) and step["id"] >= 1   # id stamped at write
+    assert step["inputs"]["kind"] == "run_dir_reference"
+    assert step["output"]["auto_paper_run_dir"].endswith("2026-06-05T00-00-00")

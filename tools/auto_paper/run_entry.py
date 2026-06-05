@@ -305,6 +305,7 @@ def phase_init(
             stop_price=float(cand.stop_price),
             sector_etf=cand.sector_etf,
             screener_output=screen_result.to_dict(),
+            track=getattr(cand, "track", None),
         )
         try:
             ledger_dict, _ = shell_ledger.build_quant_shell_ledger(inp, today=today)

@@ -22,6 +22,7 @@ from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
 
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
+from ..contract import TraceEntry
 from ..regime_check import classify_broad
 from ..trend_template import compute_from_ticker as tt_from_ticker
 from . import config, screener, state
@@ -61,6 +62,9 @@ class CandidateInput:
     # persistence + Telegram summary.
     sizing_multiplier: float = 1.0
     panel_verdict: Optional[dict[str, Any]] = None
+    # Strategy-discovery track (Alfred Delta 6). Sourced from the
+    # deployable_setups.yml row's track: field. None = generic (back-compat).
+    track: Optional[str] = None
 
 
 @dataclass
@@ -198,11 +202,17 @@ def place_candidate(
         # the paper-auto ledger downstream carries the back-reference.
         # Mutating the list is fine — CandidateInput is a per-placement
         # value, not a long-lived object.
-        cand.reasoning_trace.append({
-            "tool": "tools.auto_paper.run_entry",
-            "kind": "run_dir_reference",
-            "auto_paper_run_dir": str(auto_paper_run_dir),
-        })
+        # Emit a schema-valid trace_step (tool/inputs/output/fetched_at). The
+        # `id` is stamped by state._assign_trace_ids at ledger-write time.
+        # A bespoke {tool, kind, auto_paper_run_dir} dict was malformed three
+        # ways vs $defs.trace_step (extra keys + missing required id/output/
+        # fetched_at), which orphaned the broker order on write-validate
+        # failure — fixed 2026-06-05.
+        cand.reasoning_trace.append(TraceEntry(
+            tool="tools.auto_paper.run_entry",
+            inputs={"kind": "run_dir_reference"},
+            output={"auto_paper_run_dir": str(auto_paper_run_dir)},
+        ).to_dict())
     # 1. Deployable-setup filter
     if not config.is_deployable(cand.setup_type):
         return _reject(
@@ -346,6 +356,37 @@ def place_candidate(
     )
     if reject is not None:
         return _reject(cand.ticker, reject)
+
+    # 4d. Pre-place ledger validation gate (2026-06-05). Build + schema-validate
+    # the submitted ledger BEFORE any broker call, so a schema failure aborts
+    # cleanly instead of orphaning a live order. This is the load-bearing fix
+    # for the 2026-06-04 v2-shadow failure mode (order placed, ledger write
+    # threw on validation, order left unledgered + unstopped). Runs in dry_run
+    # too, so a dry run surfaces schema breaks without a broker round-trip.
+    # broker_order_id is omitted — unknown until fill, optional in the schema,
+    # so its post-place addition can't invalidate an already-valid doc.
+    try:
+        state.validate_submitted_ledger(
+            ticker=cand.ticker,
+            setup_type=cand.setup_type,
+            setup_grade=cand.setup_grade,
+            pivot_price=cand.pivot_price,
+            limit_price=cand.limit_price,
+            stop_price=cand.stop_price,
+            shares=cand.shares,
+            broker="tiger_paper",
+            sector_etf=cand.sector_etf,
+            reasoning_trace=cand.reasoning_trace,
+        )
+    except state.PaperAutoStateError as exc:
+        return PlacementResult(
+            ticker=cand.ticker,
+            status="rejected",
+            reason=f"ledger validation failed pre-place (no order placed): {exc}",
+            screener_trace=screener_trace_dict,
+            panel_verdict=cand.panel_verdict,
+            panel_sizing_applied=panel_sizing_applied,
+        )
 
     cost_estimate = cand.shares * cand.limit_price
 

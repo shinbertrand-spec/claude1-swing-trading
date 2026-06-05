@@ -272,6 +272,121 @@ def _pending_submitted_ledgers() -> list[dict[str, Any]]:
     return pending
 
 
+def _pending_close_ledgers() -> list[dict[str, Any]]:
+    """Return the list of paper-auto positions in ``pending_close`` state.
+
+    Added 2026-06-02 as part of the exits.py Bug-1 fix (premature close
+    before fill confirmation). exits.py now transitions a position to
+    ``pending_close`` after placing the limit-sell; this reconciler
+    completes the lifecycle.
+    """
+    data = state.load_positions_json()
+    pending = []
+    for entry in data.get("positions", []):
+        if (entry.get("stage") or "").lower() == "pending_close":
+            if entry.get("pending_sell_order_id"):
+                pending.append(entry)
+    return pending
+
+
+def _update_ledger_closed_from_pending(
+    ticker: str,
+    *,
+    exit_price: float,
+    exit_reason: str,
+) -> None:
+    """Mutate the ledger: pending_close -> closed; clear pending_sell_order_id."""
+    p = state.ledger_path(ticker)
+    if not os.path.isfile(p):
+        raise state.PaperAutoStateError(f"no paper-auto ledger for {ticker}")
+    with open(p, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh) or {}
+
+    doc.setdefault("meta", {})
+    doc["meta"]["state"] = "closed"
+    doc["meta"]["updated_by"] = "auto_paper/reconcile"
+    doc["meta"]["updated_at"] = _now_iso()
+
+    ps = doc.setdefault("position_state", {})
+    ps.pop("pending_sell_order_id", None)
+    ps.pop("stop_order_id", None)  # stop is cancelled separately when we close
+
+    existing = doc.get("notes", "")
+    new_note = (
+        f"Closed by auto_paper/reconcile on {_today_iso()} at ${exit_price:.4f} — "
+        f"reason: {exit_reason} (fill confirmed)"
+    )
+    doc["notes"] = f"{existing}\n{new_note}".strip() if existing else new_note
+
+    _validate_against_schema(doc)
+    with open(p, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+
+
+def _revert_ledger_to_starter_from_pending(ticker: str, reason: str) -> None:
+    """Mutate the ledger: pending_close -> starter; clear pending_sell_order_id.
+
+    Called when the exit limit-sell expired DAY-unfilled. The protective
+    stop is still in place (exits.py never cancelled it), so the position
+    reverts to starter with full surveillance restored.
+    """
+    p = state.ledger_path(ticker)
+    if not os.path.isfile(p):
+        raise state.PaperAutoStateError(f"no paper-auto ledger for {ticker}")
+    with open(p, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh) or {}
+
+    doc.setdefault("meta", {})
+    doc["meta"]["state"] = "starter"
+    doc["meta"]["updated_by"] = "auto_paper/reconcile"
+    doc["meta"]["updated_at"] = _now_iso()
+
+    ps = doc.setdefault("position_state", {})
+    ps.pop("pending_sell_order_id", None)
+
+    existing = doc.get("notes", "")
+    new_note = (
+        f"Reverted pending_close -> starter by auto_paper/reconcile on "
+        f"{_today_iso()}: {reason}. Protective stop remains in place."
+    )
+    doc["notes"] = f"{existing}\n{new_note}".strip() if existing else new_note
+
+    _validate_against_schema(doc)
+    with open(p, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+
+
+def _update_positions_json_closed_from_pending(ticker: str) -> None:
+    """Remove a confirmed-closed ticker from the paper-auto positions index."""
+    if not os.path.isfile(state.PAPER_AUTO_POSITIONS_JSON):
+        return
+    with open(state.PAPER_AUTO_POSITIONS_JSON, encoding="utf-8") as fh:
+        data = json.load(fh)
+    data["positions"] = [
+        p for p in data.get("positions", [])
+        if p.get("ticker") != ticker.upper()
+    ]
+    data["updated"] = _now_iso()
+    with open(state.PAPER_AUTO_POSITIONS_JSON, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+
+
+def _revert_positions_json_to_starter_from_pending(ticker: str) -> None:
+    """Flip a positions.json entry from pending_close back to starter."""
+    if not os.path.isfile(state.PAPER_AUTO_POSITIONS_JSON):
+        return
+    with open(state.PAPER_AUTO_POSITIONS_JSON, encoding="utf-8") as fh:
+        data = json.load(fh)
+    for entry in data.get("positions", []):
+        if entry.get("ticker") == ticker.upper():
+            entry["stage"] = "starter"
+            entry.pop("pending_sell_order_id", None)
+            break
+    data["updated"] = _now_iso()
+    with open(state.PAPER_AUTO_POSITIONS_JSON, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+
+
 def _starter_positions() -> list[dict[str, Any]]:
     """Return all paper-auto positions currently in ``starter`` state."""
     data = state.load_positions_json()
@@ -600,6 +715,114 @@ def reconcile_today(
             broker_order_id=order_id,
             requested_qty=requested_qty,
             reason=reason,
+        ))
+
+    # --- pending_close processing (added 2026-06-02, paired with the
+    # exits.py Bug-1 fix) -------------------------------------------------
+    # For each ledger in pending_close, look up its pending_sell_order_id.
+    #   filled  -> meta.state := closed; cancel any resting stop;
+    #              remove from positions.json
+    #   expired -> meta.state := starter; clear pending_sell_order_id;
+    #              leave protective stop alone (it was never cancelled)
+    #   open    -> no change (rare for DAY orders)
+    pending_close = _pending_close_ledgers()
+    for entry in pending_close:
+        ticker = entry["ticker"]
+        sell_oid = entry.get("pending_sell_order_id")
+        if sell_oid is None:
+            results.append(ReconcileResult(
+                ticker=ticker, action="error",
+                reason="pending_close entry missing pending_sell_order_id",
+            ))
+            continue
+
+        filled = filled_by_id.get(sell_oid)
+        if filled is not None:
+            filled_qty = int(filled.get("filled_quantity") or 0)
+            avg_fill = filled.get("avg_fill_price")
+            if filled_qty <= 0 or avg_fill is None:
+                results.append(ReconcileResult(
+                    ticker=ticker, action="error",
+                    broker_order_id=sell_oid,
+                    reason=f"sell in filled list but missing qty/avg_fill: {filled}",
+                ))
+                continue
+
+            # Cancel the resting protective stop (which exits.py intentionally
+            # left in place until fill confirmation).
+            stop_oid = _existing_stop_order_id(ticker)
+            stop_cancel_err: str | None = None
+            if stop_oid is not None and not dry_run:
+                try:
+                    cancel_entry = c.cancel(order_id=stop_oid)
+                    if not cancel_entry.output.get("accepted"):
+                        stop_cancel_err = f"broker did not accept cancel of stop #{stop_oid}"
+                except BrokerOrderError as exc:
+                    stop_cancel_err = f"cancel(stop #{stop_oid}): {exc}"
+
+            if not dry_run:
+                try:
+                    _update_ledger_closed_from_pending(
+                        ticker,
+                        exit_price=float(avg_fill),
+                        exit_reason=f"exit_fill from order #{sell_oid}",
+                    )
+                    _update_positions_json_closed_from_pending(ticker)
+                except state.PaperAutoStateError as exc:
+                    results.append(ReconcileResult(
+                        ticker=ticker, action="error",
+                        broker_order_id=sell_oid,
+                        reason=f"ledger close-from-pending: {exc}",
+                    ))
+                    continue
+
+            results.append(ReconcileResult(
+                ticker=ticker,
+                action="exit_filled",
+                broker_order_id=sell_oid,
+                requested_qty=int(entry.get("shares") or 0),
+                filled_qty=filled_qty,
+                avg_fill_price=float(avg_fill),
+                stop_order_id=stop_oid,
+                stop_place_error=stop_cancel_err,
+            ))
+            continue
+
+        if sell_oid in open_by_id:
+            results.append(ReconcileResult(
+                ticker=ticker, action="exit_still_open",
+                broker_order_id=sell_oid,
+                requested_qty=int(entry.get("shares") or 0),
+                reason="exit limit-sell still open at broker; no state change",
+            ))
+            continue
+
+        # Sell order is gone from broker but not in today's fills =
+        # DAY-expired unfilled (or manually cancelled). Revert to starter;
+        # the protective stop is still in place because exits.py never
+        # cancelled it.
+        revert_reason = (
+            f"exit limit-sell #{sell_oid} expired unfilled "
+            "(or cancelled outside framework); position reverts to starter"
+        )
+        if not dry_run:
+            try:
+                _revert_ledger_to_starter_from_pending(ticker, revert_reason)
+                _revert_positions_json_to_starter_from_pending(ticker)
+            except state.PaperAutoStateError as exc:
+                results.append(ReconcileResult(
+                    ticker=ticker, action="error",
+                    broker_order_id=sell_oid,
+                    reason=f"ledger revert-to-starter: {exc}",
+                ))
+                continue
+
+        results.append(ReconcileResult(
+            ticker=ticker,
+            action="exit_expired_reverted",
+            broker_order_id=sell_oid,
+            requested_qty=int(entry.get("shares") or 0),
+            reason=revert_reason,
         ))
 
     return results

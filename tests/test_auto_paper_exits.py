@@ -256,10 +256,17 @@ def test_hold_action_no_broker_calls(paper_dirs, monkeypatch):
 # ------------------------------------------------------- sell path
 
 
-def test_sell_50_places_limit_sell_and_cancels_stop(paper_dirs, monkeypatch):
+def test_sell_50_places_limit_sell_and_marks_pending_close(paper_dirs, monkeypatch):
     """When the composer returns sell_50, evaluate_exits places a limit-sell
-    at bid - 0.1% (approximated as last close), cancels the resting stop,
-    and transitions the ledger to closed."""
+    at bid - 0.1% (approximated as last close), transitions the ledger to
+    PENDING_CLOSE, and leaves the protective stop in place. The reconciler
+    completes the lifecycle (-> closed on fill, -> starter on expiry).
+
+    Behavior change 2026-06-02 (Bug 1 fix): exits.py used to mark the
+    ledger closed + cancel the stop immediately after place_limit_sell
+    returned an order_id. That stranded positions at Tiger with no
+    monitor and no stop when DAY-TIF limit-sells expired unfilled.
+    """
     _seed_starter(
         paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
         stop_price=820.00, stop_order_id=55_555,
@@ -290,41 +297,44 @@ def test_sell_50_places_limit_sell_and_cancels_stop(paper_dirs, monkeypatch):
     assert r.placed is True
     assert r.sell_shares == 10
     assert r.sell_limit_price == expected_limit
-    assert r.cancelled_stop_order_id == 55_555
+    # New: exits.py NO LONGER cancels the stop. Reconciler does, on
+    # confirmed fill.
+    assert r.cancelled_stop_order_id is None
 
-    # Broker got both calls.
+    # Broker got exactly ONE place_order call; no cancel.
     place_calls = [c for c in client._tc.calls if c[0] == "place_order"]
     cancel_calls = [c for c in client._tc.calls if c[0] == "cancel_order"]
     assert len(place_calls) == 1
     assert place_calls[0][1] == "SELL"
     assert place_calls[0][2] == 10
     assert place_calls[0][3] == "NVDA"
-    assert place_calls[0][4] == expected_limit       # limit_price set
-    assert len(cancel_calls) == 1
-    assert cancel_calls[0][2] == 55_555
+    assert place_calls[0][4] == expected_limit
+    assert cancel_calls == []
 
-    # Ledger closed, exit recorded.
+    # Ledger transitioned to pending_close. Stop is STILL there, plus
+    # the new pending_sell_order_id pointer.
     doc = yaml.safe_load(open(state.ledger_path("NVDA")))
-    assert doc["meta"]["state"] == "closed"
+    assert doc["meta"]["state"] == "pending_close"
     assert doc["meta"]["updated_by"] == "auto_paper/exits"
-    assert "stop_order_id" not in doc["position_state"]
+    assert doc["position_state"]["stop_order_id"] == 55_555
+    assert "pending_sell_order_id" in doc["position_state"]
     history = doc["sell_eval_history"]
     assert history[-1]["action"] == "sell_50"
 
-    # positions.json: closed ticker is REMOVED from the open-positions
-    # index (not stage-marked). Closed-history lives in the ledger file.
-    # Previously we stage-marked and left the entry; that silently
-    # double-counted against MAX_POSITIONS + sector caps. See
-    # tools/auto_paper/exits.py:_mark_positions_json_closed docstring.
+    # positions.json: entry STAYS, stage flips to pending_close. The
+    # reconciler removes the entry on confirmed fill.
     data = json.load(open(state.PAPER_AUTO_POSITIONS_JSON))
-    assert all(p.get("ticker") != "NVDA" for p in data["positions"]), (
-        "closed ticker must be removed from positions.json open-index"
-    )
+    nvda_rows = [p for p in data["positions"] if p.get("ticker") == "NVDA"]
+    assert len(nvda_rows) == 1
+    assert nvda_rows[0]["stage"] == "pending_close"
+    assert "pending_sell_order_id" in nvda_rows[0]
 
 
-def test_sell_100_when_no_stop_present_still_closes(paper_dirs, monkeypatch):
+def test_sell_100_when_no_stop_present_still_marks_pending_close(paper_dirs, monkeypatch):
     """If the ledger never had a stop_order_id (e.g. earlier session failed
-    to place one), the sell still proceeds and cancellation is skipped."""
+    to place one), the sell still proceeds. With the 2026-06-02 fix,
+    the ledger transitions to pending_close (not closed) — reconciler
+    completes the lifecycle on confirmed fill."""
     _seed_starter(
         paper_dirs, ticker="MSFT", shares=5, fill_price=400.00,
         stop_price=380.00, stop_order_id=None,
@@ -349,7 +359,7 @@ def test_sell_100_when_no_stop_present_still_closes(paper_dirs, monkeypatch):
     r = results[0]
     assert r.action == "sell_100"
     assert r.placed is True
-    assert r.cancelled_stop_order_id is None   # nothing to cancel
+    assert r.cancelled_stop_order_id is None   # nothing to cancel + exits.py never cancels
 
     place_calls = [c for c in client._tc.calls if c[0] == "place_order"]
     cancel_calls = [c for c in client._tc.calls if c[0] == "cancel_order"]
@@ -358,7 +368,7 @@ def test_sell_100_when_no_stop_present_still_closes(paper_dirs, monkeypatch):
     assert cancel_calls == []
 
     doc = yaml.safe_load(open(state.ledger_path("MSFT")))
-    assert doc["meta"]["state"] == "closed"
+    assert doc["meta"]["state"] == "pending_close"
 
 
 # ------------------------------------------------------- dry-run
@@ -457,13 +467,21 @@ def test_place_sell_failure_surfaces_error(paper_dirs, monkeypatch):
     assert doc["meta"]["state"] == "starter"
 
 
-def test_cancel_rejection_is_non_fatal(paper_dirs, monkeypatch):
-    """If the post-sell stop cancellation is rejected, the position still
-    closes; the rejection surfaces in the ExitResult.reason."""
+def test_stop_not_cancelled_by_exits(paper_dirs, monkeypatch):
+    """exits.py NO LONGER cancels the protective stop. With the 2026-06-02
+    fix, the stop stays in place until the reconciler confirms the
+    limit-sell filled. Any cancel-rejection scenario is therefore handled
+    in tools.auto_paper.reconcile, not here. This test pins the new
+    contract: zero cancel calls regardless of the broker's cancel-accept
+    behavior."""
     _seed_starter(
         paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
         stop_price=820.00, stop_order_id=55_555,
     )
+    # cancel_accepted=False would have surfaced as a non-fatal warning in
+    # the OLD design. In the new design exits.py never asks, so the flag
+    # is irrelevant. Setting it anyway documents that the test is
+    # intentionally exercising the no-cancel path.
     client = _client(cancel_accepted=False)
 
     monkeypatch.setattr(
@@ -485,9 +503,123 @@ def test_cancel_rejection_is_non_fatal(paper_dirs, monkeypatch):
     assert r.action == "sell_100"
     assert r.placed is True
     assert r.cancelled_stop_order_id is None
-    assert "did not accept cancel" in (r.reason or "")
 
-    # Position still closed.
+    # No cancel call ever attempted.
+    cancel_calls = [c for c in client._tc.calls if c[0] == "cancel_order"]
+    assert cancel_calls == []
+
+    # Ledger transitioned to pending_close. Stop is INTACT.
     doc = yaml.safe_load(open(state.ledger_path("NVDA")))
-    assert doc["meta"]["state"] == "closed"
-    assert "stop_order_id" not in doc["position_state"]
+    assert doc["meta"]["state"] == "pending_close"
+    assert doc["position_state"]["stop_order_id"] == 55_555
+    assert "pending_sell_order_id" in doc["position_state"]
+
+
+# ------------------------------------------------------- 2026-06-02 bug fixes
+
+
+def test_operator_locked_skips_all_transactions(paper_dirs, monkeypatch):
+    """Bug 3 fix: position_state.operator_locked=true makes exits.py a
+    no-op transactionally. The composer doesn't even run (early return
+    in _evaluate_one). No broker calls, no ledger writes, no sell_eval
+    appended. Result.action == 'operator_locked'."""
+    _seed_starter(
+        paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+        stop_price=820.00, stop_order_id=55_555,
+    )
+    # Set the operator_locked flag directly on the ledger.
+    p = state.ledger_path("NVDA")
+    doc = yaml.safe_load(open(p))
+    doc["position_state"]["operator_locked"] = True
+    with open(p, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+
+    client = _client()
+
+    # Composer would have returned sell_100 if reached — we monkeypatch
+    # to make the test fail loudly if exits.py runs it anyway.
+    composer_calls = {"n": 0}
+
+    def _composer(**kw):
+        composer_calls["n"] += 1
+        return SimpleNamespace(output={
+            "action": "sell_100", "confidence": "HIGH",
+            "contributing_triggers": [], "in_doubt_default_applied": False,
+            "v1_preliminary_flag": True,
+        })
+    monkeypatch.setattr(exits, "sell_decision_compute", _composer)
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv()),
+    )
+    r = results[0]
+    assert r.action == "operator_locked"
+    assert r.placed is False
+    assert "operator_locked" in (r.reason or "")
+
+    # Composer never ran (early return before _evaluate_one calls it).
+    assert composer_calls["n"] == 0
+
+    # Zero broker calls.
+    assert client._tc.calls == []
+
+    # Ledger untouched (no sell_eval append, no state change, stop still there).
+    doc_after = yaml.safe_load(open(p))
+    assert doc_after["meta"]["state"] == "starter"
+    assert doc_after["position_state"]["stop_order_id"] == 55_555
+    assert doc_after["position_state"]["operator_locked"] is True
+    assert "sell_eval_history" not in doc_after or doc_after["sell_eval_history"] == []
+
+
+def test_duplicate_sell_skipped_when_open_sell_already_pending(paper_dirs, monkeypatch):
+    """Bug 2 fix: if there's already an open SELL at the broker for this
+    ticker, exits.py does NOT stack another sell. sell_eval is still
+    recorded; result.action == 'sell_pending_duplicate'.
+
+    This is the 2026-05-28 COIN incident: four separate 213-sh SELL
+    LMT fills stacked against a single 213-sh long → net short -639.
+    """
+    _seed_starter(
+        paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+        stop_price=820.00, stop_order_id=55_555,
+    )
+    client = _client()
+
+    monkeypatch.setattr(
+        exits, "sell_decision_compute",
+        lambda **kw: SimpleNamespace(output={
+            "action": "sell_50", "confidence": "MEDIUM",
+            "contributing_triggers": ["climax_top_2"],
+            "in_doubt_default_applied": False, "v1_preliminary_flag": True,
+        }),
+    )
+
+    # Inject the open-sell-tickers set directly — equivalent to Tiger
+    # reporting an existing OPEN SELL on NVDA from a prior monitor tick.
+    monkeypatch.setattr(
+        exits, "_open_sell_tickers",
+        lambda _client: {"NVDA"},
+    )
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+    )
+    r = results[0]
+    assert r.action == "sell_pending_duplicate"
+    assert r.placed is False
+    assert r.sell_order_id is None
+    assert "pending" in (r.reason or "")
+
+    # Zero place_order calls — the whole point of the idempotency fix.
+    place_calls = [c for c in client._tc.calls if c[0] == "place_order"]
+    assert place_calls == []
+
+    # sell_eval still appended for audit trail.
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    assert doc["meta"]["state"] == "starter"  # NO transition (sell wasn't placed)
+    assert doc["position_state"]["stop_order_id"] == 55_555  # stop intact
+    history = doc["sell_eval_history"]
+    assert len(history) == 1
+    assert history[0]["action"] == "sell_50"

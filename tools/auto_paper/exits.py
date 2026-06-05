@@ -57,6 +57,33 @@ SELL_ACTIONS = frozenset({"sell_50", "sell_75", "sell_100"})
 # Per CLAUDE.md execution rules: limit-sell at bid - 0.1%.
 SELL_LIMIT_OFFSET_PCT = 0.001
 
+
+def _open_sell_tickers(client: TigerClient) -> set[str]:
+    """Return the set of symbols (upper-case) that have an OPEN SELL order at the broker.
+
+    Used by the idempotency guard so a multi-bar SELL signal does not stack
+    multiple pending limit-sells against the same ticker. Bug-class fix
+    (Bug 2 of 2026-06-02 exits.py diagnostic): COIN went net short -639 sh
+    because four 213-sh SELL limits fired on the same 213-sh long.
+
+    Counts BOTH ``LMT SELL`` (the exits.py exit leg) and ``STP SELL`` (the
+    protective stop is not a competing sell — the BOTH-pending case is fine;
+    we count it anyway because if there's ANY active SELL, placing another
+    creates an over-sell race once one of them fills).
+    """
+    try:
+        oo = client.open_orders()
+    except BrokerOrderError:
+        # If we can't read open orders, refuse to place any new sell — safer
+        # to skip an exit cycle than to risk a duplicate-sell.
+        return set()
+    return {
+        (o.get("symbol") or "").upper()
+        for o in oo.output.get("orders", [])
+        if (o.get("action") or "").upper() == "SELL"
+        and (o.get("symbol") or "")
+    }
+
 # Default OHLCV window. base_stage_detect requires PRIOR_HIGH_LOOKBACK +
 # SWING_WINDOW = 262 bars; 1y of daily bars (~252) is the minimum sensible.
 # Use 14 months to be safe across the requirement.
@@ -173,13 +200,85 @@ def _append_sell_eval(
     doc.setdefault("sell_eval_history", []).append(eval_entry)
 
 
+def _mark_ledger_pending_close(
+    doc: dict[str, Any],
+    *,
+    pending_sell_order_id: int | None,
+    sell_limit_price: float,
+    exit_reason: str,
+) -> None:
+    """Mutate the in-memory ledger doc to a pending_close state.
+
+    Bug-class fix (Bug 1 of 2026-06-02 diagnostic): the prior ``_close_ledger``
+    was called immediately after ``place_limit_sell`` returned an order_id,
+    NOT after confirming the order filled. Tiger paper limit-sells are
+    DAY-TIF. A late-afternoon SELL signal that landed at, say, 15:00 ET
+    with a limit BELOW the current bid would expire unfilled at close —
+    but the ledger had already been marked ``closed``, removed from
+    positions.json, and the protective stop had been cancelled. The
+    position stayed live at Tiger with NO monitoring and NO stop.
+
+    Fix: transition to ``pending_close`` instead. The protective stop is
+    NOT cancelled (still defends if the limit-sell expires). The position
+    stays in positions.json (still visible to the operator + downstream
+    audits). Reconciler completes the lifecycle: on confirmed fill ->
+    closed; on expiry -> reverts to starter (stop is still in place).
+    """
+    doc.setdefault("meta", {})
+    doc["meta"]["state"] = "pending_close"
+    doc["meta"]["updated_by"] = "auto_paper/exits"
+    doc["meta"]["updated_at"] = _now_iso()
+
+    ps = doc.setdefault("position_state", {})
+    if pending_sell_order_id is not None:
+        ps["pending_sell_order_id"] = int(pending_sell_order_id)
+
+    existing = doc.get("notes", "")
+    new_note = (
+        f"Pending close by auto_paper/exits on {_today_iso()} — "
+        f"limit-sell @ ${sell_limit_price:.4f}, reason: {exit_reason}. "
+        f"Awaiting reconcile fill confirmation."
+    )
+    doc["notes"] = f"{existing}\n{new_note}".strip() if existing else new_note
+
+
+def _mark_positions_json_pending_close(ticker: str, *, pending_sell_order_id: int | None) -> None:
+    """Update the positions.json entry's stage to pending_close.
+
+    Keeps the entry in the index (the position is NOT yet closed at the
+    broker) but flags the stage so monitors / dashboards can distinguish
+    starter (open, no exit pending) from pending_close (exit limit-sell
+    submitted, awaiting fill).
+    """
+    if not os.path.isfile(state.PAPER_AUTO_POSITIONS_JSON):
+        return
+    import json as _json
+    with open(state.PAPER_AUTO_POSITIONS_JSON, encoding="utf-8") as fh:
+        data = _json.load(fh)
+    for entry in data.get("positions", []):
+        if entry.get("ticker") == ticker.upper():
+            entry["stage"] = "pending_close"
+            if pending_sell_order_id is not None:
+                entry["pending_sell_order_id"] = int(pending_sell_order_id)
+            break
+    data["updated"] = _now_iso()
+    with open(state.PAPER_AUTO_POSITIONS_JSON, "w", encoding="utf-8") as fh:
+        _json.dump(data, fh, indent=2)
+
+
 def _close_ledger(
     doc: dict[str, Any],
     *,
     exit_price: float,
     exit_reason: str,
 ) -> None:
-    """Mutate the in-memory ledger doc to a closed state, recording the exit."""
+    """DEPRECATED: kept for backwards-compat with tests that monkeypatch it.
+
+    The fill-confirmed close path now lives in
+    ``tools.auto_paper.reconcile`` (see ``_close_ledger_from_pending``).
+    The exits.py main flow no longer calls this — it transitions to
+    pending_close and leaves the closed-state transition to reconcile.
+    """
     doc.setdefault("meta", {})
     doc["meta"]["state"] = "closed"
     doc["meta"]["updated_by"] = "auto_paper/exits"
@@ -254,6 +353,17 @@ def _evaluate_one(
     doc = _read_ledger(ticker)
     if doc is None:
         return "error", {"reason": f"ledger missing for {ticker}"}
+
+    # Bug-class fix (Bug 3 of 2026-06-02 diagnostic): if an operator has
+    # restored a stop or wants the monitor to keep its hands off a
+    # specific position, position_state.operator_locked=true blocks the
+    # transactional path. Detector composition still runs (so the
+    # sell_eval_history reflects what the monitor SAW) but no broker
+    # calls are made and no state transition happens. The operator
+    # clears the flag to re-enable automation.
+    ps = doc.get("position_state") or {}
+    if bool(ps.get("operator_locked", False)):
+        return "operator_locked", {"doc": doc, "reason": "operator_locked=true on ledger"}
 
     setup_grade = _setup_grade_from_ledger(doc)
     starter_price, fill_date = _starter_fill_info(doc)
@@ -409,6 +519,15 @@ def evaluate_exits(
                 ) for p in starters
             ]
 
+    # Bug-class fix (Bug 2 of 2026-06-02 diagnostic): pre-fetch the set of
+    # tickers with OPEN SELL orders ONCE per evaluate_exits call. We use it
+    # to skip placing duplicate sells when a multi-bar SELL signal fires
+    # across consecutive monitor invocations. Cheap upfront fetch beats one
+    # broker round-trip per ticker in the loop.
+    open_sell_tickers: set[str] = set()
+    if not dry_run and c is not None:
+        open_sell_tickers = _open_sell_tickers(c)
+
     results: list[ExitResult] = []
     for pos in starters:
         ticker = pos["ticker"]
@@ -421,6 +540,17 @@ def evaluate_exits(
         if action == "error":
             results.append(ExitResult(
                 ticker=ticker, action="error",
+                reason=ctx.get("reason"),
+            ))
+            continue
+
+        if action == "operator_locked":
+            # Detector composition was skipped (we returned early). Record
+            # the lock + skip silently — the operator owns this position
+            # until they clear the flag.
+            results.append(ExitResult(
+                ticker=ticker, action="operator_locked",
+                placed=False,
                 reason=ctx.get("reason"),
             ))
             continue
@@ -488,9 +618,50 @@ def evaluate_exits(
         last_close = float(df["Close"].iloc[-1])
         sell_limit = round(last_close * (1.0 - SELL_LIMIT_OFFSET_PCT), 2)
 
-        # Existing stop_order_id, if any, for cancellation post-sell.
-        stop_order_id = (doc.get("position_state") or {}).get("stop_order_id")
-        stop_order_id = int(stop_order_id) if isinstance(stop_order_id, (int, float)) else None
+        # Bug-class fix (Bug 2 idempotency guard): if a prior monitor tick
+        # already placed a SELL on this symbol (LMT or STP) and it is still
+        # open at the broker, do NOT stack another sell. Just record the
+        # composer eval + skip. The original 2026-05-28 COIN incident saw
+        # four 213-sh SELL fills against a 213-sh long because each
+        # 30-min monitor tick fired a fresh LMT.
+        if ticker.upper() in open_sell_tickers:
+            _append_sell_eval(
+                doc,
+                climax_count=climax_count,
+                violations_count=violations_count,
+                base_stage=base_stage_val,
+                sis_triggered=sis_triggered,
+                action=action,
+                confidence=confidence,
+                new_stop=None,
+                pe_warning=pe_warning,
+            )
+            if not dry_run:
+                try:
+                    _write_ledger(ticker, doc)
+                except state.PaperAutoStateError as exc:
+                    results.append(ExitResult(
+                        ticker=ticker, action="error",
+                        reason=f"ledger write (sell_eval append, skip-duplicate): {exc}",
+                    ))
+                    continue
+            results.append(ExitResult(
+                ticker=ticker, action="sell_pending_duplicate",
+                placed=False,
+                sell_shares=shares,
+                climax_patterns_firing=climax_count,
+                violations_firing=violations_count,
+                base_stage=base_stage_val,
+                sell_into_strength_triggered=sis_triggered,
+                pe_doubled_late_stage=pe_warning,
+                confidence=confidence,
+                contributing_triggers=contributing,
+                reason=(
+                    f"open SELL order already pending for {ticker} at broker; "
+                    f"skipped duplicate placement (composer wanted {action})"
+                ),
+            ))
+            continue
 
         if dry_run:
             _append_sell_eval(
@@ -519,12 +690,16 @@ def evaluate_exits(
                 contributing_triggers=contributing,
                 reason=(
                     f"dry_run — would place limit-sell {shares} {ticker} @ ${sell_limit:.2f}"
-                    + (f"; would cancel stop #{stop_order_id}" if stop_order_id else "")
+                    " (stop is LEFT IN PLACE until reconcile confirms fill)"
                 ),
             ))
             continue
 
-        # Place the limit-sell.
+        # Place the limit-sell. The protective stop is NOT cancelled here —
+        # the reconciler will cancel it only after confirming the limit-sell
+        # filled. If the limit-sell expires DAY-unfilled, the stop is still
+        # active and the position transitions back to ``starter`` on the
+        # next reconcile pass.
         try:
             sell_entry = c.place_limit_sell(
                 symbol=ticker.upper(),
@@ -538,30 +713,16 @@ def evaluate_exits(
             ))
             continue
 
-        sell_order_id = sell_entry.output.get("order_id")
+        sell_order_id_raw = sell_entry.output.get("order_id")
+        sell_order_id = int(sell_order_id_raw) if sell_order_id_raw is not None else None
 
-        # Cancel the resting broker-side stop so it doesn't fire later.
-        cancelled_id: int | None = None
-        cancel_err: str | None = None
-        if stop_order_id is not None:
-            try:
-                cancel_entry = c.cancel(order_id=stop_order_id)
-                if cancel_entry.output.get("accepted"):
-                    cancelled_id = stop_order_id
-                else:
-                    cancel_err = f"broker did not accept cancel of stop #{stop_order_id}"
-            except BrokerOrderError as exc:
-                cancel_err = f"cancel(stop #{stop_order_id}): {exc}"
+        # Mark the local cache so a back-to-back ticker in this same loop
+        # doesn't re-stack (defensive — same ticker shouldn't appear twice
+        # in starters, but cheap to set).
+        open_sell_tickers.add(ticker.upper())
 
-        # Clear stop_order_id on the ledger regardless of whether the
-        # cancel succeeded — the stop_order_id no longer represents an
-        # active protective stop (the position is closing). If the cancel
-        # failed, the stop is surfaced via the result's cancel_err.
-        ps = doc.setdefault("position_state", {})
-        if "stop_order_id" in ps:
-            del ps["stop_order_id"]
-
-        # Record evaluation + close the ledger.
+        # Record evaluation + transition to pending_close (NOT closed).
+        # Reconciler completes the lifecycle on fill confirmation.
         contributing_summary = ", ".join(contributing[:3]) if contributing else action
         exit_reason = f"sell_decision/{action} ({contributing_summary})"
         _append_sell_eval(
@@ -575,35 +736,40 @@ def evaluate_exits(
             new_stop=None,
             pe_warning=pe_warning,
         )
-        _close_ledger(doc, exit_price=sell_limit, exit_reason=exit_reason)
+        _mark_ledger_pending_close(
+            doc,
+            pending_sell_order_id=sell_order_id,
+            sell_limit_price=sell_limit,
+            exit_reason=exit_reason,
+        )
         try:
             _write_ledger(ticker, doc)
         except state.PaperAutoStateError as exc:
             results.append(ExitResult(
                 ticker=ticker, action="error",
                 placed=True,
-                sell_order_id=int(sell_order_id) if sell_order_id is not None else None,
+                sell_order_id=sell_order_id,
                 sell_limit_price=sell_limit,
                 sell_shares=shares,
-                cancelled_stop_order_id=cancelled_id,
+                cancelled_stop_order_id=None,
                 reason=(
-                    f"order placed but ledger close-write failed: {exc}. "
+                    f"order placed (id={sell_order_id}) but ledger pending_close-write failed: {exc}. "
                     "Manual reconciliation needed."
                 ),
             ))
             continue
 
-        _mark_positions_json_closed(
-            ticker, exit_price=sell_limit, exit_reason=exit_reason,
+        _mark_positions_json_pending_close(
+            ticker, pending_sell_order_id=sell_order_id,
         )
 
         results.append(ExitResult(
             ticker=ticker, action=action,
             placed=True,
-            sell_order_id=int(sell_order_id) if sell_order_id is not None else None,
+            sell_order_id=sell_order_id,
             sell_limit_price=sell_limit,
             sell_shares=shares,
-            cancelled_stop_order_id=cancelled_id,
+            cancelled_stop_order_id=None,  # stop NOT cancelled until reconciler confirms fill
             climax_patterns_firing=climax_count,
             violations_firing=violations_count,
             base_stage=base_stage_val,
@@ -611,7 +777,7 @@ def evaluate_exits(
             pe_doubled_late_stage=pe_warning,
             confidence=confidence,
             contributing_triggers=contributing,
-            reason=cancel_err,   # non-fatal cancel warning, if any
+            reason="transitioned to pending_close; awaiting reconcile fill confirmation",
         ))
 
     return results

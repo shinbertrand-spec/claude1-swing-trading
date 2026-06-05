@@ -295,6 +295,7 @@ def _candidate_from_signal(
     cash_available: Optional[float],
     n_eligible_total: Optional[int] = None,
     signal_date: Optional[Any] = None,
+    track: Optional[str] = None,
 ) -> Optional[CandidateInput]:
     """Compose a sized :class:`CandidateInput` for ``ticker``.
 
@@ -400,6 +401,7 @@ def _candidate_from_signal(
         shares=shares,
         sector_etf=_sector_etf_for(ticker),
         reasoning_trace=reasoning_trace,
+        track=track,
     )
 
 
@@ -509,6 +511,9 @@ def scan_setup(
     eligible -= {benchmark}
     n_eligible_total = len(eligible)
 
+    # Strategy-discovery track (Alfred Delta 6) sourced from the deployable
+    # row. None when absent — back-compat with pre-2026-05-29 rows.
+    row_track = row.get("track")
     candidates: list[CandidateInput] = []
     for t in sorted(eligible):
         if t not in universe_dfs:
@@ -522,6 +527,7 @@ def scan_setup(
             cash_available=cash_available,
             n_eligible_total=n_eligible_total,
             signal_date=signal_date,
+            track=row_track,
         )
         if cand is not None:
             candidates.append(cand)

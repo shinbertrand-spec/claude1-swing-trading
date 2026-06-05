@@ -67,6 +67,12 @@ class ShellLedgerInput:
     # any sector correction. When None, the shell ledger has empty
     # fundamentals (skeptic re-fetches anyway).
     screener_output: Optional[dict[str, Any]] = None
+    # Strategy-discovery track for bias-audit slicing (Alfred Delta 6).
+    # "ai_thematic" when the source deployable_setups.yml row carries
+    # track: ai_thematic; otherwise None (omit field, treated as "generic"
+    # by tools.bias_audit). Orthogonal to account_track (always paper-auto
+    # for shell-ledger writes).
+    track: Optional[str] = None
     # Optional pre-computed trace entries the caller has already produced.
     # Threaded into reasoning_trace as ids 1..N. Tools we run internally
     # extend the list.
@@ -196,6 +202,8 @@ def build_quant_shell_ledger(
         "created_by": "auto_paper/shell_ledger",
         "created_at": now,
     }
+    if inp.track:
+        meta["track"] = inp.track
 
     # setup_classification — required fields per schema
     confluence: list[dict[str, Any]] = [
@@ -448,6 +456,11 @@ def main() -> None:
     p.add_argument("--stop", type=float, required=True, dest="stop_price")
     p.add_argument("--sector", default=None, dest="sector_etf")
     p.add_argument(
+        "--track", default=None, choices=["generic", "ai_thematic"],
+        help="Strategy-discovery track for bias-audit slicing (Alfred Delta 6). "
+             "Omit for generic; set to ai_thematic for the AI-thematic track.",
+    )
+    p.add_argument(
         "--write", action="store_true",
         help="Write the ledger to ledgers/candidates/YYYY-MM-DD/<TICKER>.yml. "
              "Without this flag, just prints the JSON to stdout.",
@@ -469,6 +482,7 @@ def main() -> None:
         pivot_price=args.pivot_price,
         stop_price=args.stop_price,
         sector_etf=args.sector_etf,
+        track=args.track,
     )
     ledger, _ = build_quant_shell_ledger(inp, run_tools=not args.no_tools)
     if args.write:
