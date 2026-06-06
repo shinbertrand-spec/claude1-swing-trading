@@ -23,6 +23,9 @@ journal/
 # as journal/.
 ledgers/positions/
 ledgers/candidates/
+# Per-decision debate ledgers (<TICKER>-<DATE>.yml) are ephemeral gate output
+# and reference the ignored candidate ledgers; _schema/ + _examples/ stay tracked.
+ledgers/debate/*.yml
 
 # Paper-auto track ledgers (autonomous paper-trading; validation only, no
 # live capital). Track separation per CLAUDE.md § Broker bridge → § Paper-auto.
