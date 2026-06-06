@@ -32,6 +32,7 @@ import yaml
 
 from ..broker.tiger import TigerClient
 from .. import atr_compute, regime_check, trend_template
+from . import cron_gate
 from . import screener as screener_mod
 from . import shell_ledger, state
 from .critic_panel import (
@@ -199,6 +200,24 @@ def phase_init(
 
     run_dir.mkdir(parents=True, exist_ok=True)
     state.write_run_status(run_dir, phase="init", started_at=_now())
+
+    # Cron gate (Step 3, Mode B): if the post-RTH reconciler discovered an
+    # unledgered broker orphan, refuse to scan / place until an operator
+    # reconciles it and clears the gate. Don't even touch the broker.
+    gated, gate_doc = cron_gate.is_gated()
+    if gated:
+        reason = (gate_doc or {}).get("reason", "unknown")
+        state.write_run_status(
+            run_dir, phase="init", completed_at=_now(),
+            candidates_in=0, candidates_surviving_screener=0,
+            skeptic_invocations_written=0,
+            error=f"cron_gated: {reason}",
+        )
+        _emit(
+            f"PHASE_INIT_GATED reason={reason} gate={cron_gate.GATE_PATH} "
+            f"-- entry pipeline halted; operator must reconcile + clear the gate"
+        )
+        return 2
 
     # Account + regime
     c = TigerClient()

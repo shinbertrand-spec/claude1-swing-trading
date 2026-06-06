@@ -35,6 +35,28 @@ The module:
 
 If no positions are in `submitted` state, the reconciler returns `[]` and the command exits with `AUTO_PAPER_RECONCILE_NOTHING_PENDING`.
 
+## Step 1b — Post-RTH stuck-closing reconciler + orphan discovery (Mode A / Mode B)
+
+Run AFTER Step 1, same client:
+
+```python
+from tools.auto_paper.reconcile import reconcile_stuck_closing
+from tools.broker.tiger import TigerClient
+stuck = reconcile_stuck_closing(client=TigerClient(), dry_run=<args.dry_run>)
+```
+
+This closes the chronic **stuck-closing** desync (Mode A): a paper-auto ledger that says `closed` / `pending_close` while the broker STILL holds the shares — because Tiger paper STP/limit orders are **DAY-only** (no GTC), so an exit that doesn't fill before the close silently expires and the position lives on unledgered-as-open. For each such ledger it flips `meta.state` back to `starter`, re-adds it to positions.json, and ensures a protective STP is live (re-placed at the ledger `stop_price`, or **flagged** if none).
+
+It also performs **orphan discovery** (Mode B): any broker holding with NO ledger at all (and not a `starter`-protected name) is logged to `journal/paper-auto/orphan_discovery_<date>.yml`, the **cron gate is set** (`journal/paper-auto/cron_gate.json`), and an alert is surfaced. **It does NOT auto-close an orphan** — the operator decides (onboard or flatten), then clears the gate with `tools.auto_paper.cron_gate.clear_gate()`. While the gate is set, `/auto-paper` (entry) self-halts at phase init with `PHASE_INIT_GATED` — no new trades pile onto an unreconciled broker state.
+
+`reconcile_stuck_closing` actions to surface:
+- `reverted_to_starter` — Mode A flip-back done; check `stop_order_id` (re-armed) / `stop_place_error` (flagged for review)
+- `orphan_discovered` — **escalate**: broker holds an unledgered position; cron now GATED until acknowledged
+- `corrupt_ledger` — broker holds it but the ledger won't parse; manual fix (never auto-flipped or orphan-flagged)
+- `error` — ledger/json mutation failed; manual review
+
+If `stuck` is empty AND no orphans, this is a clean no-op (the steady-state expectation).
+
 ## Step 2 — Summary report
 
 Output (and reply via Telegram if invoked from a Telegram session):

@@ -43,7 +43,7 @@ from typing import Any, Optional
 import yaml
 
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
-from . import critic_panel, state
+from . import critic_panel, cron_gate, orphan_check, state
 
 DEFAULT_LOOKBACK_DAYS = 5
 
@@ -594,6 +594,258 @@ def refresh_starter_stops(
             ticker=ticker, action="stop_replaced",
             stop_order_id=new_sid, requested_qty=shares,
             reason=f"replaced expired stop at ${stop_price:.2f}",
+        ))
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Post-RTH stuck-closing reconciler (Mode A fix) + orphan discovery (Mode B)
+# ---------------------------------------------------------------------------
+
+
+def _flip_to_starter_from_closed(ticker: str, *, reason: str) -> None:
+    """Mode A: flip a {closed, pending_close} ledger back to ``starter``.
+
+    The position's exit DAY-order expired unfilled, so the broker still holds it
+    and the close never really happened. Clears any bogus exit_price/exit_reason,
+    drops a stale pending_sell_order_id, and appends an audit note to the
+    top-level ``notes`` string (schema-safe; same field
+    :func:`_revert_ledger_to_starter_from_pending` uses).
+    """
+    p = state.ledger_path(ticker)
+    if not os.path.isfile(p):
+        raise state.PaperAutoStateError(f"no paper-auto ledger for {ticker}")
+    with open(p, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh) or {}
+
+    doc.setdefault("meta", {})
+    doc["meta"]["state"] = "starter"
+    doc["meta"]["updated_by"] = "auto_paper/post_rth_reconciler"
+    doc["meta"]["updated_at"] = _now_iso()
+
+    ps = doc.setdefault("position_state", {})
+    ps.pop("exit_price", None)          # the close was never filled
+    ps.pop("exit_reason", None)
+    ps.pop("pending_sell_order_id", None)
+
+    existing = doc.get("notes", "")
+    note = (
+        f"[{_today_iso()}] post_rth_reconciler: DAY order expired unfilled; "
+        f"broker still holds -> reverted closed/pending_close to starter. {reason}"
+    )
+    doc["notes"] = f"{existing}\n{note}".strip() if existing else note
+
+    _validate_against_schema(doc)
+    with open(p, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+
+
+def _upsert_positions_json_starter(ticker: str, shares: int) -> None:
+    """Re-add a flipped position to positions.json as ``starter`` so the monitor
+    + stop-refresh resume managing it. Fields are derived from the ledger."""
+    doc = state.load_ledger(ticker)
+    meta = doc.get("meta") or {}
+    ps = doc.get("position_state") or {}
+    sc = doc.get("setup_classification") or {}
+    st = ps.get("starter") or {}
+    entry = {
+        "ticker": ticker.upper(),
+        "ledger_path": state.ledger_path(ticker),
+        "entry_date": st.get("fill_date") or (meta.get("created_at") or "")[:10],
+        "entry_price": st.get("fill_price"),
+        "shares": int(shares),
+        "stop": _ledger_stop_price(ticker),
+        "target_1": None,
+        "sector": sc.get("sector_etf") or (doc.get("regime") or {}).get("sector_etf"),
+        "broker_order_id": st.get("broker_order_id"),
+        "broker": st.get("broker", "tiger_paper"),
+        "stage": "starter",
+        "setup_type": sc.get("type"),
+        "setup_grade": sc.get("grade"),
+    }
+    path = state.PAPER_AUTO_POSITIONS_JSON
+    data: dict[str, Any] = {"positions": []}
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    positions = [p for p in data.get("positions", []) if p.get("ticker") != ticker.upper()]
+    positions.append(entry)
+    data["positions"] = positions
+    data["updated"] = _now_iso()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2, default=str)
+
+
+def _ensure_stop_for(
+    ticker: str, qty: int, *, open_by_id: dict[Any, dict[str, Any]],
+    client: TigerClient,
+) -> tuple[int | None, str | None]:
+    """Ensure a live protective STP exists for a (re-)started position.
+
+    Returns ``(stop_order_id, error_or_flag)``. If a live STP already covers the
+    symbol, returns its id with no error. If none and the ledger has a usable
+    stop_price, places one. If no stop_price is available, returns
+    ``(None, "<flag>")`` for operator review (never silently leaves it unstopped
+    without flagging).
+    """
+    sid = _existing_stop_order_id(ticker)
+    live = sid is not None and sid in open_by_id
+    if not live:
+        for o in open_by_id.values():
+            if (o.get("symbol") == ticker.upper()
+                    and o.get("order_type") == "STP"
+                    and o.get("action") == "SELL"):
+                live = True
+                break
+    if live:
+        return sid, None
+
+    stop_price = _ledger_stop_price(ticker)
+    if stop_price is None or stop_price <= 0:
+        return None, "no usable stop_price in ledger; FLAGGED for operator review"
+    try:
+        placed = client.place_stop_loss(
+            symbol=ticker.upper(), quantity=qty, stop_price=stop_price,
+        )
+    except BrokerOrderError as exc:
+        return None, f"place_stop_loss failed: {exc}"
+    new_sid = placed.output.get("order_id")
+    if new_sid is None:
+        return None, "broker returned no order_id for stop"
+    new_sid = int(new_sid)
+    try:
+        state.record_stop_order_id(ticker, new_sid)
+    except state.PaperAutoStateError as exc:
+        return new_sid, f"stop placed but ledger update failed: {exc}"
+    return new_sid, None
+
+
+def _persist_orphan_discovery(orphans: list[str], holdings: dict[str, float]) -> str:
+    """Write journal/paper-auto/orphan_discovery_<date>.yml. Returns the path."""
+    d = os.path.dirname(state.PAPER_AUTO_POSITIONS_JSON)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, f"orphan_discovery_{_today_iso()}.yml")
+    doc = {
+        "timestamp": _now_iso(),
+        "source": "post_rth_reconciler",
+        "orphans": {t: holdings.get(t) for t in orphans},
+        "note": (
+            "Broker holds these with NO paper-auto ledger (Mode B). NOT "
+            "auto-closed. Operator must reconcile (onboard or flatten), then "
+            "clear the cron gate (tools.auto_paper.cron_gate.clear_gate)."
+        ),
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+    return path
+
+
+def reconcile_stuck_closing(
+    *,
+    client: TigerClient,
+    holdings: dict[str, float] | None = None,
+    dry_run: bool = False,
+) -> list[ReconcileResult]:
+    """Post-RTH Mode-A reconciler + Mode-B orphan discovery.
+
+    **Mode A (stuck-closing):** for every ledger in {closed, pending_close} that
+    the broker STILL holds (>= 1 share) -- the DAY exit-order expired unfilled --
+    flip ``meta.state`` back to ``starter``, re-add it to positions.json, and
+    ensure a protective STP is live (re-place at the ledger stop_price, or flag if
+    none).
+
+    **Mode B (orphan discovery):** for every broker holding with NO ledger at all
+    (and not protected), log to ``journal/paper-auto/orphan_discovery_<date>.yml``,
+    set the cron gate (so the entry pipeline refuses to place until acknowledged),
+    and surface an alert. Does NOT auto-close -- the operator decides.
+
+    ``starter``-held positions are healthy (no action). ``submitted``-held are
+    reconcile_today's domain (a fill it transitions to starter). ``corrupt``-held
+    ledgers are surfaced for manual fix, never flipped or orphan-flagged.
+
+    Args:
+        client: paper-routed TigerClient.
+        holdings: optional ``{ticker: signed_qty}`` snapshot (else fetched). Test seam.
+        dry_run: compute + report without mutating ledgers / positions.json /
+            broker / gate.
+
+    Returns:
+        list[ReconcileResult]. Actions: ``reverted_to_starter`` / ``stuck_dry_run``
+        / ``orphan_discovered`` / ``orphan_dry_run`` / ``corrupt_ledger`` / ``error``.
+    """
+    if holdings is None:
+        try:
+            positions = client.positions().output["positions"]
+        except BrokerOrderError as exc:
+            return [ReconcileResult(ticker="*", action="error",
+                                    reason=f"positions fetch: {exc}")]
+        holdings = {p["symbol"].upper(): float(p["quantity"]) for p in positions}
+
+    scan = orphan_check.scan_ledgers()
+    cls = orphan_check.classify_holdings(holdings, scan=scan)
+    results: list[ReconcileResult] = []
+
+    # Open orders for stop liveness checks (best-effort; absence => re-place).
+    open_by_id: dict[Any, dict[str, Any]] = {}
+    if cls.stuck_closing and not dry_run:
+        try:
+            oo = client.open_orders().output.get("orders", [])
+            open_by_id = {o.get("order_id"): o for o in oo
+                          if o.get("order_id") is not None}
+        except BrokerOrderError:
+            open_by_id = {}
+
+    # --- Mode A: stuck-closing flip-back ---
+    for ticker in cls.stuck_closing:
+        qty = int(abs(holdings[ticker]))
+        if dry_run:
+            results.append(ReconcileResult(
+                ticker=ticker, action="stuck_dry_run", filled_qty=qty,
+                reason="would flip closed/pending_close -> starter + ensure stop",
+            ))
+            continue
+        try:
+            _flip_to_starter_from_closed(ticker, reason=f"broker holds {qty}sh")
+            _upsert_positions_json_starter(ticker, qty)
+        except Exception as exc:  # ledger/json mutation failure -> surface, continue
+            results.append(ReconcileResult(
+                ticker=ticker, action="error",
+                reason=f"flip-back failed: {exc!r}",
+            ))
+            continue
+        sid, stop_err = _ensure_stop_for(
+            ticker, qty, open_by_id=open_by_id, client=client,
+        )
+        results.append(ReconcileResult(
+            ticker=ticker, action="reverted_to_starter", filled_qty=qty,
+            stop_order_id=sid, stop_place_error=stop_err,
+            reason="DAY order expired unfilled; reverted to starter",
+        ))
+
+    # --- Mode B: orphan discovery (alert + gate; never auto-close) ---
+    if cls.orphans:
+        if not dry_run:
+            disc = _persist_orphan_discovery(cls.orphans, holdings)
+            cron_gate.set_gate(
+                reason="orphan_discovery",
+                payload={"orphans": cls.orphans, "discovery_file": disc},
+            )
+        for ticker in cls.orphans:
+            results.append(ReconcileResult(
+                ticker=ticker,
+                action=("orphan_dry_run" if dry_run else "orphan_discovered"),
+                filled_qty=int(abs(holdings[ticker])),
+                reason=("broker holds; NO ledger (Mode B). Logged + cron GATED; "
+                        "operator must reconcile."),
+            ))
+
+    # --- corrupt-held: surface only ---
+    for ticker in cls.corrupt_held:
+        results.append(ReconcileResult(
+            ticker=ticker, action="corrupt_ledger",
+            reason="broker holds but ledger unparseable; manual fix required",
         ))
 
     return results

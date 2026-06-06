@@ -53,6 +53,22 @@ class LedgerScan:
     def starter(self) -> set[str]:
         return set(self.by_state.get(STARTER, set()))
 
+    @property
+    def all_tickers(self) -> set[str]:
+        """Every ticker with a PARSEABLE ledger (any state)."""
+        out: set[str] = set()
+        for s in self.by_state.values():
+            out |= s
+        return out
+
+    @property
+    def corrupt_tickers(self) -> set[str]:
+        """Tickers whose ledger file exists but failed to parse."""
+        out: set[str] = set()
+        for path, _ in self.corrupt:
+            out.add(os.path.splitext(os.path.basename(path))[0].upper())
+        return out
+
     def tickers_in(self, *states: str) -> set[str]:
         out: set[str] = set()
         for s in states:
@@ -155,3 +171,45 @@ def stuck_closing_candidates(
     done = scan.tickers_in(*STUCK_STATES)
     held = _held_tickers(broker_holdings)
     return sorted(done & held)
+
+
+@dataclass
+class HoldingClassification:
+    """Precise per-broker-holding classification (Step 3 reconciler input).
+
+    Every ticker the broker holds lands in exactly one bucket:
+      * healthy        -- has a ``starter`` ledger (normal; no action)
+      * stuck_closing  -- has a {closed, pending_close} ledger (Mode A -> flip)
+      * submitted_held -- has a ``submitted`` ledger (a fill reconcile_today owns)
+      * corrupt_held   -- ledger file present but unparseable (manual fix)
+      * orphans        -- NO ledger file at all (Mode B -> alert + gate)
+    """
+    healthy: list[str]
+    stuck_closing: list[str]
+    submitted_held: list[str]
+    corrupt_held: list[str]
+    orphans: list[str]
+
+
+def classify_holdings(
+    broker_holdings: dict[str, float],
+    scan: Optional[LedgerScan] = None,
+) -> HoldingClassification:
+    """Bucket every broker holding for the Step-3 reconciler.
+
+    The Mode A / Mode B distinction the Step-2 ``compute_orphans`` deliberately
+    did NOT make: a held position with a {closed, pending_close} ledger is a
+    *stuck-closing* case (flip back to starter), NOT a true orphan. A true
+    orphan has no ledger file whatsoever.
+    """
+    scan = scan or scan_ledgers()
+    held = _held_tickers(broker_holdings)
+    corrupt = scan.corrupt_tickers
+    known = scan.all_tickers | corrupt   # any ledger file present at all
+    return HoldingClassification(
+        healthy=sorted(held & scan.starter),
+        stuck_closing=sorted(held & scan.tickers_in(*STUCK_STATES)),
+        submitted_held=sorted(held & scan.by_state.get(SUBMITTED, set())),
+        corrupt_held=sorted(held & corrupt),
+        orphans=sorted(held - known),
+    )

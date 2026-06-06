@@ -1,8 +1,6 @@
 """Tests for tools.auto_paper.orphan_check (Mode A / Mode B detection core)."""
 import textwrap
 
-import pytest
-
 from tools.auto_paper import orphan_check as oc
 
 
@@ -98,3 +96,27 @@ def test_corrupt_ledger_blocks_is_clean(tmp_path):
     assert rep.orphan_set == []
     assert rep.corrupt_ledgers          # non-empty
     assert rep.is_clean is False
+
+
+def test_classify_holdings_buckets_every_category(tmp_path):
+    _write(tmp_path, "GO", "starter")          # healthy
+    _write(tmp_path, "MXL", "closed")          # stuck (Mode A)
+    _write(tmp_path, "COIN", "pending_close")  # stuck (Mode A)
+    _write(tmp_path, "SUB", "submitted")       # submitted-held (reconcile_today's job)
+    _write(tmp_path, "BAD", raw="meta:\n  state: starter\nx:\n- a\n: b\n")  # corrupt
+    holdings = {"GO": 100, "MXL": 503, "COIN": -213, "SUB": 10, "BAD": 5, "GKOS": 338}
+    cls = oc.classify_holdings(holdings, scan=oc.scan_ledgers(str(tmp_path)))
+    assert cls.healthy == ["GO"]
+    assert cls.stuck_closing == ["COIN", "MXL"]
+    assert cls.submitted_held == ["SUB"]
+    assert cls.corrupt_held == ["BAD"]
+    assert cls.orphans == ["GKOS"]             # no ledger file at all (Mode B)
+
+
+def test_classify_stuck_distinct_from_orphan(tmp_path):
+    # A held closed ledger is STUCK, not an orphan -- the distinction Step 2's
+    # compute_orphans deliberately lumped together.
+    _write(tmp_path, "MXL", "closed")
+    cls = oc.classify_holdings({"MXL": 503}, scan=oc.scan_ledgers(str(tmp_path)))
+    assert cls.stuck_closing == ["MXL"]
+    assert cls.orphans == []
