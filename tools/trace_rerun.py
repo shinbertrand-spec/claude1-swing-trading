@@ -30,6 +30,7 @@ composite entry point.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
 
 from .contract import TraceEntry
@@ -41,6 +42,16 @@ TOOL = "tools/trace_rerun.py"
 # drift from float ordering, so allow tiny relative tolerance.
 DEFAULT_REL_TOL = 1e-6
 DEFAULT_ABS_TOL = 1e-9
+
+# Bounds for the "faithful rounding" accommodation (see _is_faithful_rounding).
+# A recorded value only counts as cosmetic display-rounding of the re-run when
+# the rounding granularity (0.5 * 10**-decimals) is small relative to the value
+# itself. This accepts 2-decimal price storage (439.44 for 439.438) and
+# >=2-decimal fractional storage (0.39 for 0.3883) while still flagging
+# aggressive sub-unit rounding (0.40 cited for a true 0.3883 = a 13% rounding
+# step), which is a material misstatement, not cosmetics.
+ROUNDING_REL_CAP = 0.01    # granularity may be up to 1% of |value| ...
+ROUNDING_ABS_CAP = 0.005   # ... or an absolute 0.005 floor (universal 2-dp storage)
 
 
 def _build_pure_registry() -> dict[str, Callable[..., TraceEntry]]:
@@ -117,6 +128,18 @@ OHLCV_SHAPES: dict[str, set[str]] = {
     },
 }
 
+# Core authenticating subset per OHLCV tool. We cannot value-verify OHLCV tools
+# (bars have advanced), so the shape check is an authenticity proxy. Agents
+# legitimately store a value-SLICE of a tool's output (only the keys they cite),
+# so demanding every canonical key over-blocks. The CORE set is the minimum that
+# proves "this is a real <tool> result"; recorded output missing only NON-core
+# metadata (e.g. atr_compute's period / last_close_date) is `shape_partial`
+# (informational, non-blocking) rather than `shape_fail` (authenticity failure).
+# Tools absent here default to their full OHLCV_SHAPES set (no behaviour change).
+OHLCV_CORE: dict[str, set[str]] = {
+    "tools/atr_compute.py": {"atr", "last_close"},
+}
+
 
 class TraceRerunError(RuntimeError):
     """Raised when a pure-tool re-run diverges from the recorded output."""
@@ -127,9 +150,10 @@ class StepRerunResult:
     step_id: int
     tool: str
     klass: str                          # "pure" | "ohlcv" | "manual" | "unknown"
-    status: str                          # "match" | "divergent" | "shape_ok" | "shape_fail" | "well_formed" | "unknown_tool"
+    status: str                          # "match" | "divergent" | "shape_ok" | "shape_partial" | "shape_fail" | "well_formed" | "unknown_tool"
     detail: str = ""
     diffs: list[dict[str, Any]] = field(default_factory=list)
+    missing_keys: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -164,16 +188,76 @@ def _ensure_registry_loaded() -> None:
         _PURE_REGISTRY = _build_pure_registry()
 
 
+def _decimal_places(x: float | int) -> int | None:
+    """Decimal places ``x`` is expressed in (shortest repr); None if not finite.
+
+    ``0.3883 -> 4``, ``439.44 -> 2``, ``5.0 -> 0``. Used to decide whether a
+    recorded value is a deliberate display-rounding of a fresh re-run.
+    """
+    try:
+        d = Decimal(repr(float(x)))
+    except (ValueError, InvalidOperation, OverflowError):
+        return None
+    exp = d.as_tuple().exponent
+    if not isinstance(exp, int):  # 'n' / 'N' / 'F' for nan/inf
+        return None
+    return max(0, -exp)
+
+
+def _is_faithful_rounding(recorded: Any, rerun: Any) -> bool:
+    """True if ``recorded`` is ``rerun`` rounded to recorded's own precision.
+
+    Ledgers store display-rounded values for human readability (e.g. recorded
+    ``0.3883`` for a YoY decimal whose full value is ``0.3883495…``, or a
+    ``stop_price`` of ``439.44`` for ``439.438``). Re-running the tool yields
+    full float precision, so a naive equality check flags every such value as a
+    divergence. A *genuine* miscalculation, by contrast, will not round-trip:
+    ``recorded 0.40`` is NOT a faithful 2-decimal rounding of ``rerun 0.3883``
+    (which rounds to ``0.39``), so real errors still surface.
+    """
+    if isinstance(recorded, bool) or isinstance(rerun, bool):
+        return False
+    if not isinstance(recorded, (int, float)) or not isinstance(rerun, (int, float)):
+        return False
+    dp = _decimal_places(recorded)
+    if dp is None:
+        return False
+    try:
+        if round(float(rerun), dp) != float(recorded):
+            return False
+    except (ValueError, OverflowError):
+        return False
+    # Guard against aggressive rounding masking a material gap: the rounding
+    # granularity must be small relative to the value (or below an absolute
+    # 2-dp floor). 0.40-for-0.3883 (dp=1, granularity 0.05) fails this; a
+    # 4-dp YoY or a 2-dp price passes.
+    granularity = 0.5 * (10.0 ** -dp)
+    return granularity <= max(ROUNDING_ABS_CAP, ROUNDING_REL_CAP * abs(float(recorded)))
+
+
 def _values_close(a: Any, b: Any, rel: float, abs_: float) -> bool:
-    """Recursive value-equality with float tolerance."""
+    """Recursive value-equality with float tolerance.
+
+    ``a`` is the recorded (ledger) value, ``b`` the fresh re-run. Two
+    accommodations beyond raw tolerance, both one-directional so real errors
+    still surface:
+      * floats: ``a`` may be a faithful decimal rounding of ``b`` (cosmetic
+        ledger precision) — see :func:`_is_faithful_rounding`.
+      * dicts: ``a``'s keys may be a *subset* of ``b``'s (the agent stored a
+        value-slice, or the tool gained new output keys since the ledger was
+        written). A recorded key ABSENT from the re-run still diverges — that's
+        a fabricated / retired field, not schema growth.
+    """
     if isinstance(a, bool) or isinstance(b, bool):
         return a == b
     if isinstance(a, (int, float)) and isinstance(b, (int, float)):
         if a == b:
             return True
-        return abs(a - b) <= max(abs_, rel * max(abs(a), abs(b)))
+        if abs(a - b) <= max(abs_, rel * max(abs(a), abs(b))):
+            return True
+        return _is_faithful_rounding(a, b)
     if isinstance(a, dict) and isinstance(b, dict):
-        if set(a.keys()) != set(b.keys()):
+        if not set(a.keys()) <= set(b.keys()):
             return False
         return all(_values_close(a[k], b[k], rel, abs_) for k in a)
     if isinstance(a, list) and isinstance(b, list):
@@ -187,10 +271,11 @@ def _diff(a: Any, b: Any, path: str = "") -> list[dict[str, Any]]:
     """Produce structured diff entries between two output values."""
     diffs: list[dict[str, Any]] = []
     if isinstance(a, dict) and isinstance(b, dict):
-        for k in set(a.keys()) | set(b.keys()):
-            if k not in a:
-                diffs.append({"path": f"{path}.{k}", "recorded": "<missing>", "rerun": b[k]})
-            elif k not in b:
+        # Keys only in the re-run (b) are tolerated schema growth — see
+        # _values_close — so we do not report them. A recorded key (a) absent
+        # from the re-run IS a real divergence (retired / fabricated field).
+        for k in a.keys():
+            if k not in b:
                 diffs.append({"path": f"{path}.{k}", "recorded": a[k], "rerun": "<missing>"})
             else:
                 diffs.extend(_diff(a[k], b[k], f"{path}.{k}"))
@@ -252,6 +337,7 @@ def _check_ohlcv(step: dict) -> StepRerunResult:
     sid = step["id"]
     tool = step["tool"]
     expected_keys = OHLCV_SHAPES[tool]
+    core_keys = OHLCV_CORE.get(tool, expected_keys)
     output = step.get("output")
     if not isinstance(output, dict):
         return StepRerunResult(
@@ -259,12 +345,28 @@ def _check_ohlcv(step: dict) -> StepRerunResult:
             status="shape_fail",
             detail=f"output is not a dict; got {type(output).__name__}",
         )
-    missing = expected_keys - set(output.keys())
-    if missing:
+    present = set(output.keys())
+    core_missing = core_keys - present
+    if core_missing:
+        # Core authenticating keys absent — cannot trust this is a real result.
         return StepRerunResult(
             step_id=sid, tool=tool, klass="ohlcv",
             status="shape_fail",
-            detail=f"missing expected output keys: {sorted(missing)}",
+            detail=f"missing CORE output keys: {sorted(core_missing)}",
+            missing_keys=sorted(core_missing),
+        )
+    meta_missing = expected_keys - present
+    if meta_missing:
+        # Core present, only non-core metadata absent — agent stored a value
+        # slice. Informational, NOT a divergence.
+        return StepRerunResult(
+            step_id=sid, tool=tool, klass="ohlcv",
+            status="shape_partial",
+            detail=(
+                f"core keys present; recorded output is a value-slice missing "
+                f"non-core metadata: {sorted(meta_missing)}"
+            ),
+            missing_keys=sorted(meta_missing),
         )
     return StepRerunResult(
         step_id=sid, tool=tool, klass="ohlcv",
@@ -335,6 +437,7 @@ def compute(ledger: dict) -> TraceEntry:
                     "status": r.status,
                     "detail": r.detail,
                     "diffs": r.diffs,
+                    "missing_keys": r.missing_keys,
                 }
                 for r in report.results
             ],

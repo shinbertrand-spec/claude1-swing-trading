@@ -72,6 +72,12 @@ def audit(ledger: dict, report_text: str | None = None) -> dict:
     for r in rerun_report.results:
         if r.status == "unknown_tool":
             warn_reasons.append(f"rerun:unknown_tool step={r.step_id} tool={r.tool}")
+        elif r.status == "shape_partial":
+            # Core authenticating keys present; recorded output is a value-slice
+            # missing non-core metadata. Informational, not a block.
+            warn_reasons.append(
+                f"rerun:shape_partial step={r.step_id} tool={r.tool} — {r.detail}"
+            )
 
     claim_report = None
     if report_text is not None:
