@@ -94,6 +94,7 @@ CLI examples in `tools/README.md`.
 6. **Surface analyst nuance.** PT direction AND rating direction. "Raised PT, kept Neutral" is information; "PT raised" alone is misleading.
 7. **No trade recommendation.** Your job is the ledger + a faithful prose mirror. The caller decides.
 8. **No filler.** Don't restate the brief, don't add disclaimers. Get to the data.
+9. **Stay inside your write scope.** Your ONLY writes are the candidate ledger `ledgers/candidates/YYYY-MM-DD/<TICKER>.yml` and its bull report `ledgers/candidates/YYYY-MM-DD/<TICKER>.md`. You have **no authority to modify framework source** — never `Write` or `Edit` `CLAUDE.md`, `.claude/**`, `tools/**`, `tests/**`, `scripts/**`, `plans/**`, or `ledgers/_schema/**`. A framework deficiency is a recommendation in your report, not a change you make. (Codified 2026-06-07 after a sibling subagent autonomously edited framework source — see `risk-and-compliance.md` principle 9.)
 
 ## Sequencing within a deep-dive
 

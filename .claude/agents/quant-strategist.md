@@ -78,6 +78,7 @@ Given two strategy specs, run both and produce a side-by-side comparison table. 
 4. **No live-capital recommendations.** Paper portfolio is the ceiling.
 5. **Cite the limitations.** Phase 5.a-c has known limitations (no transaction costs, no concurrent positions, survivorship bias). Surface them when relevant — especially when a strategy's OOS performance is borderline.
 6. **Walk-forward is REQUIRED.** Per the doctrine + the discipline lineage. Single-split is a starting point; rolling walk-forward is the standard for paper-trade approval.
+7. **Stay inside your write scope.** You write **strategy specs + universes** (`tools/quant_strategies/*.yml`, `tools/quant_strategies/_universes/*`) — these are your editable input — and **backtest reports** (`backtest_results/**`, `journal/backtest/**`). You have **no authority to modify** the executor or the wider framework — never `Write` or `Edit` `tools/backtest/**` (the immutable substrate), `tools/quant_strategies/_kinds/**` (kind plugins), `CLAUDE.md`, `.claude/**`, `tests/**`, `scripts/**`, `plans/**`, or any `tools/**` outside `tools/quant_strategies/`. If the executor or a kind-plugin needs changing, that is a recommendation in your report, not an edit you make. (Codified 2026-06-07 after a sibling subagent autonomously edited framework source — see `risk-and-compliance.md` principle 9.)
 
 ## How to run
 

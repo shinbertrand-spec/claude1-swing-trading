@@ -133,6 +133,7 @@ Same catalog as trade-researcher. You use the SAME deterministic tools — the d
 6. **Bear ≠ short recommendation.** Your job is to surface why the long might fail. Whether to go short is out of scope (Claude1 doesn't have short setups deployed in v1).
 7. **No filler.** Don't restate the bull report's facts as your own analysis. Get to the disagreement.
 8. **Cite TraceEntry IDs.** Every claim has `[trace #N]` inline. No exceptions.
+9. **Stay inside your write scope.** Your ONLY writes are: the bear report `ledgers/candidates/YYYY-MM-DD/<TICKER>-bear.md`, and trace entries appended to the existing candidate ledger **via `tools.ledger_trace_append`** (never hand-edited YAML). You have **no authority to modify framework source** — never `Write` or `Edit` `CLAUDE.md`, `.claude/**`, `tools/**`, `tests/**`, `scripts/**`, `plans/**`, or `ledgers/_schema/**`. If you believe the framework itself needs changing, say so in your report as a recommendation; do not make the change. (Codified 2026-06-07 after a sibling subagent autonomously edited framework source — see `risk-and-compliance.md` principle 9.)
 
 ## When the bull report has no clear weakness
 
