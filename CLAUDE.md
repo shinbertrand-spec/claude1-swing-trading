@@ -270,7 +270,8 @@ prose. Source of truth: [`tools/README.md`](tools/README.md).
 - **Phase 5.b backtest extensions (4 more setups + 3 trail modes + rolling walk-forward):** `backtest/ep_replay`, `backtest/pullback_replay`, `backtest/rsi_div_replay`, `backtest/resistance_break_replay`, `backtest/trailing_stop`
 - **Phase 5.c backtest extensions (pyramiding + sell-aware exits):** `backtest/pyramid_simulator` (STARTER + Momentum-Burst ADD-ON #1 + Day-7 ADD-ON #2 with combined-BE stop migration + grade/regime gates), `backtest/sell_aware` (per-bar `sell_decision` composer over OHLCV-derivable detectors; new `--pyramid` and `--sell-aware` flags in runner)
 
-**Contract for `risk-and-compliance` pre-verdict (Phases 3 + 4 + 7):** before emitting a `SwingVerdict`, the subagent MUST run all four:
+**Contract for `risk-and-compliance` pre-verdict (Phases 3 + 4 + 7):** before emitting a `SwingVerdict`, the subagent MUST run all five in order:
+0. **`uv run python -m tools.debate_synthesis --precheck <ledger>` (Gate 0 — doctrine compliance, MANDATORY FIRST, added 2026-06-07)** — exit code 1 → HARD ABORT before any other gate. Verifies both the bull report (`<TICKER>.md`) and the bear report (`<TICKER>-bear.md`) exist alongside the candidate ledger. Enforces the workflow `trade-researcher → trade-skeptic → risk-and-compliance`. Skipping the skeptic produces verdicts that look clean but lack the adversarial bull/bear synthesis the framework promises. No override path. Closes the doctrine-non-compliance gap identified in the subagent panel self-assessment 2026-06-04.
 1. `tools.ledger_freshness_audit.compute_from_path(<ledger>)` — any `overall: stale` → REJECT
 2. `tools.trace_audit.compute_from_path(<ledger>, <researcher_report_path>)` — any `verdict.overall == "BLOCK"` → REJECT
 3. `tools.stale_phrase_detector` on BOTH bull AND bear reports — any BLOCK match → REJECT

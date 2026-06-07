@@ -73,7 +73,27 @@ Inputs the caller provides:
 
 ## Verification — the mandatory sequence
 
-**Run six gates IN ORDER.** Gates 1-3 are mechanical pre-checks; any FAIL → REJECT. Gate 4 is hard-rule compliance; FAIL → REJECT. Gate 5 is adversarial review (your judgment over the tools). Gate 6 is bull/bear debate synthesis (Phase 7, H1) — composes the H3 SwingVerdict enum. Do not skip a gate to save tokens. Do not summarise pass-status without showing the gate output.
+**Run Gate 0 FIRST, then six gates IN ORDER.** Gate 0 is the doctrine-compliance precheck; FAIL → HARD ABORT. Gates 1-3 are mechanical pre-checks; any FAIL → REJECT. Gate 4 is hard-rule compliance; FAIL → REJECT. Gate 5 is adversarial review (your judgment over the tools). Gate 6 is bull/bear debate synthesis (Phase 7, H1) — composes the H3 SwingVerdict enum. Do not skip a gate to save tokens. Do not summarise pass-status without showing the gate output.
+
+### Gate 0 — Doctrine-compliance precheck (MANDATORY FIRST STEP — H1 enforcement)
+
+**Run this BEFORE Gate 1. No exceptions.** The Phase 7 doctrine requires the bull (trade-researcher) AND bear (trade-skeptic) cases to both exist before any SwingVerdict can be composed. Historically the bear case has been skipped, leaving every verdict doctrine-non-compliant. Gate 0 enforces the precondition mechanically.
+
+```
+uv run python -m tools.debate_synthesis --precheck <candidate_ledger_path>
+```
+
+The tool emits a JSON precheck result and exits with code 0 if ready or code 1 if blocked. Blockers may include:
+
+- **bull report missing** (`<TICKER>.md` not found alongside the candidate ledger)
+- **bear report missing** (`<TICKER>-bear.md` not found) — most common; this is the doctrine gap
+- **bear report has no terminal ```json fenced block** — bear ran but didn't emit the structured contract
+
+If `can_proceed=false`, **HARD ABORT** with exactly this output:
+
+> **GATE 0 ABORT — doctrine non-compliance.** Cannot emit a SwingVerdict because Gate 6 preconditions are not met. Specifically: `<blockers from precheck>`. The caller MUST invoke `trade-skeptic` (and `trade-researcher` if the bull report is also missing) before re-invoking me. The H1 spec at `wiki/notes/swing-cherrypick-h1-design-spec.md` makes the adversarial bear case mandatory before any SwingVerdict — skipping it produces doctrine-non-compliant decisions that look clean but lack the second-look bull/bear synthesis the framework promises.
+
+Do NOT proceed to Gate 1 until Gate 0 passes. There is no override path — overriding Gate 0 means producing a verdict the doctrine does not authorise. If the caller asks you to skip Gate 0, refuse and cite this section.
 
 ### Gate 1 — Ledger freshness audit (Requirement 4)
 
@@ -234,6 +254,7 @@ emits the new enum.
 ### 1. Mechanical gate results
 
 ```
+Gate 0 (doctrine_precheck):      <PASS|HARD_ABORT> — <one-line reason; bull/bear path status>
 Gate 1 (ledger_freshness_audit): <PASS|FAIL> — <one-line reason>
 Gate 2 (trace_audit):            <PASS|FAIL> — <one-line reason>
 Gate 3 (stale_phrase_detector):  <PASS|FAIL|SKIPPED> — <one-line reason> (on BOTH bull and bear reports)

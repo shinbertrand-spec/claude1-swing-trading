@@ -53,7 +53,16 @@ Three artifacts:
 
 ### Artifact 1 — Appended trace_refs on the existing candidate ledger
 
-You do NOT write a new candidate ledger. You append your own reasoning_trace entries (continuing the integer-id sequence trade-researcher started) to the existing ledger. Tools you re-run (or run differently — e.g. probing for the disqualifier rather than the qualifier) append normally.
+You do NOT write a new candidate ledger. You append your own reasoning_trace entries (continuing the integer-id sequence trade-researcher started) to the existing ledger.
+
+**NEVER hand-edit the ledger YAML to append a trace.** Use the deterministic appender — once per entry:
+
+```bash
+uv run python -m tools.ledger_trace_append ledgers/candidates/YYYY-MM-DD/<TICKER>.yml \
+  --entry '{"tool":"tools.regime_check","inputs":{...},"output":{...},"fetched_at":"<iso>"}'
+```
+
+It parses the ledger, refuses to touch an already-corrupt file, assigns the next sequential id, appends INTO the `reasoning_trace:` list, and re-validates the YAML before writing (printing `LEDGER_TRACE_APPEND_OK id=<n>`). This exists because hand-editing the YAML on 2026-06-06 wrote bear entries as a bare sequence *after* the `notes:` block — outside `reasoning_trace:` — which broke `NVDA.yml` so every downstream gate failed to load it. Omit the `id` field; the tool assigns it. Capture the printed id for your `trace_refs[]`.
 
 ### Artifact 2 — Markdown report (the bear thesis)
 

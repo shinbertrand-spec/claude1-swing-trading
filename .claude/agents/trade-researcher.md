@@ -34,6 +34,8 @@ Read the worked examples in `ledgers/_examples/sepa-vcp-candidate.yml` and `ledg
 
 A human-readable report whose numerical claims mirror the ledger. Same section order as the existing template. Reference `Ledger: ledgers/candidates/YYYY-MM-DD/<TICKER>.yml` at the top.
 
+**You MUST `Write` this report to disk at `ledgers/candidates/YYYY-MM-DD/<TICKER>.md`** (same dir + stem as the ledger, `.md` extension), in addition to returning it to the caller. This is the bull report the downstream `risk-and-compliance` Gate 0 precheck looks for — if the file is absent, the entire gate sequence HARD-ABORTS (`tools.debate_synthesis --precheck` exit 1) and no SwingVerdict can be composed. Returning the report in your reply is NOT sufficient; it must exist on disk next to the ledger.
+
 ## The tools you call (Phase 2)
 
 Always use the tool. Never re-derive a value in prose that a tool computes — `risk-and-compliance` will re-run the tool and BLOCK on divergence (Requirement 3).
@@ -105,7 +107,7 @@ Recommended order (parallelise where independent):
 6. Fundamentals via WebSearch / WebFetch — populate `fundamentals` section + record `manual:sec_filing` trace steps.
 7. Catalyst search via WebSearch — populate `catalyst` section + record `manual:web:<domain>` trace steps.
 8. Compose `setup_classification` with `confluence_checklist[]` — each criterion's status (PASS/FAIL/PARTIAL/UNKNOWN) + evidence string + non-empty `trace_refs`.
-9. Write the ledger file via `Write`. Write the Markdown report.
+9. Write the ledger file via `Write`. Write the Markdown report to disk at `ledgers/candidates/YYYY-MM-DD/<TICKER>.md` via `Write` (required for the downstream Gate 0 precheck — see Artifact 2), then also return it in your reply.
 
 ## Output format — Markdown report
 

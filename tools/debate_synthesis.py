@@ -361,6 +361,74 @@ def _load_yaml(path: str | Path) -> dict[str, Any]:
     return data
 
 
+def gate6_precheck(candidate_ledger_path: str | Path) -> dict[str, Any]:
+    """Verify Gate 6 preconditions before risk-and-compliance emits a SwingVerdict.
+
+    Doctrine: every SwingVerdict must be composed from BOTH a bull case
+    (trade-researcher) and a bear case (trade-skeptic). Skipping the skeptic
+    leaves Gate 6 unrunnable and makes the verdict doctrine-non-compliant.
+
+    Convention (derived from the candidate ledger path):
+
+    - ledger:  ``ledgers/candidates/YYYY-MM-DD/<TICKER>.yml``
+    - bull:    ``ledgers/candidates/YYYY-MM-DD/<TICKER>.md``  (trade-researcher)
+    - bear:    ``ledgers/candidates/YYYY-MM-DD/<TICKER>-bear.md``  (trade-skeptic)
+
+    Returns a dict with:
+
+    - ``can_proceed``: ``True`` iff all preconditions met
+    - ``blockers``: list of human-readable failure reasons (empty when ready)
+    - ``bull_report_path`` / ``bear_report_path``: actual paths when present
+    - ``expected_bull_path`` / ``expected_bear_path``: where the files MUST be
+    - ``candidate_ledger_path``: echo of the input
+
+    risk-and-compliance MUST run this before any other gate and ABORT on
+    ``can_proceed=False``. The CLI exits with code 1 when blocked so a
+    Bash-driven gate sequence can short-circuit cleanly.
+    """
+    cl = Path(candidate_ledger_path)
+    bull_path = cl.with_suffix(".md")
+    bear_path = cl.parent / f"{cl.stem}-bear.md"
+
+    blockers: list[str] = []
+
+    if not cl.exists():
+        blockers.append(f"candidate ledger missing: {cl}")
+
+    if not bull_path.exists():
+        blockers.append(
+            f"bull report (trade-researcher) missing: {bull_path}. "
+            "Invoke trade-researcher first and have it write the Markdown "
+            "report alongside the candidate ledger."
+        )
+
+    if not bear_path.exists():
+        blockers.append(
+            f"bear report (trade-skeptic) missing: {bear_path}. "
+            "Gate 6 doctrine requires the adversarial bear case before "
+            "SwingVerdict can be composed. Invoke trade-skeptic with the "
+            "candidate ledger first, then re-run."
+        )
+    else:
+        bear_text = bear_path.read_text(encoding="utf-8")
+        if not _JSON_FENCE_RE.findall(bear_text):
+            blockers.append(
+                f"bear report has no terminal ```json fenced block: "
+                f"{bear_path}. Re-run trade-skeptic to emit a properly-"
+                "formatted bear report with the structured JSON contract."
+            )
+
+    return {
+        "can_proceed": not blockers,
+        "blockers": blockers,
+        "bull_report_path": str(bull_path) if bull_path.exists() else None,
+        "bear_report_path": str(bear_path) if bear_path.exists() else None,
+        "expected_bull_path": str(bull_path),
+        "expected_bear_path": str(bear_path),
+        "candidate_ledger_path": str(cl),
+    }
+
+
 def compute_from_path(
     candidate_ledger_path: str | Path,
     bull_report_path: str | Path,
@@ -431,8 +499,16 @@ def _main() -> None:
     parser.add_argument(
         "candidate_ledger", help="Path to candidate fact ledger YAML"
     )
-    parser.add_argument("--bull", required=True, help="Path to bull (researcher) Markdown report")
-    parser.add_argument("--bear", required=True, help="Path to bear (skeptic) Markdown report")
+    parser.add_argument(
+        "--precheck",
+        action="store_true",
+        help="Precheck mode: verify Gate 6 preconditions (bull AND bear reports "
+        "exist + bear has terminal JSON fragment) and exit. Emits the precheck "
+        "result as JSON. Exit code 0 = ready; exit code 1 = blocked. "
+        "Use this as Gate 0 in risk-and-compliance before any other gate runs.",
+    )
+    parser.add_argument("--bull", required=False, help="Path to bull (researcher) Markdown report")
+    parser.add_argument("--bear", required=False, help="Path to bear (skeptic) Markdown report")
     parser.add_argument(
         "--bull-strength",
         type=int,
@@ -462,6 +538,16 @@ def _main() -> None:
         help="Skip writing the debate ledger to disk (still prints the TraceEntry).",
     )
     args = parser.parse_args()
+
+    if args.precheck:
+        result = gate6_precheck(args.candidate_ledger)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        if not result["can_proceed"]:
+            raise SystemExit(1)
+        return
+
+    if not args.bull or not args.bear:
+        parser.error("--bull and --bear are required unless --precheck is set")
 
     entry = compute_from_path(
         args.candidate_ledger,
