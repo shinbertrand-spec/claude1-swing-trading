@@ -1,13 +1,9 @@
-"""Tests for the time-series-momentum (TSMOM) kind plugin.
+"""Tests for the time-series-momentum (TSMOM) kind plugin — top-K rank variant.
 
-Validates:
-* `KIND` registration
-* `precompute()` returns None (per-ticker only)
-* `replay()` emits signal when trailing return positive at rebalance dates
-* `replay()` emits no signal for sustained downtrend (negative trailing return)
-* Rebalance cadence: signals spaced ~rebalance_period_days apart
-* `replay()` skips benchmark
-* Insufficient history returns no signals
+Validates the 2026-06-07 fix: explicit cross-sectional top-K ranking replaces the
+v1 no-rank behaviour (where the concurrent cap arbitrarily rejected ~98.5% of
+signals). precompute now ranks positive-trailing-return names and keeps the top
+K; replay emits signals only for top-K members.
 """
 from __future__ import annotations
 
@@ -17,44 +13,35 @@ import pandas as pd
 from tools.quant_strategies._kinds import KIND_REGISTRY
 from tools.quant_strategies._kinds.ts_momentum import (
     KIND,
+    CrossSectionalState,
     precompute,
     replay,
 )
 
 
-def _df_steady_uptrend(n: int, start: float = 100.0, drift: float = 0.002) -> pd.DataFrame:
+def _df(drift: float, n: int = 120, start: float = 100.0) -> pd.DataFrame:
     closes = np.array([start * np.exp(drift * i) for i in range(n)])
-    opens = closes.copy()
-    highs = closes * 1.005
-    lows = closes * 0.995
-    volumes = np.full(n, 1_000_000, dtype=int)
     return pd.DataFrame(
-        {"Open": opens, "High": highs, "Low": lows, "Close": closes, "Volume": volumes},
+        {"Open": closes, "High": closes * 1.005, "Low": closes * 0.995,
+         "Close": closes, "Volume": np.full(n, 1_000_000, dtype=int)},
         index=pd.date_range("2022-01-03", periods=n, freq="B"),
     )
 
 
-def _df_steady_downtrend(n: int, start: float = 100.0, drift: float = -0.002) -> pd.DataFrame:
-    closes = np.array([start * np.exp(drift * i) for i in range(n)])
-    opens = closes.copy()
-    highs = closes * 1.005
-    lows = closes * 0.995
-    volumes = np.full(n, 1_000_000, dtype=int)
-    return pd.DataFrame(
-        {"Open": opens, "High": highs, "Low": lows, "Close": closes, "Volume": volumes},
-        index=pd.date_range("2022-01-03", periods=n, freq="B"),
-    )
-
-
-def _params(lookback: int = 126) -> dict:
+def _universe():
     return {
-        "benchmark": "SPY",
-        "lookback_days": lookback,
-        "rebalance_period_days": 21,
-        "max_hold_days": 21,
-        "atr_period": 20,
-        "atr_stop_multiple": 3.0,
-        "risk_per_trade": 0.01,
+        "SPY": _df(0.0015),
+        "A": _df(0.004),    # strongest uptrend
+        "B": _df(0.001),    # mild uptrend
+        "C": _df(0.0),      # flat  -> trailing return 0 -> excluded
+        "D": _df(-0.003),   # downtrend -> excluded
+    }
+
+
+def _params(*, lookback=30, top_k=2):
+    return {
+        "benchmark": "SPY", "lookback_days": lookback, "rebalance_period_days": 21,
+        "max_hold_days": 21, "top_k": top_k, "atr_period": 20, "atr_stop_multiple": 3.0,
     }
 
 
@@ -63,63 +50,68 @@ def test_kind_registry_has_strategy():
     assert KIND in KIND_REGISTRY
 
 
-def test_precompute_returns_none():
-    assert precompute({}, {}) is None
+def test_precompute_returns_state_with_rebalance_dates():
+    state = precompute(_universe(), _params())
+    assert isinstance(state, CrossSectionalState)
+    assert state.rebalance_dates                   # non-empty
+    assert all(isinstance(s, set) for s in state.ranks_by_date.values())
 
 
-def test_replay_emits_signal_on_sustained_uptrend():
-    df = _df_steady_uptrend(400)  # long enough for 126d lookback + multiple rebalances
-    signals = replay(df, "X", _params(lookback=126), None)
-    assert len(signals) >= 1
-    for s in signals:
+def test_topk_keeps_only_strongest_positive_names():
+    state = precompute(_universe(), _params(top_k=2))
+    # Every rebalance date: top-2 positive names are A then B; C/D excluded.
+    for d in state.rebalance_dates:
+        assert state.ranks_by_date[d] == {"A", "B"}
+        # A's trailing return > B's
+        assert state.score_by_date[d]["A"] > state.score_by_date[d]["B"] > 0
+
+
+def test_topk_one_keeps_single_strongest():
+    state = precompute(_universe(), _params(top_k=1))
+    for d in state.rebalance_dates:
+        assert state.ranks_by_date[d] == {"A"}
+
+
+def test_replay_emits_for_topk_member():
+    uni = _universe()
+    state = precompute(uni, _params(top_k=2))
+    sigs = replay(uni["A"], "A", _params(top_k=2), state)
+    assert len(sigs) >= 1
+    for s in sigs:
         assert s.setup_type == KIND
         assert s.stop_price < s.entry_price
         assert s.fill_date > s.entry_date
         assert s.notes["trailing_return"] > 0
 
 
-def test_replay_no_signal_on_sustained_downtrend():
-    df = _df_steady_downtrend(400)
-    signals = replay(df, "X", _params(lookback=126), None)
-    assert signals == []
+def test_replay_no_signal_for_non_topk_name():
+    uni = _universe()
+    state = precompute(uni, _params(top_k=2))
+    assert replay(uni["C"], "C", _params(top_k=2), state) == []   # flat, excluded
+    assert replay(uni["D"], "D", _params(top_k=2), state) == []   # down, excluded
 
 
-def test_replay_rebalance_cadence():
-    """Signals should be ~rebalance_period_days apart in bar-index terms."""
-    df = _df_steady_uptrend(500)
-    signals = replay(df, "X", _params(lookback=126), None)
-    assert len(signals) >= 2
-    # Signal dates should be at least rebalance_period_days apart.
-    dates = [s.entry_date for s in signals]
-    for prev, nxt in zip(dates, dates[1:]):
-        gap_days = (nxt - prev).days
-        # Business-day rebalance of 21 bars ≈ 29 calendar days; allow margin.
-        assert gap_days >= 21
+def test_replay_excluded_when_capped_out():
+    # With top_k=1 only A qualifies; B (positive but rank 2) gets no signal.
+    uni = _universe()
+    state = precompute(uni, _params(top_k=1))
+    assert replay(uni["A"], "A", _params(top_k=1), state) != []
+    assert replay(uni["B"], "B", _params(top_k=1), state) == []
 
 
 def test_replay_skips_benchmark():
-    df = _df_steady_uptrend(400)
-    params = _params()
-    params["benchmark"] = "X"
-    assert replay(df, "X", params, None) == []
+    uni = _universe()
+    state = precompute(uni, _params())
+    assert replay(uni["SPY"], "SPY", _params(), state) == []
 
 
-def test_replay_insufficient_history():
-    df = _df_steady_uptrend(50)  # < lookback + 2
-    assert replay(df, "X", _params(lookback=126), None) == []
+def test_replay_none_state_returns_empty():
+    uni = _universe()
+    assert replay(uni["A"], "A", _params(), None) == []
 
 
-def test_replay_emits_no_signal_when_lookback_return_zero_or_negative():
-    """Edge: trailing return == 0 → no signal (strict > 0 check)."""
-    # Flat price → trailing return == 0
-    closes = np.full(400, 100.0)
-    opens = closes.copy()
-    highs = closes * 1.005
-    lows = closes * 0.995
-    volumes = np.full(400, 1_000_000, dtype=int)
-    df = pd.DataFrame(
-        {"Open": opens, "High": highs, "Low": lows, "Close": closes, "Volume": volumes},
-        index=pd.date_range("2022-01-03", periods=400, freq="B"),
-    )
-    signals = replay(df, "X", _params(lookback=126), None)
-    assert signals == []
+def test_precompute_insufficient_history_empty_state():
+    short = {"SPY": _df(0.0015, n=20), "A": _df(0.004, n=20)}
+    state = precompute(short, _params(lookback=30))
+    assert state.rebalance_dates == []
+    assert replay(short["A"], "A", _params(lookback=30), state) == []

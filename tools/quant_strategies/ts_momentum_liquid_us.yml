@@ -52,6 +52,11 @@ params:
   lookback_days: [126, 252]
   rebalance_period_days: 21
   max_hold_days: 21
+  # Explicit cross-sectional top-K rank (added 2026-06-07). Ranks positive-
+  # trailing-return names by trailing return DESC, keeps top K = concurrent cap.
+  # Replaces the v1 no-rank behaviour where the 8-cap rejected ~98.5% of
+  # signals via an arbitrary simulator tie-break (non-reproducible edge).
+  top_k: 8
   atr_period: 20
   atr_stop_multiple: 3.0
   risk_per_trade: 0.01
