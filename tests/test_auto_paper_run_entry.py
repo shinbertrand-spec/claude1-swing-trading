@@ -79,11 +79,18 @@ def _ok_screener_result(ticker: str, sector="XLV", *, blocked=False) -> Screener
     )
 
 
-def _fake_tiger_client():
-    """Stand-in TigerClient with just what run_entry's init phase reads."""
+def _fake_tiger_client(positions=None):
+    """Stand-in TigerClient with just what run_entry's init phase reads.
+
+    ``positions`` feeds the pre-session orphan sweep (Priority 2); default empty
+    so the sweep is a clean no-op.
+    """
     return SimpleNamespace(
         account_summary=lambda: SimpleNamespace(
             output={"net_liquidation": 1_000_000.0, "cash": 750_000.0}
+        ),
+        positions=lambda: SimpleNamespace(
+            output={"positions": positions or []}
         ),
     )
 

@@ -722,14 +722,28 @@ def _ensure_stop_for(
     return new_sid, None
 
 
-def _persist_orphan_discovery(orphans: list[str], holdings: dict[str, float]) -> str:
-    """Write journal/paper-auto/orphan_discovery_<date>.yml. Returns the path."""
+def _persist_orphan_discovery(
+    orphans: list[str],
+    holdings: dict[str, float],
+    *,
+    source: str = "post_rth_reconciler",
+    corrupt: Optional[list[str]] = None,
+) -> str:
+    """Write journal/paper-auto/orphan_discovery_<date>.yml. Returns the path.
+
+    Shared by the post-RTH reconciler (``source=post_rth_reconciler``) and the
+    pre-session sweep (``source=presession_sweep``). One file per day; the later
+    writer wins (the gate payload also records ``source`` + ``discovery_file``).
+    ``corrupt`` lists held tickers whose ledger is unparseable — surfaced for the
+    pre-session sweep, which (unlike the post-RTH reconciler) treats a corrupt
+    held ledger as a gate-worthy uncertain state.
+    """
     d = os.path.dirname(state.PAPER_AUTO_POSITIONS_JSON)
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, f"orphan_discovery_{_today_iso()}.yml")
     doc = {
         "timestamp": _now_iso(),
-        "source": "post_rth_reconciler",
+        "source": source,
         "orphans": {t: holdings.get(t) for t in orphans},
         "note": (
             "Broker holds these with NO paper-auto ledger (Mode B). NOT "
@@ -737,6 +751,12 @@ def _persist_orphan_discovery(orphans: list[str], holdings: dict[str, float]) ->
             "clear the cron gate (tools.auto_paper.cron_gate.clear_gate)."
         ),
     }
+    if corrupt:
+        doc["corrupt_held"] = {t: holdings.get(t) for t in corrupt}
+        doc["corrupt_note"] = (
+            "Broker holds these but the paper-auto ledger is unparseable. "
+            "Fix the YAML (or onboard/flatten), then clear the gate."
+        )
     with open(path, "w", encoding="utf-8") as fh:
         yaml.safe_dump(doc, fh, sort_keys=False)
     return path
@@ -849,6 +869,114 @@ def reconcile_stuck_closing(
         ))
 
     return results
+
+
+@dataclass
+class PresessionSweep:
+    """Result of the pre-session orphan sweep (Priority 2 — Mode-B defense-in-depth).
+
+    Read-only with respect to the broker and ledgers — it NEVER flips, places, or
+    closes. Its only side effects (when not ``dry_run`` and something gate-worthy
+    is found) are persisting a discovery file and setting the cron gate.
+    """
+    holdings: dict[str, float]
+    healthy: list[str]
+    orphans: list[str]            # Mode B — no ledger at all (gate-worthy)
+    corrupt_held: list[str]       # unparseable ledger on a held position (gate-worthy)
+    stuck_closing: list[str]      # Mode A — reconciler's domain (surfaced, NOT gated on)
+    submitted_held: list[str]     # a fill reconcile_today owns (surfaced only)
+    gated_now: bool               # this sweep set the gate
+    discovery_path: Optional[str]
+    skipped: bool = False         # could not fetch broker holdings
+    skip_reason: Optional[str] = None
+    dry_run: bool = False
+
+    @property
+    def gate_tickers(self) -> list[str]:
+        return sorted(set(self.orphans) | set(self.corrupt_held))
+
+
+def presession_sweep(
+    *,
+    client: TigerClient | None = None,
+    holdings: dict[str, float] | None = None,
+    dry_run: bool = False,
+) -> PresessionSweep:
+    """Pre-session (morning, before any placement) orphan sweep — Priority 2.
+
+    Defense-in-depth for Failure Mode B: the post-RTH reconciler
+    (:func:`reconcile_stuck_closing`) already discovers orphans + sets the gate
+    at market close, which protects the NEXT morning's entry via the
+    ``run_entry.phase_init`` gate check. But if that reconciler never ran
+    (machine off, holiday, crash), the morning entry would proceed on a STALE
+    gate state with no fresh check. This sweep runs a fresh, READ-ONLY orphan
+    check at the top of the entry flow so the bot self-protects regardless.
+
+    Gates on **true orphans (Mode B)** and **corrupt-held ledgers** — both are
+    "broker state we cannot account for", so placing new trades on top would
+    mis-count the concurrent-position cap and pile onto an unknown position.
+    Does NOT gate on ``stuck_closing`` (Mode A — the post-RTH reconciler flips
+    those) or ``submitted_held`` (a fill ``reconcile_today`` owns); those are
+    surfaced for logging only.
+
+    Never auto-closes, never flips, never places. Operator clears the gate after
+    reconciling (``cron_gate.clear_gate``).
+
+    Args:
+        client: paper-routed TigerClient (required unless ``holdings`` given).
+        holdings: optional ``{ticker: signed_qty}`` snapshot. Test seam.
+        dry_run: detect + report but do not persist discovery or set the gate.
+
+    Returns:
+        PresessionSweep. On broker-fetch failure returns ``skipped=True`` (the
+        sweep is best-effort; the downstream ``account_summary`` call is the
+        hard broker dependency).
+    """
+    if holdings is None:
+        if client is None:
+            raise ValueError("presession_sweep requires `client` or `holdings`")
+        try:
+            positions = client.positions().output["positions"]
+        except BrokerOrderError as exc:
+            return PresessionSweep(
+                holdings={}, healthy=[], orphans=[], corrupt_held=[],
+                stuck_closing=[], submitted_held=[], gated_now=False,
+                discovery_path=None, skipped=True,
+                skip_reason=f"positions fetch failed: {exc}", dry_run=dry_run,
+            )
+        holdings = {p["symbol"].upper(): float(p["quantity"]) for p in positions}
+
+    scan = orphan_check.scan_ledgers()
+    cls = orphan_check.classify_holdings(holdings, scan=scan)
+
+    gated_now = False
+    discovery_path: Optional[str] = None
+    if (cls.orphans or cls.corrupt_held) and not dry_run:
+        discovery_path = _persist_orphan_discovery(
+            cls.orphans, holdings,
+            source="presession_sweep", corrupt=cls.corrupt_held,
+        )
+        cron_gate.set_gate(
+            reason="presession_orphan_sweep",
+            payload={
+                "orphans": cls.orphans,
+                "corrupt_held": cls.corrupt_held,
+                "discovery_file": discovery_path,
+            },
+        )
+        gated_now = True
+
+    return PresessionSweep(
+        holdings={k.upper(): v for k, v in holdings.items()},
+        healthy=cls.healthy,
+        orphans=cls.orphans,
+        corrupt_held=cls.corrupt_held,
+        stuck_closing=cls.stuck_closing,
+        submitted_held=cls.submitted_held,
+        gated_now=gated_now,
+        discovery_path=discovery_path,
+        dry_run=dry_run,
+    )
 
 
 def reconcile_stop_outs(

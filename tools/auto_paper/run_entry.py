@@ -32,7 +32,7 @@ import yaml
 
 from ..broker.tiger import TigerClient
 from .. import atr_compute, regime_check, trend_template
-from . import cron_gate
+from . import cron_gate, reconcile
 from . import screener as screener_mod
 from . import shell_ledger, state
 from .critic_panel import (
@@ -201,9 +201,10 @@ def phase_init(
     run_dir.mkdir(parents=True, exist_ok=True)
     state.write_run_status(run_dir, phase="init", started_at=_now())
 
-    # Cron gate (Step 3, Mode B): if the post-RTH reconciler discovered an
-    # unledgered broker orphan, refuse to scan / place until an operator
-    # reconciles it and clears the gate. Don't even touch the broker.
+    # Cron gate fast-path (Step 3, Mode B): if a PRIOR run (the post-RTH
+    # reconciler) already discovered an unledgered broker orphan and set the
+    # gate, refuse to scan / place until an operator reconciles + clears it.
+    # Don't even touch the broker in this path.
     gated, gate_doc = cron_gate.is_gated()
     if gated:
         reason = (gate_doc or {}).get("reason", "unknown")
@@ -219,8 +220,44 @@ def phase_init(
         )
         return 2
 
-    # Account + regime
+    # Account client (also used by the pre-session sweep below).
     c = TigerClient()
+
+    # Pre-session orphan sweep (Priority 2 — Mode-B defense-in-depth): a FRESH
+    # read-only orphan check even if the post-RTH reconciler never ran (machine
+    # off / holiday / crash), so the bot self-protects before placing. Sets the
+    # gate on a true orphan or a corrupt held ledger. Best-effort: a broker-fetch
+    # failure here is non-fatal (the account_summary call below is the hard
+    # broker dependency and will fail loud if the broker is truly down).
+    try:
+        sweep = reconcile.presession_sweep(client=c)
+    except Exception as exc:  # never let the guard crash the run
+        sweep = None
+        _emit(f"[init] WARN presession sweep errored (continuing): {exc!r}")
+    if sweep is not None:
+        if sweep.stuck_closing:
+            _emit(
+                f"[init] NOTE {len(sweep.stuck_closing)} stuck-closing held "
+                f"(post-RTH reconciler domain, not gated): {sweep.stuck_closing}"
+            )
+        if sweep.skipped:
+            _emit(f"[init] WARN presession sweep skipped: {sweep.skip_reason}")
+        if sweep.gated_now:
+            state.write_run_status(
+                run_dir, phase="init", completed_at=_now(),
+                candidates_in=0, candidates_surviving_screener=0,
+                skeptic_invocations_written=0,
+                error="cron_gated: presession_orphan_sweep",
+            )
+            _emit(
+                f"PHASE_INIT_GATED reason=presession_orphan_sweep "
+                f"orphans={sweep.orphans} corrupt_held={sweep.corrupt_held} "
+                f"gate={cron_gate.GATE_PATH} -- entry halted; operator must "
+                f"reconcile + clear the gate"
+            )
+            return 2
+
+    # Account + regime
     summary = c.account_summary().output
     net_liq = float(summary.get("net_liquidation") or 0.0)
     cash = float(summary.get("cash") or 0.0)

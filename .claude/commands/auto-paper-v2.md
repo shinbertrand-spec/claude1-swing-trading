@@ -17,7 +17,11 @@ uv run python -m tools.auto_paper.run_entry --phase init
 
 Expected stdout final line: `PHASE_INIT_OK run_dir=<path> invocations=<N>`.
 
-If exit code is non-zero or the expected stdout marker is absent: surface the full stderr to Bertrand via Telegram (use `tools.telegram_notify` if available, else print to cron log) and STOP. Do not proceed.
+**Pre-session orphan sweep (Priority 2, automatic).** Before touching candidates, `phase_init` runs a fresh read-only orphan check (`reconcile.presession_sweep`): it compares live broker holdings against the paper-auto starter ledgers. If the broker holds a position with **no ledger (Mode B orphan)** or an **unparseable ledger (corrupt-held)**, it persists `journal/paper-auto/orphan_discovery_<date>.yml`, sets the cron gate, and exits with `PHASE_INIT_GATED reason=presession_orphan_sweep` (exit code 2). This is defense-in-depth: it catches orphans even if the post-RTH reconciler never ran. Stuck-closing (Mode A) positions are surfaced as a `NOTE` but NOT gated (the post-RTH reconciler owns those). To resume: reconcile the orphan (onboard or flatten) then `uv run python -m tools.auto_paper.cron_gate` clear, or `python -c "from tools.auto_paper import cron_gate; cron_gate.clear_gate()"`.
+
+If exit code is `2` with `PHASE_INIT_GATED`: the run is halted by design — surface the orphan/corrupt tickers to Bertrand and STOP (do not clear the gate autonomously; the operator reconciles first).
+
+If exit code is non-zero (and not the gated `2` above) or the expected stdout marker is absent: surface the full stderr to Bertrand via Telegram (use `tools.telegram_notify` if available, else print to cron log) and STOP. Do not proceed.
 
 Save the `run_dir` path from stdout for subsequent steps.
 
