@@ -443,6 +443,7 @@ def refresh_starter_stops(
     *,
     client: TigerClient,
     open_by_id: dict[Any, dict[str, Any]] | None = None,
+    holdings: dict[str, float] | None = None,
     dry_run: bool = False,
 ) -> list[ReconcileResult]:
     """Ensure every ``starter`` position has a live broker-side STP.
@@ -457,22 +458,36 @@ def refresh_starter_stops(
     had stop_order_id in their ledgers but the actual broker orders were
     long gone, DAY-expired during prior overnight cycles.)
 
+    **Naked-short guard (Priority 3 hardening, 2026-06-08).** A STP SELL is
+    only ever placed against shares the broker actually holds. If a position
+    is ``starter`` in ``positions.json`` but the broker holds <1 share (closed
+    externally, or a journal/broker desync), placing a sized SELL stop would
+    create naked-short exposure if it triggered — the same incident class as
+    the COIN −639 short. Such positions are surfaced as ``not_held`` and NO
+    stop is placed. The placed quantity is also clamped to the lesser of the
+    journal share count and the broker-held quantity, so a partial-close
+    desync never over-stops into a naked tail.
+
     For each starter position:
 
-    1. Check ``open_by_id`` for the ledger's recorded ``stop_order_id``.
-       If found, the stop is live — emit a ``stop_intact`` result and skip.
-    2. Otherwise the previous stop is gone (DAY-expired or cancelled).
-       Place a fresh STP via :func:`TigerClient.place_stop_loss` sized to
-       the current journal share count at the ledger's ``current_stop``
-       (or the starter leg's ``initial_stop`` fallback).
-    3. Update the ledger's ``stop_order_id`` via
-       :func:`state.record_stop_order_id`.
+    1. Skip with ``not_held`` if the broker holds <1 share (naked-short guard).
+    2. Check ``open_by_id`` for the ledger's recorded ``stop_order_id`` (or any
+       open STP SELL on the symbol). If found, the stop is live — emit
+       ``stop_intact`` and skip.
+    3. Otherwise the previous stop is gone (DAY-expired or cancelled). Place a
+       fresh STP via :func:`TigerClient.place_stop_loss` sized to
+       ``min(journal_shares, broker_held)`` at the ledger's ``current_stop``
+       (or the ``stop_price`` fallback), then update the ledger's
+       ``stop_order_id`` via :func:`state.record_stop_order_id`.
 
     Args:
         client: paper-routed :class:`TigerClient`.
         open_by_id: optional pre-fetched ``{order_id: order}`` map (avoids
             a second :func:`TigerClient.open_orders` call when invoked from
             :func:`reconcile_today`). When None, fetches it here.
+        holdings: optional ``{ticker: signed_qty}`` broker snapshot for the
+            naked-short guard. When None, fetched via ``client.positions()``.
+            Test seam.
         dry_run: when True, computes what would be placed without
             calling the broker or touching the ledger.
 
@@ -483,12 +498,27 @@ def refresh_starter_stops(
         - ``stop_intact`` — ledger's stop_order_id is in open_orders; no-op
         - ``stop_replaced`` — ledger had no stop_order_id OR it wasn't open
           at broker; placed a fresh STP, ledger updated
+        - ``not_held`` — broker holds <1 share; stop NOT placed (naked guard)
         - ``stop_dry_run`` — would have placed a fresh STP (dry_run=True)
         - ``error`` — could not refresh; ``reason`` describes the cause
     """
     starters = _starter_positions()
     if not starters:
         return []
+
+    # Naked-short guard: never place a SELL stop for a position the broker
+    # does not actually hold. Fetch holdings once up front.
+    if holdings is None:
+        try:
+            positions = client.positions().output["positions"]
+        except BrokerOrderError as exc:
+            return [
+                ReconcileResult(
+                    ticker=p["ticker"], action="error",
+                    reason=f"positions fetch: {exc}",
+                ) for p in starters
+            ]
+        holdings = {p["symbol"].upper(): float(p["quantity"]) for p in positions}
 
     if open_by_id is None:
         try:
@@ -508,6 +538,18 @@ def refresh_starter_stops(
     results: list[ReconcileResult] = []
     for entry in starters:
         ticker = entry["ticker"]
+
+        # Naked-short guard: refuse to place a SELL stop the broker can't back.
+        held = int(abs(holdings.get(ticker.upper(), 0)))
+        if held < 1:
+            results.append(ReconcileResult(
+                ticker=ticker, action="not_held",
+                reason=("ledger=starter but broker holds <1 share; STP SELL NOT "
+                        "placed (would be naked short). Journal/broker desync — "
+                        "stuck-closing / pre-session sweep reconciler's domain."),
+            ))
+            continue
+
         ledger_stop_oid = _existing_stop_order_id(ticker)
 
         # Look up by id AND by (symbol, type=STP, action=SELL) — Tiger's
@@ -534,12 +576,15 @@ def refresh_starter_stops(
             ))
             continue
 
-        # No live stop — need to place one.
-        shares = int(entry.get("shares") or 0)
+        # No live stop — need to place one. Clamp the size to the lesser of the
+        # journal share count and the broker-held quantity, so a partial-close
+        # desync (broker holds fewer than the journal thinks) never over-stops.
+        journal_shares = int(entry.get("shares") or 0)
+        shares = min(journal_shares, held) if journal_shares > 0 else held
         if shares <= 0:
             results.append(ReconcileResult(
                 ticker=ticker, action="error",
-                reason=f"position has non-positive shares={shares}",
+                reason=f"position has non-positive shares={journal_shares}",
             ))
             continue
 

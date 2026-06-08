@@ -32,7 +32,7 @@ class FakeTradeClient:
     verify the wiring end-to-end.
     """
 
-    def __init__(self, *, filled=None, open_=None):
+    def __init__(self, *, filled=None, open_=None, positions=None):
         self.account_full = "PAPER87654321"
         self.config_info = {
             "tiger_id_masked": "...5678",
@@ -44,6 +44,7 @@ class FakeTradeClient:
         }
         self._filled = filled or []
         self._open = open_ or []
+        self._positions = positions or []
         self.calls: list[tuple] = []
         self._next_order_id = 70_000
 
@@ -55,6 +56,10 @@ class FakeTradeClient:
     def get_open_orders(self, *, account, **_):
         self.calls.append(("get_open_orders", account))
         return self._open
+
+    def get_positions(self, *, account, **_):
+        self.calls.append(("get_positions", account))
+        return self._positions
 
     def get_contract(self, *, symbol, **_):
         self.calls.append(("get_contract", symbol))
@@ -146,9 +151,18 @@ def _seed_submitted(paper_dirs, *, ticker, order_id, shares=10, limit_price=850.
     })
 
 
-def _client(filled=None, open_=None):
+def _client(filled=None, open_=None, positions=None):
     from tools.broker.tiger import TigerClient
-    return TigerClient(_trade_client=FakeTradeClient(filled=filled or [], open_=open_ or []))
+    return TigerClient(_trade_client=FakeTradeClient(
+        filled=filled or [], open_=open_ or [], positions=positions or []))
+
+
+def _pos(symbol, quantity):
+    """Broker position stand-in for FakeTradeClient.get_positions."""
+    return SimpleNamespace(
+        contract=SimpleNamespace(symbol=symbol), quantity=quantity,
+        average_cost=0.0, market_value=0.0, unrealized_pnl=0.0,
+    )
 
 
 # ------------------------------------------------------- tests
@@ -479,7 +493,7 @@ def test_refresh_reports_intact_when_stop_open_at_broker(paper_dirs):
         quantity=10, limit_price=None, status="Submitted",
     )
     client = _client(open_=[open_stp])
-    results = reconcile.refresh_starter_stops(client=client)
+    results = reconcile.refresh_starter_stops(client=client, holdings={"NVDA": 10})
     assert len(results) == 1
     assert results[0].action == "stop_intact"
     assert results[0].stop_order_id == 55001
@@ -491,7 +505,7 @@ def test_refresh_replaces_when_stop_expired_at_broker(paper_dirs):
                   stop_order_id=44001)
     # Broker has NO open orders → stop expired.
     client = _client(open_=[])
-    results = reconcile.refresh_starter_stops(client=client)
+    results = reconcile.refresh_starter_stops(client=client, holdings={"MXL": 503})
     assert len(results) == 1
     r = results[0]
     assert r.action == "stop_replaced"
@@ -514,7 +528,7 @@ def test_refresh_detects_live_stop_by_symbol_when_ledger_id_stale(paper_dirs):
         quantity=152, limit_price=None, status="Submitted",
     )
     client = _client(open_=[open_stp])
-    results = reconcile.refresh_starter_stops(client=client)
+    results = reconcile.refresh_starter_stops(client=client, holdings={"VRT": 152})
     assert results[0].action == "stop_intact", (
         "symbol-match should count as live protection, not trigger double-stop"
     )
@@ -525,12 +539,58 @@ def test_refresh_dry_run_does_not_place(paper_dirs):
     _seed_starter(paper_dirs, ticker="GO", shares=3113, stop_price=6.41,
                   stop_order_id=22222)
     client = _client(open_=[])
-    results = reconcile.refresh_starter_stops(client=client, dry_run=True)
+    results = reconcile.refresh_starter_stops(
+        client=client, holdings={"GO": 3113}, dry_run=True)
     assert results[0].action == "stop_dry_run"
     assert "would place STP" in (results[0].reason or "")
     # Ledger's stop_order_id unchanged.
     doc = yaml.safe_load(open(state.ledger_path("GO")))
     assert doc["position_state"]["stop_order_id"] == 22222
+
+
+# ---- Priority 3 hardening (2026-06-08): naked-short guard + clamp + fetch ----
+
+def _stp_sell_calls(client):
+    return [c for c in client._tc.calls
+            if c[0] == "place_order" and c[1] == "SELL"]
+
+
+def test_refresh_not_held_guards_naked_short(paper_dirs):
+    """Ledger=starter but broker holds 0 -> not_held, NO STP SELL placed."""
+    _seed_starter(paper_dirs, ticker="MXL", shares=503, stop_price=65.77,
+                  stop_order_id=44001)
+    client = _client(open_=[])
+    results = reconcile.refresh_starter_stops(client=client, holdings={})  # broker flat
+    assert [r.action for r in results] == ["not_held"]
+    assert "naked short" in (results[0].reason or "")
+    assert _stp_sell_calls(client) == []          # critically: nothing placed
+    # ledger stop_order_id untouched
+    doc = yaml.safe_load(open(state.ledger_path("MXL")))
+    assert doc["position_state"]["stop_order_id"] == 44001
+
+
+def test_refresh_clamps_size_to_broker_held(paper_dirs):
+    """Journal says 503 but broker holds 300 -> place STP for 300, never 503."""
+    _seed_starter(paper_dirs, ticker="MXL", shares=503, stop_price=65.77,
+                  stop_order_id=44001)
+    client = _client(open_=[])                    # no live stop -> replace
+    results = reconcile.refresh_starter_stops(client=client, holdings={"MXL": 300})
+    assert results[0].action == "stop_replaced"
+    sells = _stp_sell_calls(client)
+    assert len(sells) == 1
+    assert sells[0][2] == 300                      # quantity clamped to held, not 503
+
+
+def test_refresh_fetches_holdings_when_none(paper_dirs):
+    """holdings=None -> fetched via client.positions(); a real holding re-arms."""
+    _seed_starter(paper_dirs, ticker="MXL", shares=503, stop_price=65.77,
+                  stop_order_id=44001)
+    client = _client(open_=[], positions=[_pos("MXL", 503)])
+    results = reconcile.refresh_starter_stops(client=client)  # no holdings seam
+    assert results[0].action == "stop_replaced"
+    sells = _stp_sell_calls(client)
+    assert len(sells) == 1 and sells[0][2] == 503
+    assert any(c[0] == "get_positions" for c in client._tc.calls)  # fetched internally
 
 
 def test_reconcile_today_invokes_refresh_for_starters(paper_dirs):
@@ -545,6 +605,7 @@ def test_reconcile_today_invokes_refresh_for_starters(paper_dirs):
         filled=[_fake_order(order_id=10001, symbol="NVDA", filled=10,
                             avg_fill_price=850.42)],
         open_=[],  # MXL stop expired; NVDA submitted not yet filled-and-open
+        positions=[_pos("MXL", 503)],  # broker holds MXL -> stop refresh is in-bounds
     )
     results = reconcile_today(client=client, dry_run=False)
     actions = {r.ticker: r.action for r in results}

@@ -69,9 +69,12 @@ refresh_results = refresh_starter_stops(client=client, dry_run=<args.dry_run>)
 - `stop_out_dry_run` — would close (`--dry-run`)
 - `error` — broker/data issue; manual review
 
+**Naked-short guard (P3 hardening, 2026-06-08):** `refresh_starter_stops` now fetches broker holdings and never places a SELL stop for a position the broker doesn't actually hold (it would create naked-short exposure if it triggered — the COIN −639 incident class). This also belt-and-suspenders the Step-1a ordering above: even if a stopped-out position slips past `reconcile_stop_outs`, the now-flat position is `not_held` and no phantom stop is re-armed. Placed quantity is clamped to `min(journal_shares, broker_held)`.
+
 `refresh_starter_stops` outcomes per starter:
-- `stop_intact` — ledger's `stop_order_id` is live at the broker; no-op
-- `stop_replaced` — placed a fresh STP at the ledger's `current_stop`, recorded the new `stop_order_id` on the ledger
+- `stop_intact` — ledger's `stop_order_id` (or any live STP SELL on the symbol) is live at the broker; no-op
+- `stop_replaced` — placed a fresh STP at the ledger's `current_stop`, sized to the broker-held qty, recorded the new `stop_order_id` on the ledger
+- `not_held` — broker holds <1 share; stop NOT placed (naked-short guard); journal/broker desync surfaced for the stuck-closing / pre-session-sweep reconcilers
 - `stop_dry_run` — would have placed a fresh STP (`--dry-run`)
 - `error` — could not refresh; ledger / broker state may need manual review
 
