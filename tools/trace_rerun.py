@@ -136,8 +136,27 @@ OHLCV_SHAPES: dict[str, set[str]] = {
 # metadata (e.g. atr_compute's period / last_close_date) is `shape_partial`
 # (informational, non-blocking) rather than `shape_fail` (authenticity failure).
 # Tools absent here default to their full OHLCV_SHAPES set (no behaviour change).
+#
+# Rule for new entries: CORE = the tool's OHLCV_SHAPES set MINUS its
+# nested-collection keys ({criteria, contractions, patterns, violations, stats})
+# and pure metadata (period, *_date). Agents routinely store only the cited
+# scalar slice of a tool's output and omit the nested breakdown dict/list;
+# demanding the full nested structure over-blocks (shape_fail) what is a
+# legitimate value-slice. Omitting a nested-detail key now degrades to
+# shape_partial (informational); omitting a CORE scalar (e.g.
+# trend_template_passes, detected) still shape_fails as an authenticity failure.
 OHLCV_CORE: dict[str, set[str]] = {
-    "tools/atr_compute.py": {"atr", "last_close"},
+    "tools/atr_compute.py": {"atr", "last_close"},                  # metadata: period, last_close_date
+    "tools/trend_template.py": {"trend_template_passes", "stage"},  # nested: criteria, stats
+    "tools/vcp_detect.py": {                                        # nested: contractions
+        "detected", "contractions_count", "pivot", "last_close", "above_pivot",
+    },
+    "tools/sltb_scan.py": {"sltb_triggered"},                       # nested: criteria, stats
+    "tools/climax_top_detect.py": {"patterns_firing"},             # nested: patterns, stats
+    "tools/violations_detect.py": {                                # nested: violations
+        "violations_firing", "violation_5_alone_full_exit",
+    },
+    "tools/pullback_detect.py": {"detected"},                      # nested: criteria, stats
 }
 
 

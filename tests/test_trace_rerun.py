@@ -257,3 +257,58 @@ def test_ohlcv_missing_core_key_still_shape_fail():
     r = report.results[0]
     assert r.status == "shape_fail"
     assert report.has_divergence is True
+
+
+def test_trend_template_value_slice_is_shape_partial():
+    """Agent stored trend_template scalars (passes + stage) but omitted the
+    nested `criteria` dict and `stats` — a legitimate value-slice, the exact
+    case that false-BLOCKed every discretionary candidate at Gate 2 before the
+    CORE entry was added."""
+    recorded = {
+        "id": 1,
+        "tool": "tools/trend_template.py",
+        "inputs": {"ticker": "LSCC"},
+        "output": {"trend_template_passes": 7, "stage": "stage_2_confirmed"},
+        "fetched_at": "2026-06-09T13:30:00Z",
+    }
+    report = rerun(_ledger_with_steps([recorded]))
+    r = report.results[0]
+    assert r.status == "shape_partial"
+    assert "criteria" in r.missing_keys
+    assert report.has_divergence is False
+    assert report.divergent_count == 0
+
+
+def test_trend_template_missing_core_scalar_still_shape_fail():
+    """Dropping the headline `trend_template_passes` count is an authenticity
+    failure, not a value-slice."""
+    recorded = {
+        "id": 1,
+        "tool": "tools/trend_template.py",
+        "inputs": {"ticker": "LSCC"},
+        "output": {"stage": "stage_2_confirmed"},  # no trend_template_passes
+        "fetched_at": "2026-06-09T13:30:00Z",
+    }
+    report = rerun(_ledger_with_steps([recorded]))
+    assert report.results[0].status == "shape_fail"
+    assert report.has_divergence is True
+
+
+def test_vcp_detect_value_slice_omitting_contractions_is_shape_partial():
+    """Agent stored the vcp scalars but omitted the nested `contractions`
+    array — value-slice, not authenticity failure."""
+    recorded = {
+        "id": 1,
+        "tool": "tools/vcp_detect.py",
+        "inputs": {"ticker": "LSCC"},
+        "output": {
+            "detected": False, "contractions_count": 2, "pivot": 143.0,
+            "last_close": 142.9, "above_pivot": False,
+        },  # no `contractions` list
+        "fetched_at": "2026-06-09T13:30:00Z",
+    }
+    report = rerun(_ledger_with_steps([recorded]))
+    r = report.results[0]
+    assert r.status == "shape_partial"
+    assert "contractions" in r.missing_keys
+    assert report.has_divergence is False
