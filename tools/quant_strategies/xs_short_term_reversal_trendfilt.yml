@@ -1,0 +1,65 @@
+# Cross-sectional short-term reversal — per-ticker trend-filter A/B.
+#
+# Controlled clone of xs_short_term_reversal.yml on the SAME 88-ticker
+# universe + SAME 2017-2026 window. The ONLY difference is the added grid
+# axis `ticker_trend_sma_period: [null, 200]`.
+#
+# `null` reproduces the deployed behaviour: rank the whole universe by
+# trailing 5-day return and long the biggest losers outright — which in a
+# Stage-4 decline means buying falling knives. `200` pre-filters the pool
+# to names above their own 200d SMA BEFORE the bottom-N draw, so the
+# strategy longs "the biggest 1-week pullback among names still in their
+# own uptrend" (canonical mean-reversion-within-uptrend).
+#
+# This strategy has NO market-regime filter at all (unlike connors_rsi2),
+# so it is the more exposed of the two to the falling-knife failure. One
+# ranked report = direct off-vs-on comparison over identical windows.
+#
+# Signal change (Alfred Delta 5): adds an eligibility gate, but restores
+# the canonical "reversion within an uptrend" shape. Promotion requires
+# clearing the full walk-forward deployment gate.
+
+meta:
+  name: xs_short_term_reversal_trendfilt
+  version: "1.0"
+  source: "Lehmann 1990 / Jegadeesh 1990 — per-ticker trend-filter A/B"
+  description: |
+    A/B of cross-sectional 5-day return reversal with vs without the
+    per-ticker close > own 200d SMA pre-filter, on the 88-ticker
+    sp500_leaning universe over 2017-2026 rolling walk-forward.
+  horizon_days: 5
+  status: candidate
+
+kind: xs_short_term_reversal
+
+universe:
+  name: sp500_leaning_88
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: 5
+  bottom_n: [5, 10, 15]
+  rebalance_period_days: 5
+  max_hold_days: 5
+  ticker_trend_sma_period: [null, 200]  # A/B AXIS — null = off (deployed), 200 = per-ticker uptrend pre-filter
+  atr_period: 20
+  atr_stop_multiple: 2.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30

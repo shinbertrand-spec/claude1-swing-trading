@@ -1,0 +1,71 @@
+# Connors Cumulative RSI(2) — per-ticker trend-filter A/B experiment.
+#
+# Controlled clone of connors_rsi2.yml on the SAME 88-ticker universe and
+# the SAME 2017-2026 window (which spans the 2022 rate-hike bear that gave
+# the unfiltered strategy an OOS Sharpe of -21.68 in its worst window).
+#
+# The ONLY difference vs connors_rsi2.yml is the param grid axis
+# `ticker_trend_sma_period: [null, 200]`. `null` reproduces the deployed
+# (SPY-regime-only) behaviour exactly; `200` adds the canonical Connors
+# "per-ticker close > own 200d SMA" gate, restricting entries to
+# mean-reversion WITHIN a name's own uptrend rather than catching a
+# Stage-4 falling knife.
+#
+# Hypothesis (directive #1 of the 2026-06-09 hard recommendation): the
+# SPY-only regime filter does NOT prevent buying an individual name in
+# its own Stage-4 decline (SPY can be above its 200d while NFLX bleeds).
+# The per-ticker gate should specifically rescue the down-regime windows
+# the SPY filter misses. One ranked report = direct off-vs-on comparison.
+#
+# Signal change (Alfred Delta 5): this is NOT param tuning — it adds an
+# eligibility gate. But the gate RESTORES a canonical component the clone
+# dropped (Connors' own literature; "mean-reversion within an uptrend"),
+# so the doctrine story is "fix a lossy clone", not "invent a new shape".
+# Promotion still requires clearing the full walk-forward deployment gate.
+
+meta:
+  name: connors_rsi2_trendfilt
+  version: "1.0"
+  source: "Connors, *Short Term Trading Strategies That Work* (2008); quantitativo.com 2025 re-validation — per-ticker trend-filter A/B"
+  description: |
+    A/B of the Connors cumulative-RSI(2) mean-reversion strategy with vs
+    without the per-ticker close > own 200d SMA gate, on the 88-ticker
+    sp500_leaning universe over 2017-2026 rolling walk-forward.
+  horizon_days: 5
+  status: v1_candidate
+
+kind: connors_rsi2
+
+universe:
+  name: sp500_leaning_88
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  rsi_period: 2
+  cumulative_period: 2
+  entry_threshold: [5, 10, 15]
+  cooldown_days: [3, 5]
+  regime_sma_period: 200            # SPY market-regime filter (unchanged)
+  ticker_trend_sma_period: [null, 200]  # A/B AXIS — null = off (deployed), 200 = canonical per-ticker gate
+  atr_period: 20
+  atr_stop_multiple: 2.0
+  max_hold_days: 5
+  target_r_multiple: null
+  risk_per_trade: 0.002
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5

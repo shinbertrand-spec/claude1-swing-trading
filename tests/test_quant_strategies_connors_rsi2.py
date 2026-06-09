@@ -259,3 +259,80 @@ def test_replay_skips_when_ticker_missing_from_state():
     state = precompute(universe, params)
     signals = replay(b, "B", params, state)
     assert signals == []
+
+
+# ------------------------------------------------ per-ticker trend filter
+
+
+def _shallow_dip_uptrend_df(n: int = 300, start: float = 100.0) -> pd.DataFrame:
+    """Strong uptrend with a tiny 2-bar pullback at the end.
+
+    The pullback is deep enough to drive RSI(2) oversold, but the close
+    stays comfortably above the lagging 50-day SMA — i.e. mean-reversion
+    WITHIN the name's own uptrend. The per-ticker trend filter should KEEP
+    this name eligible.
+    """
+    closes = np.array([start * (1 + 0.004 * i) for i in range(n - 2)])
+    closes = np.concatenate([closes, closes[-1] * np.array([0.985, 0.975])])
+    opens = closes.copy()
+    highs = closes * 1.005
+    lows = closes * 0.995
+    volumes = np.full(n, 1_000_000, dtype=int)
+    return pd.DataFrame(
+        {"Open": opens, "High": highs, "Low": lows, "Close": closes, "Volume": volumes},
+        index=pd.date_range("2023-01-02", periods=n, freq="B"),
+    )
+
+
+def test_trend_filter_excludes_below_ma_knife():
+    """An oversold name BELOW its own 50d SMA (a falling knife) is eligible
+    without the filter and excluded with it."""
+    spy = _trending_df()
+    a = _dip_at_end_df()  # ~12% drop off the highs → close below its own 50d SMA
+    universe = {"SPY": spy, "A": a}
+    off = precompute(universe, _params(regime_sma_period=50, entry_threshold=20.0))
+    on = precompute(
+        universe,
+        _params(regime_sma_period=50, entry_threshold=20.0, ticker_trend_sma_period=50),
+    )
+    a_off = [d for d, ts in off.eligible_by_date.items() if "A" in ts]
+    a_on = [d for d, ts in on.eligible_by_date.items() if "A" in ts]
+    assert len(a_off) > 0, "without the trend filter, the knife should be eligible"
+    assert len(a_on) == 0, "with the trend filter, a below-MA name must be excluded"
+
+
+def test_trend_filter_keeps_above_ma_pullback():
+    """An oversold name still ABOVE its own 50d SMA stays eligible with the filter."""
+    spy = _trending_df()
+    b = _shallow_dip_uptrend_df()
+    universe = {"SPY": spy, "B": b}
+    on = precompute(
+        universe,
+        _params(regime_sma_period=50, entry_threshold=30.0, ticker_trend_sma_period=50),
+    )
+    b_on = [d for d, ts in on.eligible_by_date.items() if "B" in ts]
+    assert len(b_on) > 0, "a pullback within the name's own uptrend must stay eligible"
+
+
+def test_trend_filter_absent_is_off():
+    """Param absent vs explicit None vs omitted all yield identical eligibility."""
+    spy = _trending_df()
+    a = _dip_at_end_df()
+    universe = {"SPY": spy, "A": a}
+    base = precompute(universe, _params(regime_sma_period=50, entry_threshold=20.0))
+    explicit_none = precompute(
+        universe,
+        _params(regime_sma_period=50, entry_threshold=20.0, ticker_trend_sma_period=None),
+    )
+    assert base.eligible_by_date.keys() == explicit_none.eligible_by_date.keys()
+
+
+def test_trend_filter_invalid_period_raises():
+    import pytest
+    spy = _trending_df()
+    a = _dip_at_end_df()
+    universe = {"SPY": spy, "A": a}
+    with pytest.raises(ValueError, match="ticker_trend_sma_period"):
+        precompute(universe, _params(regime_sma_period=50, ticker_trend_sma_period=0))
+    with pytest.raises(ValueError, match="ticker_trend_sma_period"):
+        precompute(universe, _params(regime_sma_period=50, ticker_trend_sma_period=-5))

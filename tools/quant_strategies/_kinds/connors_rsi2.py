@@ -4,9 +4,14 @@ Per Larry Connors, *Short Term Trading Strategies That Work* (2008) and
 the quantitativo.com 2025 re-validation ("Squeezing more profits with
 cumulative RSI"):
 
-Entry (any trading day on which BOTH hold):
-* SPY close > SPY 200d SMA (regime filter — bull regime only)
+Entry (any trading day on which ALL active filters hold):
+* SPY close > SPY 200d SMA (market-regime filter — bull regime only)
 * Per-ticker 2-period cumulative RSI < ``entry_threshold`` (default 10)
+* [optional] Per-ticker close > own ``ticker_trend_sma_period``-day SMA —
+  the canonical Connors "price > 200d MA" gate. Off by default; when set it
+  restricts entries to mean-reversion WITHIN the name's own uptrend rather
+  than catching a Stage-4 falling knife (which the SPY-only regime filter
+  does not prevent).
 
 The 2-period cumulative RSI is the sum of today's 2-period RSI and
 yesterday's 2-period RSI. Lower values = deeper short-term oversold.
@@ -93,6 +98,23 @@ def precompute(
     entry_threshold = float(params.get("entry_threshold", 10.0))
     regime_sma_period = int(params.get("regime_sma_period", 200))
 
+    # Per-ticker trend filter (optional; None/absent = off — backwards
+    # compatible). When set, a ticker is eligible only when its OWN close
+    # is above its OWN SMA(period) on the signal day. This is the canonical
+    # Connors form ("price > 200d MA") that the SPY-only regime filter above
+    # does NOT capture: SPY can sit above its 200d while an individual name
+    # bleeds out in a Stage-4 decline. Without this gate the deepest-oversold
+    # ranking (``max_concurrent_positions``) preferentially selects the
+    # falling knives. With it, entries are mean-reversion WITHIN the name's
+    # own uptrend.
+    ticker_trend_sma_period = params.get("ticker_trend_sma_period")
+    if ticker_trend_sma_period is not None:
+        ticker_trend_sma_period = int(ticker_trend_sma_period)
+        if ticker_trend_sma_period <= 0:
+            raise ValueError(
+                f"ticker_trend_sma_period must be positive; got {ticker_trend_sma_period}"
+            )
+
     bench_df = universe_dfs[benchmark]
     bench_close = bench_df["Close"].astype(float)
     bench_sma = bench_close.rolling(window=regime_sma_period, min_periods=regime_sma_period).mean()
@@ -102,13 +124,20 @@ def precompute(
     if len(bench_dates) < max(regime_sma_period, rsi_period + cum_period) + 1:
         return ConnorsRsi2State({}, [])
 
-    # Pre-compute per-ticker cumulative RSI series once.
+    # Pre-compute per-ticker cumulative RSI series once (plus the per-ticker
+    # trend-SMA "above" mask when the trend filter is enabled).
     ticker_crsi: dict[str, pd.Series] = {}
+    ticker_above_trend: dict[str, pd.Series] = {}
     candidate_tickers = [t for t in universe_dfs if t != benchmark]
     for t in candidate_tickers:
         tdf = universe_dfs[t]
         closes = tdf["Close"].astype(float)
         ticker_crsi[t] = _cumulative_rsi(closes, rsi_period, cum_period)
+        if ticker_trend_sma_period is not None:
+            sma = closes.rolling(
+                window=ticker_trend_sma_period, min_periods=ticker_trend_sma_period
+            ).mean()
+            ticker_above_trend[t] = closes > sma  # NaN-SMA (warm-up) → False
 
     # Per-day concurrency cap. Connors' canonical max-3 enforces this at
     # the broker level, but Claude1's per-ticker independent simulator has
@@ -133,8 +162,13 @@ def precompute(
             if d not in crsi_series.index:
                 continue
             v = crsi_series.loc[d]
-            if pd.notna(v) and v < entry_threshold:
-                scored.append((float(v), t))
+            if not (pd.notna(v) and v < entry_threshold):
+                continue
+            if ticker_trend_sma_period is not None:
+                above = ticker_above_trend[t]
+                if d not in above.index or not bool(above.loc[d]):
+                    continue
+            scored.append((float(v), t))
         if not scored:
             continue
         if max_concurrent is not None and len(scored) > max_concurrent:

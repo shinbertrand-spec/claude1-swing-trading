@@ -188,3 +188,61 @@ def test_precompute_missing_both_sizing_params_raises():
     params.pop("bottom_n")
     with pytest.raises(ValueError, match="bottom_pct or bottom_n"):
         precompute(universe, params)
+
+
+# ------------------------------------------------ per-ticker trend filter
+
+
+def test_trend_filter_excludes_below_ma_loser():
+    """The biggest loser is a name below its own SMA; the trend filter
+    drops it from the bottom-N pool, leaving only the above-trend name."""
+    universe = {
+        "SPY": _df_constant_drift(260, 100.0, 0.0),
+        "UP": _df_constant_drift(260, 100.0, 0.004),    # uptrend → above own 50d SMA
+        "DOWN": _df_constant_drift(260, 100.0, -0.004),  # downtrend → below own SMA, biggest loser
+    }
+    params = _params()
+    params["bottom_n"] = 1
+    params["ticker_trend_sma_period"] = 50
+    state = precompute(universe, params)
+    assert len(state.rebalance_dates) > 0
+    up_picked_count = 0
+    for d in state.rebalance_dates:
+        picked = state.bottom_n_by_date[d]
+        # DOWN is the biggest loser but below its own SMA → never picked.
+        assert "DOWN" not in picked, "a below-MA falling knife must be filtered out"
+        # Early dates lack 50 bars of history → no name clears the gate (empty).
+        # Once UP has enough history it is the only survivor → {UP}.
+        assert picked in ({"UP"}, set()), f"unexpected pick: {picked}"
+        if picked == {"UP"}:
+            up_picked_count += 1
+    assert up_picked_count > 0, "UP should survive the trend gate on later dates"
+
+
+def test_trend_filter_off_still_picks_biggest_loser():
+    """Without the filter (default), DOWN is the biggest loser and is picked —
+    proving the filter is what changes the behaviour, not the universe."""
+    universe = {
+        "SPY": _df_constant_drift(260, 100.0, 0.0),
+        "UP": _df_constant_drift(260, 100.0, 0.004),
+        "DOWN": _df_constant_drift(260, 100.0, -0.004),
+    }
+    params = _params()
+    params["bottom_n"] = 1
+    off = precompute(universe, dict(params))
+    none = precompute(universe, {**params, "ticker_trend_sma_period": None})
+    for d in off.rebalance_dates:
+        assert "DOWN" in off.bottom_n_by_date[d]
+        assert off.bottom_n_by_date[d] == none.bottom_n_by_date[d]
+
+
+def test_trend_filter_invalid_period_raises():
+    import pytest
+    universe = {"SPY": _df_constant_drift(60, 100.0, 0.0), "X": _df_constant_drift(60, 100.0, 0.0)}
+    params = _params()
+    params["ticker_trend_sma_period"] = 0
+    with pytest.raises(ValueError, match="ticker_trend_sma_period"):
+        precompute(universe, params)
+    params["ticker_trend_sma_period"] = -10
+    with pytest.raises(ValueError, match="ticker_trend_sma_period"):
+        precompute(universe, params)

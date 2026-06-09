@@ -6,6 +6,10 @@ Per Lehmann 1990 / Jegadeesh 1990 / paperswithbacktest catalog
 Long-only adaptation for Claude1's swing framework:
 
 * Rebalance weekly (5 trading days).
+* [optional] Pre-filter the pool to names above their own
+  ``ticker_trend_sma_period``-day SMA (off by default). Restricts the
+  bottom-N draw to pullbacks WITHIN an uptrend rather than outright
+  falling knives.
 * Rank universe by trailing ``lookback_days``-day return.
 * Long the bottom ``bottom_n`` tickers (biggest 1-week losers — bet on
   mean-reversion bounce).
@@ -75,6 +79,22 @@ def precompute(
             f"benchmark {benchmark!r} not in universe_dfs; add it to the spec's universe.tickers"
         )
 
+    # Per-ticker trend filter (optional; None/absent = off — backwards
+    # compatible). When set, only names whose OWN close is above their OWN
+    # SMA(period) on the rebalance day are eligible to be ranked. The
+    # bottom-N losers are then drawn from that uptrend-only pool — i.e.
+    # "biggest 1-week pullback among names still in their own uptrend",
+    # the canonical mean-reversion-within-uptrend form. Without it, the
+    # bottom-N ranking longs the biggest losers outright, which in a
+    # Stage-4 decline means buying falling knives (the 2022 OOS failure).
+    ticker_trend_sma_period = params.get("ticker_trend_sma_period")
+    if ticker_trend_sma_period is not None:
+        ticker_trend_sma_period = int(ticker_trend_sma_period)
+        if ticker_trend_sma_period <= 0:
+            raise ValueError(
+                f"ticker_trend_sma_period must be positive; got {ticker_trend_sma_period}"
+            )
+
     # Use benchmark's dates as the calendar (any common-traded date).
     bench_dates = list(universe_dfs[benchmark].index)
     if len(bench_dates) < lookback + 2:
@@ -103,8 +123,15 @@ def precompute(
                 continue
             closes_through = tdf["Close"].loc[:d]
             r = _trailing_return(closes_through, lookback)
-            if np.isfinite(r):
-                scores.append((r, t))
+            if not np.isfinite(r):
+                continue
+            if ticker_trend_sma_period is not None:
+                if len(closes_through) < ticker_trend_sma_period:
+                    continue
+                sma = float(closes_through.iloc[-ticker_trend_sma_period:].mean())
+                if not (float(closes_through.iloc[-1]) > sma):
+                    continue
+            scores.append((r, t))
         # Sort ASCENDING — bottom-N = biggest losers.
         scores.sort()
         bottom_n_by_date[d] = {t for _, t in scores[:bottom_n]}
