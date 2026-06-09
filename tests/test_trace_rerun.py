@@ -294,6 +294,64 @@ def test_trend_template_missing_core_scalar_still_shape_fail():
     assert report.has_divergence is True
 
 
+def test_pure_tool_drops_nonsignature_input_annotation():
+    """A skeptic/researcher annotation in the recorded inputs (a key compute()
+    does not accept, e.g. `note`) is dropped before the re-run, not treated as
+    a signature mismatch. The 2026-06-09 COHR stop_sizer bear step carried a
+    `note` input that previously false-diverged Gate 2."""
+    from tools.compute_yoy import compute as yoy_compute
+    recorded = yoy_compute(1.87, 1.55)
+    inputs = dict(recorded.inputs)
+    inputs["note"] = "bear annotation that is not a compute() parameter"
+    step = {
+        "id": 1, "tool": recorded.tool, "inputs": inputs,
+        "output": recorded.output, "fetched_at": recorded.fetched_at,
+    }
+    report = rerun(_ledger_with_steps([step]))
+    r = report.results[0]
+    assert r.status == "match"
+    assert "note" in r.dropped_inputs
+    assert report.has_divergence is False
+
+
+def test_pure_tool_missing_required_input_is_well_formed_not_divergent():
+    """When recorded inputs match SOME but not all compute() parameters (a
+    required one is absent), the step was recorded under a different
+    entrypoint (e.g. a network compute_from_ticker) — not value-replayable.
+    Mark well_formed (non-blocking), not divergent. The 2026-06-09 LSCC
+    pe_expansion_check bear step (recorded with `ticker`) is this case."""
+    from tools.compute_yoy import compute as yoy_compute
+    recorded = yoy_compute(1.87, 1.55)
+    partial = dict(recorded.inputs)
+    # Keep one valid param, drop the rest so a required param is missing while
+    # at least one recorded key still matches the signature.
+    keys = sorted(partial.keys())
+    for k in keys[1:]:
+        del partial[k]
+    step = {
+        "id": 1, "tool": recorded.tool, "inputs": partial,
+        "output": recorded.output, "fetched_at": recorded.fetched_at,
+    }
+    report = rerun(_ledger_with_steps([step]))
+    r = report.results[0]
+    assert r.status == "well_formed"
+    assert report.has_divergence is False
+
+
+def test_pure_tool_total_garbage_inputs_still_divergent():
+    """Zero recorded inputs match the signature → not a recognizable call of
+    the tool (fabricated step). Red-team guard must still fire (divergent)."""
+    step = {
+        "id": 1, "tool": "tools/compute_yoy.py",
+        "inputs": {"foo": "bar"}, "output": {"yoy_growth_decimal": 0.0},
+        "fetched_at": "2026-05-17T14:30:00Z",
+    }
+    report = rerun(_ledger_with_steps([step]))
+    r = report.results[0]
+    assert r.status == "divergent"
+    assert report.has_divergence is True
+
+
 def test_vcp_detect_value_slice_omitting_contractions_is_shape_partial():
     """Agent stored the vcp scalars but omitted the nested `contractions`
     array — value-slice, not authenticity failure."""

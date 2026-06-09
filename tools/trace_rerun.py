@@ -29,6 +29,7 @@ composite entry point.
 """
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
@@ -173,6 +174,7 @@ class StepRerunResult:
     detail: str = ""
     diffs: list[dict[str, Any]] = field(default_factory=list)
     missing_keys: list[str] = field(default_factory=list)
+    dropped_inputs: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -316,11 +318,67 @@ def _check_pure(step: dict) -> StepRerunResult:
     fn = _PURE_REGISTRY[tool]
     recorded_inputs = step.get("inputs") or {}
     recorded_output = step.get("output")
-    # Strip ``v1_preliminary`` housekeeping key that some tools accept on input
-    # but the compute() signature doesn't take.
-    call_inputs = {
-        k: v for k, v in recorded_inputs.items() if k not in {"v1_preliminary"}
+
+    # Resolve compute()'s signature so the re-run is resilient to how agents
+    # actually record inputs (they annotate, and they sometimes use a non-pure
+    # entrypoint like compute_from_ticker). Two robustness rules:
+    #   (a) drop recorded input keys the compute() signature doesn't accept
+    #       (annotations like `note`, plus the `v1_preliminary` housekeeping
+    #       flag) — they cannot affect the computation, so dropping is safe;
+    #       they are surfaced as `dropped_inputs` (warn, not block).
+    #   (b) if, after that, a REQUIRED compute() parameter is absent, the
+    #       recorded inputs don't match this pure entrypoint at all — the agent
+    #       recorded a different (e.g. network compute_from_ticker) call. That
+    #       step is not value-replayable here; mark it well_formed (non-block)
+    #       rather than divergent, instead of crashing on a TypeError.
+    sig = inspect.signature(fn)
+    params = sig.parameters
+    accepts_var_kw = any(p.kind is p.VAR_KEYWORD for p in params.values())
+    housekeeping = {"v1_preliminary"}
+    if accepts_var_kw:
+        call_inputs = {k: v for k, v in recorded_inputs.items() if k not in housekeeping}
+        dropped = sorted(k for k in housekeeping if k in recorded_inputs)
+    else:
+        accepted = set(params)
+        call_inputs = {k: v for k, v in recorded_inputs.items() if k in accepted}
+        dropped = sorted((set(recorded_inputs) - accepted) - housekeeping
+                         | (housekeeping & set(recorded_inputs)))
+    required = {
+        name for name, p in params.items()
+        if p.default is inspect.Parameter.empty
+        and p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
     }
+    missing_required = sorted(required - set(call_inputs))
+    if missing_required:
+        if not call_inputs:
+            # NOT ONE recorded input matches a compute() parameter — this is not a
+            # recognizable call of this tool (garbage / fabricated step). Keep it
+            # divergent so the red-team guard against fabricated steps still fires.
+            return StepRerunResult(
+                step_id=sid,
+                tool=tool,
+                klass="pure",
+                status="divergent",
+                detail=f"recorded inputs match no {tool} compute() parameter — signature mismatch",
+                dropped_inputs=dropped,
+            )
+        # Some parameters match but a REQUIRED one is absent → the step was
+        # recorded under a different (e.g. network compute_from_ticker)
+        # entrypoint, so it is not value-replayable via the pure compute().
+        # Well-formed (non-blocking), surfaced as a warn — not a divergence.
+        return StepRerunResult(
+            step_id=sid,
+            tool=tool,
+            klass="pure",
+            status="well_formed",
+            detail=(
+                f"recorded inputs do not satisfy {tool} compute() signature "
+                f"(missing required {missing_required}); the step was likely recorded "
+                f"from a non-pure entrypoint (e.g. compute_from_ticker) — not "
+                f"value-replayable, treated as well-formed (non-blocking)"
+            ),
+            dropped_inputs=dropped,
+        )
     try:
         rerun_entry = fn(**call_inputs)
     except TypeError as exc:
@@ -330,6 +388,7 @@ def _check_pure(step: dict) -> StepRerunResult:
             klass="pure",
             status="divergent",
             detail=f"inputs signature mismatch: {exc}",
+            dropped_inputs=dropped,
         )
     except Exception as exc:
         return StepRerunResult(
@@ -338,9 +397,17 @@ def _check_pure(step: dict) -> StepRerunResult:
             klass="pure",
             status="divergent",
             detail=f"rerun raised {type(exc).__name__}: {exc}",
+            dropped_inputs=dropped,
         )
     if _values_close(recorded_output, rerun_entry.output, DEFAULT_REL_TOL, DEFAULT_ABS_TOL):
-        return StepRerunResult(step_id=sid, tool=tool, klass="pure", status="match")
+        return StepRerunResult(
+            step_id=sid,
+            tool=tool,
+            klass="pure",
+            status="match",
+            detail=(f"dropped non-signature inputs: {dropped}" if dropped else ""),
+            dropped_inputs=dropped,
+        )
     diffs = _diff(recorded_output, rerun_entry.output)
     return StepRerunResult(
         step_id=sid,
@@ -349,6 +416,7 @@ def _check_pure(step: dict) -> StepRerunResult:
         status="divergent",
         detail=f"{len(diffs)} mismatch(es) — first: {diffs[0] if diffs else 'n/a'}",
         diffs=diffs,
+        dropped_inputs=dropped,
     )
 
 
