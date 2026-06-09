@@ -48,6 +48,8 @@ uv run python -m tools.<name> <args>
 
 The tool prints a `TraceEntry` as JSON. Append it to your ledger's `reasoning_trace` with a fresh integer `id` and cite that id in the relevant `trace_refs[]`.
 
+**Record the tool's `output` faithfully — only the keys the tool emits.** You may store a value-slice (the subset of `output` keys you cite is fine; the re-run tolerates a missing nested breakdown like `criteria`/`contractions`). But NEVER add a key the tool does not emit — no prose, no commentary, no hand-computed field inside `output`. `risk-and-compliance` Gate 2 re-runs each tool and treats any extra `output` key the tool did not produce as a divergence that BLOCKs the candidate. Likewise, `inputs` must be the parameters the tool's `compute()` accepts — if you ran a `compute_from_ticker` variant, record that call shape (it is treated as non-replayable), don't graft `ticker` onto the pure signature. Your interpretation goes in the Markdown report, never in the trace `output`.
+
 | Tool | When to call |
 |---|---|
 | `tools.regime_check <ticker> --sector <ETF>` | Always, FIRST — `output.candidate_qualifies_for_entry` and `output.circuit_breaker_stage_4` gate everything else |
