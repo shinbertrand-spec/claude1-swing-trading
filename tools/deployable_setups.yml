@@ -103,6 +103,7 @@ deployable:
 
   - setup: connors_rsi2
     track: generic
+    hold: true                       # PARKED 2026-06-09 — STALE PRE-CAP VERDICT, FAILS GATE UNDER CURRENT CODE (see parked note below)
     variant: "entry_threshold=15, cooldown_days=3, regime SPY>200d SMA"
     universe: "88-ticker SP500-leaning"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -114,7 +115,35 @@ deployable:
     cleared_at: 2026-05-26
     cleared_under_tightened_gate_at: 2026-05-26
     cleared_under_extended_history_at: 2026-05-26
-    notes: "MARGINAL PASSER added 2026-05-26 to replenish the live-deployable list after the 8y extension knocked out SEPA-VCP + EP + clenow. Source: Connors, *Short Term Trading Strategies That Work* (2008); quantitativo.com 2025 re-validation. Strategy: per-day eligibility = (SPY > SPY 200d SMA) AND (per-ticker cumulative-RSI(2) < 15). The 200d regime filter is the cross-regime feature — when SPY breaks below 200d (e.g. most of 2022), no new entries fire. EXCEPT — 2022 OOS Sharpe was -21.68 anyway (DD -12.80% in that window). Despite the regime filter, whipsaw periods around the SPY 200d crossover caught the strategy long during 2022 declines. The aggregate Sharpe 1.01 + DD -18.39% pass the doctrine gate cleanly, but the per-window distribution is bimodal: weak in 2020-2023 (0.04 / 0.49 / -21.68 / 0.57) and very strong in 2024-2025 (3.67 / 3.92). Recent edge is real but the 5/6 bar achieved by dual_ma / xs_reversal is NOT met (3/6 here = exactly at the 0.5 floor). DEPLOY HALF-SIZE if wired live; revisit if 2026 OOS doesn't carry the strong 2024-2025 trend forward. Position-sizing constraint: risk_per_trade=0.2% (5x lower than discretionary) because the simulator has no concurrent-position cap; Connors' canonical caps at 3 concurrent. NOT WIRED LIVE — KIND_REGISTRY family awaiting tools/auto_paper/quant_scanner.py. Full report: journal/backtest/connors_rsi2-8y.md."
+    # cleared_under_concurrent_cap_at: NEVER — this is the defect. Every other
+    # generic deployable carries this field; connors_rsi2 does not. The 1.01
+    # PASS above was computed BEFORE the max_concurrent=8 cap landed (commit
+    # 77ad485) and was never re-validated under it.
+    parked_at: 2026-06-09
+    parked_reason: "STALE PRE-CONCURRENCY-CAP VERDICT — FAILS GATE UNDER CURRENT CODE. Re-run of this exact spec on 2026-06-09 (journal/backtest/connors_rsi2-recheck-2026-06-09.md): aggregate OOS Sharpe collapses 1.01 -> 0.59, composite gate FAILED (aggregate clause fails Sharpe > 1.0). The concurrent-position cap (max_concurrent=8) rejects 1215/2607 outcomes (47%) — connors_rsi2's deepest-oversold ranking fires far more overlapping signals than 8 concurrent slots absorb, so the cap halves the realised edge. The original 1.01 PASS predated the cap (commit 77ad485) and was the ONLY generic deployable never re-validated under it (no cleared_under_concurrent_cap_at field). This is the SAME failure class as dual_ma in parked_by_concurrent_cap_reveals_weak_edge: a wide-firing strategy with no top-K / quality filter to prioritise the best signals inside the cap. Per-window 2022 OOS Sharpe -21.68 (the worst window in the entire deployable set) is the live falling-knife exposure that surfaced as the T/NFLX paper-auto defers. Excluded from live scan via hold:true. RE-DEPLOY ONLY with a strategy-level fix that reduces signal density to fit the cap: a top-K-most-oversold rank (analogous to the ts_momentum 2026-06-07 top-K fix that recovered that strategy), NOT the per-ticker trend filter (the 2026-06-09 A/B falsified that — see below). Surfaced by directive #1 of the 2026-06-09 hard recommendation. Full evidence: journal/backtest/connors_rsi2-recheck-2026-06-09.md + connors_rsi2_trendfilt-ab.md."
+    notes: "MARGINAL PASSER added 2026-05-26 to replenish the live-deployable list after the 8y extension knocked out SEPA-VCP + EP + clenow. Source: Connors, *Short Term Trading Strategies That Work* (2008); quantitativo.com 2025 re-validation. Strategy: per-day eligibility = (SPY > SPY 200d SMA) AND (per-ticker cumulative-RSI(2) < 15). The 200d regime filter is a MARKET-regime filter (SPY) only — it does NOT gate the individual name's own trend, so SPY can sit above its 200d while a name bleeds in a Stage-4 decline (the 2022 OOS Sharpe -21.68 despite the SPY filter). Position-sizing constraint: risk_per_trade=0.2%. Full original report: journal/backtest/connors_rsi2-8y.md. ** PARKED 2026-06-09 — see parked_reason above. **"
+
+  # ---------------------------------------------------------------------------
+  # TREND-FILTER A/B (directive #1 of the 2026-06-09 hard recommendation) — FALSIFIED.
+  # ---------------------------------------------------------------------------
+  # Hypothesis: adding the canonical per-ticker "close > own 200d SMA" gate
+  # (new opt-in `ticker_trend_sma_period` param on connors_rsi2 +
+  # xs_short_term_reversal kinds, commit 2a99c09) rescues the down-regime
+  # windows the SPY-only filter misses. Tested as a controlled [null, 200]
+  # A/B over identical 88-ticker / 2017-2026 / 6-window walk-forward.
+  # RESULT: the filter HARMS both strategies; no filter-ON combo clears the gate.
+  #   - connors_rsi2_trendfilt: best filter-ON Sharpe -0.03 (vs filter-OFF 0.59);
+  #     filter-ON occupies all 6 bottom ranks. journal/backtest/connors_rsi2_trendfilt-ab.md
+  #   - xs_short_term_reversal_trendfilt: filter-ON bottom_n=5 Sharpe 0.96 / |MDD|
+  #     27.37% FAILS vs filter-OFF 1.60 / 24.19% PASS. The filter strips the
+  #     deepest-oversold names that drive the 2020 COVID + best windows.
+  #     journal/backtest/xs_short_term_reversal_trendfilt-ab.md
+  # The binary 200d gate removes signal, not noise: the sharpest mean-reversion
+  # bounces come from names below their 200d. Directive #1 NOT validated. The
+  # real fix for connors_rsi2 is a top-K-most-oversold rank inside the cap, not
+  # a trend gate. xs_short_term_reversal (bottom_n=5, no filter) is UNCHANGED and
+  # remains a clean gate-passer.
+  # ---------------------------------------------------------------------------
 
   - setup: clenow_momentum_liquid_us
     track: generic
