@@ -574,6 +574,13 @@ def scan_today(
         setup = row.get("setup")
         if setup is None:
             continue
+        # HOLD gate (2026-06-15): skip parked rows (``hold: true``). They
+        # cleared the backtest gate but are NOT approved for live placement.
+        # Mirrors config.deployable_setup_names() so parked strategies (e.g.
+        # connors_rsi2, parked 2026-06-09) don't leak candidates into the v2
+        # scan only to be deferred downstream by the critic panel.
+        if row.get("hold", False):
+            continue
         # Don't pre-filter by KIND_REGISTRY here — the row's `setup` is a
         # spec FILENAME, not a kind name. scan_setup loads the spec and
         # dereferences via ``spec["kind"]``; rows whose spec is missing or

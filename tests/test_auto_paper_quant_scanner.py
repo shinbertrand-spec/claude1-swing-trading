@@ -490,3 +490,51 @@ def test_scan_setup_passes_spec_period_start_to_refresh_universe(tmp_path, monke
         f"scan_setup should pass spec.period.start to _refresh_universe; "
         f"got {seen_start_dates}"
     )
+
+
+def test_scan_today_skips_held_rows(tmp_path, monkeypatch):
+    """Parked rows (``hold: true``) must not be scanned.
+
+    Regression for the 2026-06-15 leak: ``connors_rsi2`` was parked
+    2026-06-09 (``hold: true``) but ``scan_today`` iterated EVERY deployable
+    row, so parked-strategy candidates reached the critic panel only to be
+    deferred — wasting critic spend and masking the live-scan picture. The
+    scanner now mirrors ``config.deployable_setup_names()``'s HOLD gate.
+    """
+    import textwrap
+
+    dep = tmp_path / "deployable_setups.yml"
+    dep.write_text(
+        textwrap.dedent(
+            """
+            deployable:
+              - setup: live_setup
+                track: generic
+              - setup: parked_setup
+                track: generic
+                hold: true
+            """
+        ).strip(),
+        encoding="utf-8",
+    )
+
+    scanned: list[str] = []
+
+    def _fake_scan_setup(row, **kwargs):
+        scanned.append(row["setup"])
+        return quant_scanner.ScannerReport(
+            setup=row["setup"], spec_path="", eligible_tickers=[],
+            candidates=[], signal_date=None, note="stub",
+        )
+
+    monkeypatch.setattr(quant_scanner, "scan_setup", _fake_scan_setup)
+
+    reports = quant_scanner.scan_today(
+        account_net_liq=100_000.0,
+        regime_class="stage_2_confirmed",
+        deployable_path=str(dep),
+    )
+
+    assert scanned == ["live_setup"]
+    assert "parked_setup" not in scanned
+    assert [r.setup for r in reports] == ["live_setup"]
