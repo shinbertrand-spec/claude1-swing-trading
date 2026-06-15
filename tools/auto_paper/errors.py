@@ -3,7 +3,7 @@
 Per [auto-paper LLM/Python boundary refactor 2026-05-28]: the cron MUST
 surface phase-boundary problems rather than silently exit 0. Each exception
 maps to a distinct LLM-step recovery action (see
-``.claude/commands/auto-paper-v2.md`` for the Telegram-surface contract).
+``.claude/commands/auto-paper.md`` for the Telegram-surface contract).
 """
 from __future__ import annotations
 

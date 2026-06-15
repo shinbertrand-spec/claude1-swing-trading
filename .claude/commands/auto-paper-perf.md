@@ -126,7 +126,7 @@ Append a single-line "what to do" hint based on what surfaced:
 - ⚠ status with n < 30 → "Verdict preliminary; need <30 - n> more closed trades for a meaningful read."
 - Notes contain "no exit_price" → "<N> closed ledger(s) missing `position_state.exit_price`. Session 3's close-out writer may have skipped them — manual inspection via `cat ledgers/paper-auto/<TICKER>.yml`."
 - `open_pnl.error` populated → "Tiger paper account unreachable; rerun later or check `C:/Users/User/Desktop/tiger/tiger_openapi_config.properties`."
-- `calib.ready_to_flip` is `True` → "Panel calibration gate PASSED (<calib.n_joined> joined trades, panel discriminates) — panel sizing is ready to go live: add `--apply-panel-sizing` to `/auto-paper-v2` Step 5 + update the shadow-mode docs."
+- `calib.ready_to_flip` is `True` → "Panel calibration gate PASSED (<calib.n_joined> joined trades, panel discriminates) — panel sizing is ready to go live: add `--apply-panel-sizing` to `/auto-paper` Step 5 + update the shadow-mode docs."
 - `calib.ready_to_flip` is `False` AND `calib.n_joined > 0` → "Panel calibration accumulating (<calib.n_joined>/20 joined closed trades). Keep sizing in shadow mode."
 
 DO NOT auto-promote, auto-park, or auto-edit anything. Performance reporting is observational — decisions belong to Bertrand.

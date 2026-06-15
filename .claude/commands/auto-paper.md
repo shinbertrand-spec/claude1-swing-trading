@@ -1,423 +1,93 @@
 ---
-description: /auto-paper — autonomous paper-trading entry. Reads today's morning-scan candidates, filters to deployable setups (tools/deployable_setups.yml), runs the 5-gate compliance per candidate, sizes via tools.position_sizer against the Tiger paper account, auto-places limit-buy orders via TigerClient, writes to a PARALLEL ledger track (ledgers/paper-auto/<TICKER>.yml + journal/paper-auto/positions.json) that's separate from the human-discretionary track. Paper-only — refuses live. Supports --dry-run. Pair with /auto-paper-monitor (intraday exits) and /auto-paper-reconcile (EOD fills + stops); see /auto-paper-perf for realized vs backtest scoring.
+description: /auto-paper — autonomous paper-trading entry (quant-scanner orchestrator). Five-step filesystem-protocol flow — Python owns all state (scan → screener → shell ledgers → skeptic + critic panel → aggregate + size + place via TigerClient); the LLM only fires subagents and saves envelopes. Writes the PARALLEL paper-auto track (ledgers/paper-auto/<TICKER>.yml + journal/paper-auto/positions.json), separate from the human-discretionary track. Paper-only — TigerClient refuses live. Supports --dry-run (true-shadow: runs steps 1–4 for real, places nothing). Pair with /auto-paper-monitor + /auto-paper-reconcile; see /auto-paper-perf for realized-vs-backtest scoring.
 ---
 
-# /auto-paper — Autonomous Paper-Trading (Entry Pipeline)
+# /auto-paper — quant-scanner entry orchestrator (filesystem-protocol boundary)
 
-You are running the autonomous paper-trade entry pipeline. **No human approval per trade** — the human approval boundary is at the *deployable-setup list* level (only setups that cleared rolling walk-forward + clean 5-gate compliance get placed).
+Trigger auto-paper for the current trading day. Five steps; Python owns all state, LLM only fires subagents and saves envelopes.
 
-**Track separation.** Everything written here goes to the parallel paper-auto track (`ledgers/paper-auto/*.yml` + `journal/paper-auto/positions.json`). The human-discretionary track (`journal/positions.json`) is untouched.
-
-**Safety properties (invariants):**
-- Tiger paper account only — `TigerClient()` refuses live by default; this command NEVER passes `allow_live=True`.
-- Only setups on `tools/deployable_setups.yml` are placed.
-- Paper-auto-track hard rules (5% / 20% / 8 / 15%) checked separately from human track in `tools.auto_paper.pipeline._check_track_limits`.
-- `--dry-run` prints what would be placed without calling Tiger.
+Per [auto-paper LLM/Python boundary refactor 2026-05-28]. Architecture-level rationale at the spec; this command is the LLM coordination layer only.
 
 ## $ARGUMENTS parsing
 
-- `--dry-run` — print planned placements only; no broker calls, no file writes.
-- `--candidates-file <path>` — override default `journal/candidates/YYYY-MM-DD.md` (today's scan output).
-- `--limit <N>` — cap the number of placements this run (default: no cap; respects 8-position limit naturally).
-- `--tickers <T1,T2>` — restrict to specific tickers from today's candidate list.
+- `--dry-run` — **true-shadow mode.** Steps 1–4 run identically (scan, screener, shell ledgers, skeptic + critic panel all fire for real). Step 5 still aggregates + sizes + builds + validates each candidate, but passes `--dry-run` to `--phase post_panel` so **no broker order is placed and no submitted ledger / positions.json row is written** — placement rows report `status=dry_run`. Use this to validate the path places-clean at a real market open without trading. Only Step 5's Python invocation changes; everything upstream is byte-identical to a live run.
 
-## Step 1 — Read today's candidates
+## Step 1 — Initialize the run
 
-Read `journal/candidates/YYYY-MM-DD.md` (today's ET date) or `$ARGUMENTS --candidates-file`. Parse the candidate list: ticker, setup type, suggested entry, suggested stop, suggested target, grade.
-
-If no candidates file exists (Task Scheduler didn't fire, weekend, holiday), exit with:
-
-```
-AUTO_PAPER_NO_CANDIDATES — no candidates file at <path>. /morning-scan-telegram may not have fired today.
+Run:
+```bash
+uv run python -m tools.auto_paper.run_entry --phase init
 ```
 
-## Step 2 — Pre-filter by deployable setup
+Expected stdout final line: `PHASE_INIT_OK run_dir=<path> invocations=<N>`.
 
-For each candidate, check `tools.auto_paper.config.is_deployable(setup_type)`. Drop candidates whose setup_type is not on the deployable list — surface in the summary as `skipped (non-deployable)`.
+**Pre-session orphan sweep (Priority 2, automatic).** Before touching candidates, `phase_init` runs a fresh read-only orphan check (`reconcile.presession_sweep`): it compares live broker holdings against the paper-auto starter ledgers. If the broker holds a position with **no ledger (Mode B orphan)** or an **unparseable ledger (corrupt-held)**, it persists `journal/paper-auto/orphan_discovery_<date>.yml`, sets the cron gate, and exits with `PHASE_INIT_GATED reason=presession_orphan_sweep` (exit code 2). This is defense-in-depth: it catches orphans even if the post-RTH reconciler never ran. Stuck-closing (Mode A) positions are surfaced as a `NOTE` but NOT gated (the post-RTH reconciler owns those). To resume: reconcile the orphan (onboard or flatten) then `uv run python -m tools.auto_paper.cron_gate` clear, or `python -c "from tools.auto_paper import cron_gate; cron_gate.clear_gate()"`.
 
-## Step 2b — Quant-scanner candidates (KIND_REGISTRY family)
+If exit code is `2` with `PHASE_INIT_GATED`: the run is halted by design — surface the orphan/corrupt tickers to Bertrand and STOP (do not clear the gate autonomously; the operator reconciles first).
 
-In addition to the morning-scan candidates from Step 1, the deployable list now includes KIND_REGISTRY quant strategies (dual_ma_trend_following, xs_short_term_reversal, connors_rsi2 as of 2026-05-26) that are NOT generated by `/morning-scan-telegram`. Run the quant scanner to produce live signals for them:
+If exit code is non-zero (and not the gated `2` above) or the expected stdout marker is absent: surface the full stderr to Bertrand via Telegram (use `tools.telegram_notify` if available, else print to cron log) and STOP. Do not proceed.
 
-```python
-from tools.auto_paper.quant_scanner import scan_today
-from tools.broker.tiger import TigerClient
-from tools.regime_check import compute as regime_compute
+Save the `run_dir` path from stdout for subsequent steps.
 
-c = TigerClient()  # paper-routed
-summary = c.account_summary().output
-account = summary["net_liquidation"]
-cash = summary["cash"]
+If `invocations=0` — that means the scanner returned no candidates today (or all hit the Phase 1 screener). Proceed to Step 3 (skipping Step 2 since there's nothing to fire); Step 5 will produce an empty placement_results and exit clean.
 
-# Pull SPY regime once and thread it into both the scanner AND the
-# per-candidate sizing path. The pipeline also reads regime independently
-# (regime-conditional sizing, lever D) — the scanner reads it here so its
-# pre-sized share counts reflect the same regime multiplier.
-regime = regime_compute("SPY").output["stage_class"]
+## Step 2 — Fire skeptic subagents
 
-quant_reports = scan_today(
-    account_net_liq=account,
-    regime_class=regime,
-    cash_available=cash,
-)
+Read `{run_dir}/03_skeptic_invocations.yml`. It contains an `invocations` list. For each entry:
+
+1. Invoke the `trade-skeptic` subagent via the Agent tool. Use the entry's `prompt` field verbatim as the agent prompt.
+2. The subagent returns a structured bear thesis. Extract the terminal JSON envelope (per `.claude/agents/trade-skeptic.md` output schema).
+3. Save the JSON envelope to the entry's `envelope_path`.
+
+**Fire all skeptics in PARALLEL** — single message, one Agent tool call per ticker. Wait for all to complete before Step 3.
+
+If any skeptic fails to return a valid envelope, save a stub envelope at `envelope_path` with `{"status": "subagent_unavailable", "ticker": "<TICKER>", "verdict": "WEAK"}` so Phase post_skeptic can proceed (Phase 2 design is log-only; missing skeptic doesn't block placement).
+
+## Step 3 — Build panel invocations
+
+Run:
+```bash
+uv run python -m tools.auto_paper.run_entry --phase post_skeptic
 ```
 
-Each `ScannerReport` contains a `candidates: list[CandidateInput]` — already sized via `position_sizer` with the right grade ("B"), regime, ATR, and stop. These bypass the deep-dive + 5-gate path (the strategy IS the thesis — the deployment gate on `tools/deployable_setups.yml` already did the equivalent of a 5-gate validation, mechanically, over thousands of historical signals).
+Expected stdout final line: `PHASE_POST_SKEPTIC_OK panel_invocations=<N>`.
 
-Carry the quant candidates forward into Step 3b.
+If `MissingEnvelopeError` is raised in stderr, surface to Bertrand and STOP — Step 2 was incomplete.
 
-If `scan_today` raises (e.g. data_cache fetch failure mid-universe), log the error and continue with morning-scan candidates only — quant family is additive, not blocking.
+## Step 4 — Fire critic panel subagents
 
-## Step 3 — Per-surviving-candidate: deep-dive + 5-gate
+Read `{run_dir}/05_panel_invocations.yml`. For each `invocations[*]` entry:
 
-For each candidate that passes Step 2:
+1. For each `critic_name` in the entry's `critics_to_fire`:
+   - Invoke the named subagent (located at `.claude/agents/swing-critics/<critic_name>.md`).
+   - Prompt: `"Apply the swing-critic invocation contract to this input dict: <entry.panel_input as JSON>. Emit ONLY the JSON envelope per the template's output schema."`
+   - Save the envelope to `{entry.envelope_dir}/<critic_name>.json`.
 
-1. **Deep-dive via `trade-researcher`** — same as `/morning-deep-dive` Step 3. Writes the candidate ledger to `ledgers/candidates/YYYY-MM-DD/<TICKER>.yml`. Capture the ledger path.
+**Fire ALL critics for ALL candidates in PARALLEL** — single message, one Agent tool call per (ticker × critic). Typical fire count: 3 candidates × 4 critics = 12 parallel calls. Wait for all before Step 5.
 
-2. **Compliance via `risk-and-compliance` Mode 2** — same as `/morning-deep-dive` Step 4. Pass the candidate ledger path + a proposed trade dict (entry = pivot from ledger, stop = stop from ledger, target = 2× R from entry, shares = TBD).
+If individual critics fail: skip silently (aggregator handles partial votes). If ALL critics for a ticker fail: that's an LLM failure surface — proceed to Step 5 and let `MissingEnvelopeError` raise on the full-fail.
 
-   **For sizing, the trade-researcher's proposed shares may not match what the paper account can support.** Provide a placeholder size of 1 for the hard-rule check; we re-size from `position_sizer` + account state below. The other checks (freshness, trace audit, stale phrases, adversarial review) are independent of size.
+## Step 5 — Aggregate and place
 
-   **Phase 7 H1 SHADOW MODE (effective 2026-05-26 until further notice).** The risk-and-compliance agent now runs six gates (Gate 6 = `debate_synthesis` composing the H3 `SwingVerdict` enum). Per `swing-2026-05-25-paper-trade-handoff` §Step 4 D1 default = Option A (shadow): the paper-auto track is the first live use of Gate 6, with zero prior validation data. To avoid first-day-live untested-gate blocks, instruct risk-and-compliance as follows when invoking:
-
-   > "Run all six gates per your standard sequence. Write the Gate 6 debate output to `ledgers/debate/<TICKER>-<DATE>.yml` as designed. **For the FINAL verdict line returned to me, the auto-paper track is operating in H1 shadow mode: any SwingVerdict in {ENTRY_STRONG, ENTRY_NORMAL, WATCH_BUILD_THESIS, DEFER} maps to APPROVE for placement purposes; only REJECT (any mechanical gate 1-4 BLOCK, OR Gate 6 `already_fired` risk-trigger override) blocks. Surface the actual SwingVerdict in the report; the placement decision is the shadow-mode-mapped value.** Shadow mode lifts after 2-4 weeks once `ledgers/debate/` contains enough comparison data per H1 spec §A.4, or sooner if the retrospective A/B simulation clears the lift threshold."
-
-   If verdict is `BLOCK` (or shadow-mapped to REJECT): skip this candidate; surface in summary as `blocked: <reason>` (include the original SwingVerdict). On placement, surface a one-line "shadow gate 6: <SwingVerdict>" in the summary so Bertrand can compare verdicts side-by-side in `ledgers/debate/`.
-
-3. **Re-size via `tools.position_sizer`** using the paper account's current `available_funds`:
-
-   ```python
-   from tools.broker.tiger import TigerClient
-   c = TigerClient()  # paper-routed
-   summary = c.account_summary().output
-   account = summary["available_funds"]
-   ```
-
-   Then:
-
-   ```
-   uv run python -m tools.position_sizer \
-     --account <account> --entry <pivot> --atr <ledger.technical.atr_14> \
-     --setup-grade <ledger.setup_classification.grade> \
-     --regime <ledger.regime.broad_market_stage_class> \
-     --cash-available <account>
-   ```
-
-   Use `output.shares` and `output.capital`. Don't compute by hand.
-
-   Note: `available_funds` may come back as `Infinity` on a fresh paper account (SDK quirk noted in `project_broker_bridge` memory). When `Infinity`, fall back to `summary["cash"]` for sizing math.
-
-4. **Build the `CandidateInput`:**
-
-   ```python
-   from tools.auto_paper.pipeline import CandidateInput
-   cand = CandidateInput(
-       ticker=<ticker>,
-       setup_type=<ledger.setup_classification.type>,
-       setup_grade=<ledger.setup_classification.grade>,
-       pivot_price=<ledger.setup_classification.pivot_price>,
-       limit_price=<pivot * 1.001>,  # ask + 0.1% per CLAUDE.md
-       stop_price=<ledger.setup_classification.stop_price>,
-       target_price=<entry + 2 * (entry - stop)>,
-       shares=<position_sizer output.shares>,
-       sector_etf=<ledger.regime.sector_etf>,
-       reasoning_trace=<ledger.reasoning_trace>,
-   )
-   ```
-
-5. **Place via `tools.auto_paper.pipeline.place_candidate`:**
-
-   ```python
-   from tools.auto_paper.pipeline import place_candidate
-   result = place_candidate(cand, client=c, dry_run=<args.dry_run>)
-   ```
-
-   The pipeline enforces:
-   - Deployable-setup filter (already applied; defensive double-check)
-   - Refuses if a paper-auto ledger already exists for this ticker
-   - **Phase 1 screener (`tools.auto_paper.screener`)** — strategy-blind disqualifier checks added 2026-05-27:
-     - Active securities class action / SEC investigation (finviz news scan) → BLOCK
-     - Recent dilutive raise (finviz news scan) → BLOCK
-     - Earnings within forward 10-trading-day window → BLOCK
-     - Sector lookup (yfinance GICS sector → SPDR ETF) → CORRECT (not a block)
-     Hard-block hits surface as `status: "rejected"` with `reason: "screener:<check> — <detail>"`. Sector mismatches patch `cand.sector_etf` in place before sector-cap accounting. Catches what the walk-forward backtest's sanitized universe could not see (e.g. the GO active-class-action case from 2026-05-26).
-   - Track-level hard rules (5% / 20% / 8 / 15%) against paper-auto track only
-   - Calls `TigerClient.place_limit_buy` (or skips if `dry_run=True`)
-   - Writes `ledgers/paper-auto/<TICKER>.yml` with `state: submitted`
-   - Appends to `journal/paper-auto/positions.json`
-
-   Capture `result.status`, `result.broker_order_id`, `result.ledger_path`, `result.reason`. The screener trace lives at `result.screener_trace` for placed-OR-rejected candidates — surface litigation hits in the summary as `screener: <ticker> — <first matching headline>`.
-
-## Step 3b — Quant candidates: shell-ledger + skeptic, then pipeline
-
-For each `CandidateInput` from each `ScannerReport.candidates` (collected in Step 2b), the flow is now three sub-steps:
-
-### Step 3b.1 — Pre-screen via Phase 1 screener (deterministic)
-
-The pipeline runs `tools.auto_paper.screener.screen` internally; the screener catches litigation / dilution / forward-earnings before any broker call. If you want to surface screener-block reasons cleanly in the summary, you can also call screener directly before invoking the pipeline:
-
-```python
-from tools.auto_paper.screener import screen
-screen_result = screen(cand.ticker, claimed_sector_etf=cand.sector_etf)
-if screen_result.blocked:
-    # Surface in summary; skip Step 3b.2 + 3b.3
-    continue
-if screen_result.corrected_sector_etf:
-    # Pipeline does this internally too, but recording the corrected sector
-    # here lets you display the correction in the summary.
-    cand = replace(cand, sector_etf=screen_result.corrected_sector_etf)
+Run live by default. **ONLY** append `--dry-run` to this invocation if the literal token `--dry-run` was present in `$ARGUMENTS` for this command. A cron / scheduled run passes no arguments → it MUST run live (no `--dry-run`).
+```bash
+# live (default — what the cron uses):
+uv run python -m tools.auto_paper.run_entry --phase post_panel
+# manual true-shadow ONLY when the operator passed --dry-run:
+uv run python -m tools.auto_paper.run_entry --phase post_panel --dry-run
 ```
 
-### Step 3b.2 — Build shell ledger + invoke trade-skeptic (Phase 2, log-only)
+Expected stdout final line: `PHASE_POST_PANEL_OK placed=<N>`. In `--dry-run` the marker still appears with `placed=0` (nothing was actually placed); per-ticker rows in `07_placement_results.yml` carry `status: dry_run`.
 
-For each candidate that survived the screener, build a shell candidate ledger so the **trade-skeptic** subagent can run normally. The skeptic constructs the invalidation thesis — the strongest case AGAINST taking this long — surfacing strategy-blind failure modes the quant signal can't see (e.g. above-avg volume on the pullback = distribution character; gap-driven move that the ATR stop can't survive; correlated-loss compounding with other paper-auto positions).
-
-```python
-from tools.auto_paper.shell_ledger import (
-    ShellLedgerInput, build_quant_shell_ledger,
-    write_shell_ledger, write_bull_stub_report,
-)
-from datetime import date
-
-inp = ShellLedgerInput(
-    ticker=cand.ticker,
-    setup_type=cand.setup_type,
-    setup_grade=cand.setup_grade,
-    pivot_price=cand.pivot_price,
-    stop_price=cand.stop_price,
-    sector_etf=cand.sector_etf,
-    screener_output=screen_result.to_dict() if screen_result else None,
-)
-ledger_dict, traces = build_quant_shell_ledger(inp, today=date.today())
-ledger_path = write_shell_ledger(
-    ledger_dict, ticker=cand.ticker, ledger_date=date.today(),
-)
-bull_md = write_bull_stub_report(inp=inp, ledger_path=ledger_path)
-```
-
-Then invoke the `trade-skeptic` subagent via the Agent tool. Pass the path to the just-written ledger + bull stub:
-
-> "Skeptic pass on `{ledger_path}`. This is a paper-auto quant pick — the bull case is the statistical edge captured in the strategy's walk-forward backtest (see `tools/deployable_setups.yml`), not a discretionary narrative. The bull stub at `{bull_md_path}` documents this. Your job is to surface the invalidation thesis — strategy-blind failure modes the quant signal can't detect. Write your bear thesis to `{ledger_path with -bear.md}` per the standard contract, and append bear-side trace_refs to the ledger."
-
-Parse the structured `invalidation_thesis` JSON fragment from the skeptic's bear report. **Phase 2 v2 is log-only** — the skeptic's verdict (INVALIDATION_STRONG / PARTIAL / WEAK) is recorded in the placement summary but does NOT block placement. Surface in the Step 4 summary:
-
-```
-SKEPTIC: <verdict> — <one-line invalidation thesis>
-  Risk triggers: <count>
-  Path: <bear_md_path>
-```
-
-Skip silently when the skeptic can't be invoked (sub-agent unavailable, network errors). Failure-to-skeptic does NOT block placement in Phase 2.
-
-### Step 3b.4 — Multi-rater critic panel (Phase 3, shadow mode)
-
-After the trade-skeptic pass, run the swing-critic adversarial panel for an independent set of ratings. The panel is **shadow-mode-by-default until 2026-06-10** — verdicts surface in the summary but do not modify sizing. After 1-2 weeks of calibration data, lift shadow with `apply_panel_sizing=True` and the sizing multiplier becomes load-bearing.
-
-The panel composes:
-
-- 3 core critics on EVERY candidate (`risk-manager`, `setup-quality-hawk`, `macro-skeptic`)
-- 1 specialist critic when `candidate.source == "quant_scanner"` (`quant-insight`)
-- Patel + Rasgon (reused from thematic-critics) when `candidate.sector_etf in {XLK, XSD}` AND industry contains "Semiconductor"
-
-Fire critics IN PARALLEL via Agent tool calls (single message, multiple tool blocks). Each critic emits a JSON envelope per `.claude/agents/swing-critics/_template.md`. Build the panel input dict from `cand`, the shell ledger, the screener trace, and the current paper-auto track state:
-
-```python
-from tools.auto_paper.critic_panel import (
-    CriticVote, aggregate_panel,
-    save_critic_vote, save_panel_verdict, append_calibration_log,
-)
-from datetime import date
-
-# Build the panel input dict (passed verbatim to each critic via Agent prompt)
-panel_input = {
-    "candidate": {
-        "ticker": cand.ticker, "setup_type": cand.setup_type,
-        "setup_grade": cand.setup_grade,
-        "pivot_price": cand.pivot_price, "stop_price": cand.stop_price,
-        "stop_distance_pct": (cand.pivot_price - cand.stop_price) / cand.pivot_price,
-        "sector_etf": cand.sector_etf,
-        "sector_industry": screen_result.checks[3].evidence.get("yfinance_industry"),
-        "shares": cand.shares,
-        "source": "quant_scanner",
-    },
-    "ledger_context": {
-        "ledger_path": str(ledger_path),
-        "bull_report_path": str(bull_md),
-        "bear_report_path": str(bear_md_path) if bear_md_path else None,
-        "regime_summary": ledger_dict.get("regime", {}),
-        "atr_14": ledger_dict.get("technical", {}).get("atr_14"),
-        "next_earnings_date": ledger_dict.get("fundamentals", {}).get("next_earnings_date"),
-        "screener_summary": {
-            "blocked": False,
-            "corrected_sector_etf": screen_result.corrected_sector_etf,
-            "blocking_checks": [],
-        },
-        # signal_rank/signal_percentile come from the quant_scanner
-        # reasoning_trace evidence entry (light-touch v1 — see plumbing
-        # in tools/auto_paper/quant_scanner.py:_candidate_from_signal).
-        "signal_rank": None,         # not preserved by kind-state shapes (v1 limit)
-        "signal_percentile": None,
-        "signal_score": None,
-        "n_eligible_total": next(
-            (e["output"]["n_eligible_total"] for e in cand.reasoning_trace
-             if e.get("tool") == "tools/auto_paper/quant_scanner.py:eligibility_evidence"),
-            None,
-        ),
-    },
-    "portfolio_context": {
-        "existing_positions": existing_positions,    # from state.load_positions_json()
-        "net_liquidation": net_liq,
-        "cash_buffer_pct": cash / net_liq,
-        "position_count": len(existing_positions),
-    },
-    "panel_metadata": {
-        "panel_call_id": f"{datetime.utcnow().strftime('%Y-%m-%dT%H-%M')}__{cand.ticker}",
-        "panel_firing_date": date.today().isoformat(),
-        "shadow_mode": True,
-    },
-}
-
-# Dispatch 3 core critics in parallel
-# (and quant_insight if quant_scanner candidate; and Patel/Rasgon if semi name)
-critics_to_fire = ["risk-manager", "setup-quality-hawk", "macro-skeptic"]
-if cand.source == "quant_scanner":
-    critics_to_fire.append("quant-insight")
-sector = panel_input["candidate"].get("sector_etf")
-industry = panel_input["candidate"].get("sector_industry", "")
-if sector in {"XLK", "XSD"} and "Semiconductor" in (industry or ""):
-    critics_to_fire.extend(["thematic-critic-patel", "thematic-critic-rasgon"])
-
-# IN A SINGLE MESSAGE, fire all critics in parallel via Agent tool calls.
-# Each agent prompt: "Apply the swing-critic invocation contract to this
-# input dict: <panel_input as JSON>. Emit ONLY the JSON envelope per the
-# template's output schema."
-
-# Parse each critic's terminal JSON fragment into CriticVote
-votes = [CriticVote.from_dict(parsed) for parsed in critic_outputs]
-```
-
-Then aggregate and persist:
-
-```python
-verdict = aggregate_panel(
-    votes,
-    ticker=cand.ticker,
-    panel_call_id=panel_input["panel_metadata"]["panel_call_id"],
-    shadow_mode=True,   # FLIP TO FALSE WHEN LIFTING SHADOW (≥ 2026-06-10)
-)
-
-# Persist per-critic + aggregated
-for v in votes:
-    save_critic_vote(v)
-save_panel_verdict(verdict)
-
-# Attach to cand so the pipeline can log it (and apply sizing when live)
-cand = replace(cand,
-    sizing_multiplier=verdict.sizing_multiplier,
-    panel_verdict=verdict.to_dict(),
-)
-```
-
-Surface in the Step 4 summary (new Panel column):
-```
-PANEL: <action> (multiplier=<sizing_multiplier>) — <rationale>
-  Critics: <N_total> total; <N_minus_20> minus_20; <N_minus_50> minus_50; <N_structural> structural_risk
-  Voters: <critic_name>(<vote>), ...
-```
-
-Skip silently if any individual critic fails to respond — the aggregator handles partial votes gracefully so long as ≥1 vote came back. If ALL critics fail (network outage), surface "panel: unavailable" in the summary and proceed with `cand.sizing_multiplier=1.0` (full size, like pre-Phase-3 behavior).
-
-### Step 3b.5 — Place via pipeline
-
-```python
-from tools.auto_paper.pipeline import place_candidate
-# apply_panel_sizing=False while in shadow mode; flip to True after 2026-06-10
-# (or sooner if calibration data supports lifting per Phase 3 plan).
-result = place_candidate(
-    cand, client=c, dry_run=<args.dry_run>,
-    apply_panel_sizing=False,
-)
-```
-
-After placement (or rejection), append the calibration-log entry so the
-panel-vs-realized-outcome correlation can be computed by `/auto-paper-perf`:
-
-```python
-from tools.auto_paper.critic_panel import append_calibration_log
-append_calibration_log(
-    verdict,
-    placement_status=result.status,
-    placement_shares=cand.shares if result.status == "placed" else None,
-)
-```
-
-These candidates are PRE-SIZED by the scanner — do NOT re-size, do NOT deep-dive, do NOT run the 5-gate. The pipeline still applies its standard checks:
-- Deployable-setup filter (defensive)
-- Existing-ledger refusal
-- **Phase 1 screener** — strategy-blind disqualifiers (litigation / dilution / earnings-blackout / sector correction). Per the 2026-05-27 retrospective: quant picks bypassed the 5-gate's litigation check and a class-action-defendant landed in the paper-auto track. The screener is the targeted patch — it runs even on quant candidates, because litigation and dilution are not in any OHLCV signal class. Strategy-relative checks (Stage 2 requirement, fundamental momentum thresholds, setup pattern detection) intentionally still bypass — those are baked into the quant signal definition.
-- Track-level hard rules (5% / 20% / 8 / 15%)
-- Regime-conditional sizing multiplier (lever D — pipeline now re-applies regime stage to the scanner's already-sized share count; this is intentional double-application for safety)
-- Broker call + ledger write
-
-Capture `result.status`, `result.broker_order_id`, `result.ledger_path`, `result.reason` per the same pattern as Step 3.
-
-Surface in the summary table with a `source: quant_scanner` annotation so Bertrand can distinguish quant-fired placements from morning-scan-fired ones. Include the skeptic verdict from Step 3b.2 as an additional column / annotation.
-
-### Phase progression (panel + skeptic integration)
-
-- **Phase 1 (SHIPPED 2026-05-27, e20e809)** — strategy-blind disqualifier screener in `tools.auto_paper.pipeline.place_candidate`. Hard-blocks on litigation / dilution / earnings-within-10d; corrects sector tag.
-- **Phase 2 (SHIPPED 2026-05-27, 6bea735)** — shell-ledger builder + `trade-skeptic` invocation on every quant pick. Skeptic verdict surfaces in summary, does NOT block placement.
-- **Phase 3 v1 (SHIPPED 2026-05-27, shadow mode)** — multi-rater swing-critic panel (3 core + quant-insight specialist + Patel/Rasgon on semis). Aggregator emits `sizing_multiplier`; pipeline accepts but does not yet apply per `apply_panel_sizing=False` default. Shadow mode runs ~2 weeks while calibration log accumulates.
-- **Phase 3 v2 (PENDING ~2026-06-10)** — lift shadow mode. Flip `apply_panel_sizing=True` in Step 3b.5; sizing multiplier becomes load-bearing. Decision criteria: panel-verdict-vs-realized-outcome correlation analysis from `ledgers/swing-critics/_calibration/`.
-- **Phase 4 (DEFERRED)** — compose panel verdict with Gate 6 SwingVerdict (currently parallel; could be unified). N-bear extension to `debate_synthesis`. Requires retrospective A/B simulation per `wiki/notes/swing-cherrypick-h1-design-spec.md` § A.4 before going live.
-
-## Step 4 — Summary report
-
-Output (and reply via Telegram if invoked from a Telegram session):
-
-```
-**Mode:** auto-paper (entry)  |  Dry-run: <yes|no>
-**Asof:** YYYY-MM-DD HH:MM ET
-**Account:** ...<last-4>  |  Paper: ✅  |  Net liq: $X  |  Cash: $Y
-
-### Outcomes
-
-| Ticker | Status | Skeptic | Panel | Detail |
-| NVDA   | placed | INVALIDATION_WEAK | preserve (1.0×) | order #10001, 12 sh @ $850.50, stop $810.00, ledger paper-auto/NVDA.yml |
-| AAPL   | rejected | — | — | setup_type 'Pullback-20SMA' not on deployable list |
-| MSFT   | blocked | — | — | 5-gate: trace_audit BLOCK on uncited claim |
-| GO     | rejected | — | — | screener:litigation — Active class action detected (4 headline(s)) |
-| VRT    | placed (shadow: 0.8×) | INVALIDATION_PARTIAL | reduce_20 (0.8×) | order #10003, 152 sh @ $328.10; panel: 2 minus_20 — risk_manager flags VRT overlap, setup_hawk flags distribution-character volume |
-| INTU   | placed (shadow: 0.5×) | INVALIDATION_PARTIAL | half_size_review (0.5×) | order #10004, 155 sh @ $309.85; panel: macro_skeptic minus_50 — Stage 4 post-earnings dislocation |
-| GOOGL  | dry_run | INVALIDATION_WEAK | preserve (1.0×) | would place limit-buy 8 GOOGL @ $401.50 (~$3,212) |
-| TSLA   | error | — | — | place_limit_buy: INSUFFICIENT_FUNDS |
-| ...
-
-(Shadow-mode notation: `placed (shadow: 0.8×)` means the panel recommended 80% sizing but the pipeline placed at full size because `apply_panel_sizing=False`. The Panel column shows what WOULD have been applied — visible for calibration without affecting trades.)
-
-### Track state after this run
-- Paper-auto positions: N / 8
-- Cash buffer: Z%
-- New orders placed this run: K
-- Cost basis of new placements: $W
-```
-
-## Step 5 — Companion commands in the auto-paper loop
-
-This command handles entry only. The rest of the lifecycle is owned by sibling commands:
-
-- **`/auto-paper-reconcile`** (default 4:30 PM ET) — pulls `TigerClient.get_filled_orders()`, updates each ledger's `fill_price` to the broker's `avg_fill_price`, transitions `submitted` → `starter` (or → `closed` for DAY-expired), and **places a broker-side STP SELL at the ledger's `stop_price`** sized to filled qty.
-- **`/auto-paper-monitor`** (default every 30 min, 10 AM – 3:30 PM ET) — per-bar sell-decision composer over `starter` positions; on a non-hold action places a limit-sell and cancels the resting stop.
-- **`/auto-paper-perf`** (on demand) — realized vs backtest expectation across the closed paper-auto track.
-
-Install the full cron loop with `.\scripts\install-auto-paper-tasks.ps1`. For monitoring in-flight today, `/p_s_sync --include-orders` shows open Tiger orders that haven't reconciled yet.
-
-**v1 simplifications:** partial sells from the composer close the whole position; no live trailing stop ratchet; PE-expansion warning hardcoded False (no fundamentals source); STP SELL only (no OCA bracket).
+If non-zero exit or missing marker: surface to Bertrand via Telegram with the stderr. Read `{run_dir}/07_placement_results.yml` for the per-ticker placement table and post the summary to Telegram.
 
 ## Guardrails
 
-- **Paper-only.** Never pass `allow_live=True` to `TigerClient`. The pipeline refuses to construct a live client; this is the framework's safety boundary.
-- **Track separation.** Never write to `journal/positions.json` or `ledgers/positions/<TICKER>.yml`. Those are the human-discretionary track. Paper-auto goes to `journal/paper-auto/positions.json` and `ledgers/paper-auto/<TICKER>.yml`.
-- **Deployable filter is hard.** Don't override `is_deployable` even if the setup looks great. If a new setup should be placeable, edit `tools/deployable_setups.yml` deliberately (and update `project_swing_phases` memory).
-- **No-trade is a valid outcome.** All candidates skipped / blocked is fine. Still emit the summary.
-- **Sensitive information** — account number is masked by `TigerClient`. Never echo unmasked PII into Telegram or anywhere else.
+- **Never edit Python files in `tools/auto_paper/`** from this slash command. If a step's Python fails, surface the error — don't patch.
+- **Never skip a step.** If you re-enter mid-run (e.g. after a transient failure), restart from Step 1 with a new `run_dir`; do not try to resume across runs.
+- **Telegram surfacing on ANY non-zero exit.** Silent failure is the failure mode this entire architecture is designed against.
+
+## Phase progression (critic panel)
+
+- **Phase 3 v1 (current)**: panel in shadow mode (`shadow_mode=True` default in run_entry post_panel). All candidates place at sizing_multiplier=1.0 regardless of verdict; defer verdicts still block placement.
+- **Phase 3 v2**: pass `--apply-panel-sizing` to `--phase post_panel` after calibration data correlates panel verdicts with realized P&L. Sizing becomes load-bearing.

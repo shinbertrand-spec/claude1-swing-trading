@@ -316,6 +316,21 @@ Register-AutoPaperTaskOnce `
     -DiscordChannel $ReconcileDiscordChannel `
     -Description "Claude Code paper-auto EOD reconcile: pulls filled orders, updates submitted-state ledgers to starter/closed, auto-places broker-side stop on starter transition"
 
+# --- Post-register assertion: NONE of the three jobs may carry --dry-run. ---
+# Guards against the 2026-06-05..15 incident where the entry task ran in
+# true-shadow (--dry-run) for 10 trading days and silently placed nothing.
+# A live installer must register LIVE tasks; fail loudly if any arg leaked it.
+$dryrunLeak = $false
+foreach ($tn in @($EntryTaskName, $MonitorTaskName, $ReconcileTaskName)) {
+    $t = Get-ScheduledTask -TaskName $tn -ErrorAction SilentlyContinue
+    if ($t -and ($t.Actions[0].Arguments -match '--dry-run')) {
+        Write-Error "ASSERTION FAILED: task $tn registered with --dry-run. This is a live installer; remove --dry-run."
+        $dryrunLeak = $true
+    }
+}
+if ($dryrunLeak) { exit 1 }
+Write-Output "Assertion OK: no entry/monitor/reconcile task carries --dry-run (all live)."
+
 Write-Output ""
 Write-Output "Done. Working dir for all three jobs: $ProjectRoot"
 Write-Output ""
