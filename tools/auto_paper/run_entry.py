@@ -735,6 +735,7 @@ def phase_post_panel(
                 client=client,
                 dry_run=dry_run,
                 apply_panel_sizing=False,    # shares already finalized above
+                already_regime_sized=True,   # scanner sized via position_sizer(regime_class); don't double-apply
                 auto_paper_run_dir=str(run_dir),
             )
         except Exception as exc:

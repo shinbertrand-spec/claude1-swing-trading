@@ -689,3 +689,81 @@ def test_run_dir_reference_is_schema_valid_and_places(paper_client, paper_dirs):
     assert isinstance(step["id"], int) and step["id"] >= 1   # id stamped at write
     assert step["inputs"]["kind"] == "run_dir_reference"
     assert step["output"]["auto_paper_run_dir"].endswith("2026-06-05T00-00-00")
+
+
+# ----------------------------------------------- fix 2026-06-15: cap excludes closed
+
+
+def test_open_positions_excludes_only_terminal_stages():
+    """_open_positions drops closed / closed_unfilled; keeps everything else
+    (incl. missing/unknown stage — fail-safe toward counting)."""
+    from tools.auto_paper import pipeline as _pipeline
+    rows = [
+        {"ticker": "A", "stage": "starter"},
+        {"ticker": "B", "stage": "submitted"},
+        {"ticker": "C", "stage": "trailing"},
+        {"ticker": "D", "stage": "closed_unfilled"},
+        {"ticker": "E", "stage": "closed"},
+        {"ticker": "F", "stage": "CLOSED_UNFILLED"},   # case-insensitive
+        {"ticker": "G"},                                # missing stage → counts
+    ]
+    kept = {p["ticker"] for p in _pipeline._open_positions(rows)}
+    assert kept == {"A", "B", "C", "G"}
+
+
+def test_cap_excludes_closed_unfilled_end_to_end(paper_client, paper_dirs):
+    """8 closed_unfilled rows in positions.json must NOT trip the 8-cap —
+    they are not live positions. Pre-fix this rejected on count."""
+    for i in range(8):
+        state.append_to_positions_json(
+            {"ticker": f"DEAD{i}", "sector": "XLU", "stage": "closed_unfilled"}
+        )
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
+    assert result.status == "dry_run", result.reason
+
+
+def test_cap_still_binds_on_open_positions(paper_client, paper_dirs):
+    """Sanity: 8 genuinely-open (starter) positions DO trip the cap."""
+    for i in range(8):
+        state.append_to_positions_json(
+            {"ticker": f"LIVE{i}", "sector": "XLU", "stage": "starter"}
+        )
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
+    assert result.status == "rejected"
+    assert "position count" in result.reason
+
+
+# ------------------------------- fix 2026-06-15: no double regime application
+
+
+def test_already_regime_sized_skips_rescale(paper_client, paper_dirs, monkeypatch):
+    """When already_regime_sized=True (the quant-scanner path), place_candidate
+    must NOT re-apply the regime multiplier — the scanner already did. Pre-fix
+    this double-discounted (0.75 × 0.75 ≈ 0.56)."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_resolve_regime_multiplier",
+        lambda: ("stage_2_weakening", 0.75),
+    )
+    cand = _vcp_cand(shares=12)
+    result = place_candidate(
+        cand, client=paper_client, dry_run=True, already_regime_sized=True,
+    )
+    assert result.status == "dry_run"
+    # shares unchanged at 12 (NOT 9) — scanner already applied 0.75
+    assert "12 NVDA" in result.reason
+
+
+def test_already_regime_sized_still_halts_stage_4(paper_client, paper_dirs, monkeypatch):
+    """The stage_4 circuit breaker fires regardless of already_regime_sized —
+    a 0.0 multiplier still halts new entries."""
+    from tools.auto_paper import pipeline as _pipeline
+    monkeypatch.setattr(
+        _pipeline, "_resolve_regime_multiplier",
+        lambda: ("stage_4", 0.0),
+    )
+    result = place_candidate(
+        _vcp_cand(), client=paper_client, dry_run=True, already_regime_sized=True,
+    )
+    assert result.status == "rejected"
+    assert "halt new entries" in result.reason

@@ -29,7 +29,6 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 
 INSTALL_SCRIPTS = [
     "install-auto-paper-tasks.ps1",
-    "install-auto-paper-v2-shadow.ps1",
     "install-x-ingest-tasks.ps1",
     "install-kill-switch-tasks.ps1",
     "install-news-hourly-task.ps1",

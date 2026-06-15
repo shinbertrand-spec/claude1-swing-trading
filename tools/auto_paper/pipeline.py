@@ -33,6 +33,27 @@ MAX_PCT_PER_POSITION = 0.05
 MAX_PCT_PER_SECTOR = 0.20
 MIN_CASH_BUFFER_PCT = 0.15
 
+# Terminal stages that are NOT live exposure: a DAY-expired-unfilled order
+# (`closed_unfilled`) or a closed-out position (`closed`) must not consume a
+# concurrent-position slot or add to sector concentration (fix 2026-06-15 — a
+# stale `closed_unfilled` row was prematurely tripping the 8-position cap).
+# Deny-list (not allow-list) so anything live OR unknown/missing still counts
+# — fail safe toward NOT over-placing. Compared lower-cased.
+_CLOSED_STAGES = {"closed", "closed_unfilled"}
+
+
+def _open_positions(positions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Filter a positions.json list to positions that still hold a slot.
+
+    Excludes only the terminal stages ``closed`` / ``closed_unfilled``. A
+    position with a missing/unknown stage still counts (fail-safe: an
+    unaccountable row should occupy a slot rather than be silently ignored).
+    """
+    return [
+        p for p in positions
+        if (p.get("stage") or "").strip().lower() not in _CLOSED_STAGES
+    ]
+
 # Lever D — regime-conditional live sizing (added 2026-05-26).
 # The broad-market ticker whose trend-template stage drives the live
 # sizing multiplier. Per tools.regime_check.classify_broad:
@@ -171,6 +192,7 @@ def place_candidate(
     client: TigerClient | None = None,
     dry_run: bool = False,
     apply_panel_sizing: bool = False,
+    already_regime_sized: bool = False,
     auto_paper_run_dir: Optional[str] = None,
 ) -> PlacementResult:
     """Place one vetted candidate on the paper-auto track.
@@ -188,6 +210,14 @@ def place_candidate(
             the multiplier is logged in PlacementResult but NOT applied.
             Per Phase 3 scope (2026-05-27), shadow mode runs for 1-2 weeks
             while calibration data accumulates.
+        already_regime_sized: when True, ``cand.shares`` was ALREADY scaled
+            by the SPY regime multiplier upstream (the quant scanner sizes via
+            ``position_sizer.compute(regime_class=...)``), so this function
+            does NOT re-apply it — that would double-discount (e.g. 0.75×0.75
+            ≈ 0.56 in stage_2_weakening). The stage_4 halt + fail-closed regime
+            checks still run regardless. When False (default — a caller that
+            passed raw, un-regime-sized shares), the multiplier is applied here.
+            Fix 2026-06-15: run_entry's quant-scanner path passes True.
         auto_paper_run_dir: when set, the run-directory path produced by
             :func:`tools.auto_paper.run_entry.phase_init` is appended to
             ``cand.reasoning_trace`` so each placement is traceable back to
@@ -286,7 +316,12 @@ def place_candidate(
 
     net_liq = float(summary.get("net_liquidation") or 0.0)
     cash = float(summary.get("cash") or 0.0)
-    existing_positions = state.load_positions_json().get("positions", [])
+    # Count only genuinely-open positions toward the cap / sector limits —
+    # `closed_unfilled` + `closed` rows linger in positions.json but are not
+    # live exposure (fix 2026-06-15).
+    existing_positions = _open_positions(
+        state.load_positions_json().get("positions", [])
+    )
 
     # 4b. Lever D — regime-conditional sizing. Re-applied here even when
     # the caller already passed a regime-aware sized candidate (quant
@@ -310,7 +345,12 @@ def place_candidate(
             f"SPY regime is {regime_class} (multiplier 0.0) — "
             f"halt new entries per CLAUDE.md circuit breaker",
         )
-    if regime_mult < 1.0:
+    # Re-scale ONLY if the caller passed raw (un-regime-sized) shares. The
+    # quant-scanner path already applied the regime multiplier via
+    # position_sizer, so re-applying here would double-discount (fix
+    # 2026-06-15). The stage_4 halt above always runs as the place-time
+    # circuit breaker regardless of this flag.
+    if regime_mult < 1.0 and not already_regime_sized:
         new_shares = max(1, int(cand.shares * regime_mult))
         if new_shares < cand.shares:
             cand = replace(cand, shares=new_shares)
