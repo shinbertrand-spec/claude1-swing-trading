@@ -119,3 +119,6 @@ desktop.ini
 *.swp
 ~$*
 *.tmp
+
+# Underscore-prefixed scratch / one-off scripts (not part of the operational set)
+scripts/_*
