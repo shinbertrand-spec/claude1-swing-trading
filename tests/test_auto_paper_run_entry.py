@@ -445,7 +445,7 @@ def test_phase_post_panel_aggregates_partial_votes_when_some_critics_present(_is
     })
 
     placed_calls: list[Any] = []
-    def _fake_place(cand, *, client, dry_run, apply_panel_sizing, auto_paper_run_dir, already_regime_sized=False):
+    def _fake_place(cand, *, client, dry_run, apply_panel_sizing, auto_paper_run_dir):
         placed_calls.append((cand.ticker, cand.shares, str(auto_paper_run_dir)))
         return SimpleNamespace(
             status="placed", broker_order_id=12345,
@@ -484,7 +484,7 @@ def test_phase_post_panel_dry_run_threads_to_place_fn(_isolated_run_root, capsys
     })
 
     seen_dry_run: list[bool] = []
-    def _fake_place(cand, *, client, dry_run, apply_panel_sizing, auto_paper_run_dir, already_regime_sized=False):
+    def _fake_place(cand, *, client, dry_run, apply_panel_sizing, auto_paper_run_dir):
         seen_dry_run.append(dry_run)
         # Real place_candidate short-circuits to dry_run status when dry_run=True
         return SimpleNamespace(

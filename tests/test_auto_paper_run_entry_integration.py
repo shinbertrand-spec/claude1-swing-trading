@@ -240,7 +240,7 @@ def test_full_cycle_init_post_skeptic_post_panel(_harness, monkeypatch, capsys):
 
     # 6. Phase post_panel — ALPHA places, BETA defers
     place_calls: list[Any] = []
-    def _fake_place(cand, *, client, dry_run, apply_panel_sizing, auto_paper_run_dir, already_regime_sized=False):
+    def _fake_place(cand, *, client, dry_run, apply_panel_sizing, auto_paper_run_dir):
         place_calls.append((cand.ticker, cand.shares, str(auto_paper_run_dir)))
         return _placed_result(cand.ticker)
 

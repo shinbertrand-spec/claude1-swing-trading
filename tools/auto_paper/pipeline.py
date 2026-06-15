@@ -192,7 +192,6 @@ def place_candidate(
     client: TigerClient | None = None,
     dry_run: bool = False,
     apply_panel_sizing: bool = False,
-    already_regime_sized: bool = False,
     auto_paper_run_dir: Optional[str] = None,
 ) -> PlacementResult:
     """Place one vetted candidate on the paper-auto track.
@@ -210,14 +209,6 @@ def place_candidate(
             the multiplier is logged in PlacementResult but NOT applied.
             Per Phase 3 scope (2026-05-27), shadow mode runs for 1-2 weeks
             while calibration data accumulates.
-        already_regime_sized: when True, ``cand.shares`` was ALREADY scaled
-            by the SPY regime multiplier upstream (the quant scanner sizes via
-            ``position_sizer.compute(regime_class=...)``), so this function
-            does NOT re-apply it — that would double-discount (e.g. 0.75×0.75
-            ≈ 0.56 in stage_2_weakening). The stage_4 halt + fail-closed regime
-            checks still run regardless. When False (default — a caller that
-            passed raw, un-regime-sized shares), the multiplier is applied here.
-            Fix 2026-06-15: run_entry's quant-scanner path passes True.
         auto_paper_run_dir: when set, the run-directory path produced by
             :func:`tools.auto_paper.run_entry.phase_init` is appended to
             ``cand.reasoning_trace`` so each placement is traceable back to
@@ -323,13 +314,19 @@ def place_candidate(
         state.load_positions_json().get("positions", [])
     )
 
-    # 4b. Lever D — regime-conditional sizing. Re-applied here even when
-    # the caller already passed a regime-aware sized candidate (quant
-    # scanner does this in Step 2b of /auto-paper). Defensive double-
-    # application is intentional: if SPY's trend-template stage degrades
-    # between scanner-time and place-time (e.g. an intraday breakdown),
-    # this is the last check before the broker call. Never widens size —
-    # only multiplies down or halts.
+    # 4b. Lever D — regime-conditional sizing. This is the SINGLE regime
+    # multiplier applied to the final pre-place size: the scanner's
+    # position_sizer only scales the *risk-budget* path, so a concentration-
+    # cap-bound candidate (the common case for wide-ATR-stop quant setups)
+    # arrives here with NO regime haircut — this step applies it. Last check
+    # before the broker; never widens, only multiplies down or halts.
+    #
+    # KNOWN ISSUE (2026-06-15): for a *risk-budget*-bound candidate (tight
+    # stop), position_sizer already applied the regime mult, so this re-applies
+    # it → double-discount (e.g. 0.56× in stage_2_weakening). None of the
+    # current live deployables are risk-bound (all wide-stop → conc-bound), so
+    # this is latent. Proper fix = apply regime in exactly one layer for both
+    # binding constraints (deferred to a daylight change on this money path).
     try:
         regime_class, regime_mult = _resolve_regime_multiplier()
     except Exception as exc:
@@ -345,12 +342,7 @@ def place_candidate(
             f"SPY regime is {regime_class} (multiplier 0.0) — "
             f"halt new entries per CLAUDE.md circuit breaker",
         )
-    # Re-scale ONLY if the caller passed raw (un-regime-sized) shares. The
-    # quant-scanner path already applied the regime multiplier via
-    # position_sizer, so re-applying here would double-discount (fix
-    # 2026-06-15). The stage_4 halt above always runs as the place-time
-    # circuit breaker regardless of this flag.
-    if regime_mult < 1.0 and not already_regime_sized:
+    if regime_mult < 1.0:
         new_shares = max(1, int(cand.shares * regime_mult))
         if new_shares < cand.shares:
             cand = replace(cand, shares=new_shares)

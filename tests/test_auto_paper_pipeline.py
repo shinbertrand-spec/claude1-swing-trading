@@ -731,39 +731,3 @@ def test_cap_still_binds_on_open_positions(paper_client, paper_dirs):
     result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
     assert result.status == "rejected"
     assert "position count" in result.reason
-
-
-# ------------------------------- fix 2026-06-15: no double regime application
-
-
-def test_already_regime_sized_skips_rescale(paper_client, paper_dirs, monkeypatch):
-    """When already_regime_sized=True (the quant-scanner path), place_candidate
-    must NOT re-apply the regime multiplier — the scanner already did. Pre-fix
-    this double-discounted (0.75 × 0.75 ≈ 0.56)."""
-    from tools.auto_paper import pipeline as _pipeline
-    monkeypatch.setattr(
-        _pipeline, "_resolve_regime_multiplier",
-        lambda: ("stage_2_weakening", 0.75),
-    )
-    cand = _vcp_cand(shares=12)
-    result = place_candidate(
-        cand, client=paper_client, dry_run=True, already_regime_sized=True,
-    )
-    assert result.status == "dry_run"
-    # shares unchanged at 12 (NOT 9) — scanner already applied 0.75
-    assert "12 NVDA" in result.reason
-
-
-def test_already_regime_sized_still_halts_stage_4(paper_client, paper_dirs, monkeypatch):
-    """The stage_4 circuit breaker fires regardless of already_regime_sized —
-    a 0.0 multiplier still halts new entries."""
-    from tools.auto_paper import pipeline as _pipeline
-    monkeypatch.setattr(
-        _pipeline, "_resolve_regime_multiplier",
-        lambda: ("stage_4", 0.0),
-    )
-    result = place_candidate(
-        _vcp_cand(), client=paper_client, dry_run=True, already_regime_sized=True,
-    )
-    assert result.status == "rejected"
-    assert "halt new entries" in result.reason
