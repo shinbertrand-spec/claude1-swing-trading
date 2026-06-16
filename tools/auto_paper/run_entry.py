@@ -32,7 +32,7 @@ import yaml
 
 from ..broker.tiger import TigerClient
 from .. import atr_compute, regime_check, trend_template
-from . import cron_gate, reconcile
+from . import cron_gate, entry_pricing, reconcile
 from . import screener as screener_mod
 from . import shell_ledger, state
 from .critic_panel import (
@@ -707,12 +707,23 @@ def phase_post_panel(
         else:
             shares = max(1, int(base_shares * verdict.sizing_multiplier))
 
+        # Entry pricing split by setup class (fix 2026-06-16): momentum fills
+        # at the open via a marketable limit (matches the next-open backtest);
+        # reversion rests at the prior close. The base KIND is resolved from
+        # setup_type (e.g. ts_momentum_liquid_us → ts_momentum).
+        _setup_type = panel_input["candidate"]["setup_type"]
+        _pivot = float(panel_input["candidate"]["pivot_price"])
+        _kind = entry_pricing.resolve_kind(_setup_type)
+        _limit = entry_pricing.entry_limit_price(_kind, _pivot)
+        _emit(f"ENTRY_PRICING: {ticker} setup={_setup_type} kind={_kind} "
+              f"pivot={_pivot:.2f} limit={_limit:.2f}")
+
         cand_input = CandidateInput(
             ticker=ticker,
-            setup_type=panel_input["candidate"]["setup_type"],
+            setup_type=_setup_type,
             setup_grade=panel_input["candidate"]["setup_grade"],
-            pivot_price=float(panel_input["candidate"]["pivot_price"]),
-            limit_price=round(float(panel_input["candidate"]["pivot_price"]) * 1.001, 2),
+            pivot_price=_pivot,
+            limit_price=_limit,
             stop_price=float(panel_input["candidate"]["stop_price"]),
             target_price=round(
                 float(panel_input["candidate"]["pivot_price"])

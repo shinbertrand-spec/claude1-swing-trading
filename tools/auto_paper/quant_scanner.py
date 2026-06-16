@@ -44,7 +44,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from tools.auto_paper import config
+from tools.auto_paper import config, entry_pricing
 from tools.auto_paper.pipeline import CandidateInput
 from tools.backtest import data_cache
 from tools.contract import TraceEntry
@@ -288,6 +288,7 @@ def _candidate_from_signal(
     df: pd.DataFrame,
     *,
     setup: str,
+    kind: str,
     params: dict[str, Any],
     limit_offset_pct: float,
     account_net_liq: float,
@@ -320,7 +321,12 @@ def _candidate_from_signal(
     stop_price = pivot - atr_mult * atr
     if stop_price >= pivot:
         return None
-    limit_price = pivot * (1.0 + limit_offset_pct)
+    # Entry pricing split by setup class (fix 2026-06-16): momentum fills at the
+    # open via a marketable limit (matches the next-open backtest fill);
+    # reversion rests at the prior close. Size on this same price so the 5%
+    # concentration cap holds at the worst-case fill. (limit_offset_pct retained
+    # in the signature for back-compat; superseded by entry_pricing.)
+    limit_price = entry_pricing.entry_limit_price(kind, pivot)
 
     try:
         sizer = position_sizer.compute(
@@ -520,7 +526,7 @@ def scan_setup(
             continue
         cand = _candidate_from_signal(
             t, universe_dfs[t],
-            setup=setup, params=params,
+            setup=setup, kind=kind, params=params,
             limit_offset_pct=limit_offset_pct,
             account_net_liq=account_net_liq,
             regime_class=regime_class,
