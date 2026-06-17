@@ -92,9 +92,14 @@ class PortfolioResult:
 
 
 def _to_date_index(df: pd.DataFrame) -> pd.DataFrame:
-    if not isinstance(df.index, pd.DatetimeIndex):
+    idx = df.index
+    if not isinstance(idx, pd.DatetimeIndex):
+        idx = pd.to_datetime(idx)
+    if idx.tz is not None:        # normalise tz-aware (yfinance) → naive for comparisons
+        idx = idx.tz_localize(None)
+    if idx is not df.index:
         df = df.copy()
-        df.index = pd.to_datetime(df.index)
+        df.index = idx
     return df
 
 
