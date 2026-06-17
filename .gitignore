@@ -40,6 +40,10 @@ ledgers/_auto_paper_runs/
 # The HTML panel + snapshot json live under journal/ (already ignored above).
 ledgers/observability/
 
+# Insider-KIND derived event files (built offline from SEC Form 4 ingest +
+# classifier + conviction; large, regenerable from tools.fundamentals.insider_events).
+ledgers/insider/
+
 # Scratch directory for one-off scripts. Operational state only.
 tmp/
 

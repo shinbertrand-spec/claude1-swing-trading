@@ -1,0 +1,66 @@
+# Event-driven opportunistic-insider-buying strategy.
+#
+# A MODEST, SLOW, multi-week diversifier — expected low-to-mid single-digit
+# %/yr, uncorrelated with the momentum/reversal book. NOT high-octane. The
+# value is diversification + an orthogonal signal source (SEC Form 4 open-market
+# purchases by insiders with a track record), not raw return.
+#
+# Pipeline that produces the events file this spec consumes:
+#   Phase 2  tools.fundamentals.form4_insider_transactions   (ingest, P-only, acceptanceDateTime)
+#   Phase 3  tools.fundamentals.insider_track_record          (opportunistic classifier)
+#   Phase 4  tools.fundamentals.insider_conviction            (conviction composite)
+#   build    tools.fundamentals.insider_events.build_events   (→ events_path YAML)
+#
+# STATUS: candidate. This has NOT cleared the deployment gate. It must be
+# validated through the Phase 1 net-of-cost portfolio simulator (Sharpe>1.0 AND
+# |MDD|<25% AND n>=30 on aggregated OOS) before any live use. Any
+# deployable_setups.yml row added for it ships with hold: true until then.
+# Fails the gate → retire it. Do NOT tune params to force a pass.
+
+meta:
+  name: event_insider_buying
+  version: "0.1"
+  source: "Cohen-Malloy-Pomorski 2012 — opportunistic insider buying / post-event drift"
+  description: |
+    Long an insider buying event (>=medium Phase-4 conviction) on the first
+    bar after its SEC acceptance date; hold a fixed ~6 months; ATR stop for
+    catastrophe protection only (paper-auto ATR carve-out, NOT the 8% rule).
+    Event-driven, not rebalance-driven. Overlap-suppressed per ticker.
+  horizon_days: 126
+  status: candidate
+
+kind: event_insider_buying
+
+# Pilot universe = liquid_us_2026q2 (S&P1500 ∩ ADV>500K, 1178 names) as a
+# stand-in for the target cap>$500M / ADV>$3-5M / price>$5 (~1500-2200 names)
+# universe. Building that dedicated universe is a Phase 6 prerequisite.
+universe:
+  name: liquid_us_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2024-12-31"   # leaves room for 6-month forward windows to realize
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  # Path to the precomputed events file (built offline; gitignored derived data).
+  events_path: "ledgers/insider/events/liquid_us_2026q2.yml"
+  min_conviction: medium        # only medium+ conviction events enter
+  max_hold_days: 126            # ~6-month fixed hold
+  atr_period: 20
+  atr_stop_multiple: 3.0        # wide; catastrophe protection, not a swing stop
+  # no target_r_multiple — the 6-month hold IS the exit
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30

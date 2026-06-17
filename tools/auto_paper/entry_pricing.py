@@ -40,6 +40,9 @@ MOMENTUM_KINDS = {
     "residual_momentum",
     "clenow_momentum",
     "dual_ma_trend_following",
+    # Event-driven insider buying enters at the next-bar open (the event drift
+    # is realized over months, not intraday) — marketable, momentum-class fill.
+    "event_insider_buying",
 }
 REVERSION_KINDS = {
     "xs_short_term_reversal",
