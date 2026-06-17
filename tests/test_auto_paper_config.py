@@ -46,15 +46,17 @@ def test_load_non_mapping(tmp_path):
 
 def test_deployable_setup_names_extracts():
     names = deployable_setup_names()
-    # After the 2026-05-26 8y extension (lever A) + connors_rsi2 replenishment +
-    # dual_ma simulator-concurrency-bug defuse, then connors_rsi2 PARKED
-    # 2026-06-09 (stale pre-concurrency-cap verdict — re-run fails the gate at
-    # Sharpe 0.59, the cap rejects 47% of its outcomes; same failure class as
-    # dual_ma). The surviving generic deployables are the wide-universe / top-K
-    # ranked ones plus xs_short_term_reversal (bottom_n=5, cap non-binding).
-    assert "xs_short_term_reversal" in names
-    assert "clenow_momentum_liquid_us" in names
-    assert "ts_momentum_liquid_us" in names
+    # NET-OF-COST GATE RETIREMENT (2026-06-17): the hardened portfolio-sim gate
+    # (net-of-cost + OHLC fills + cap-weight) retired 4 of the 5 live generic
+    # setups — residual/clenow/both xs_short_term_reversal variants fail at net
+    # OOS Sharpe 0.12-0.52 (filled fwd-returns ~0.2-0.9% vs missed 4-8% =
+    # adverse selection). Only ts_momentum_liquid_us survives (net OOS Sharpe
+    # 1.04). connors_rsi2 already parked 2026-06-09. See scripts/net_gate_rerun.py.
+    assert "ts_momentum_liquid_us" in names   # ONLY net-of-cost survivor
+    assert "xs_short_term_reversal" not in names         # RETIRED 2026-06-17 (net OOS 0.52)
+    assert "xs_short_term_reversal_liquid_us" not in names  # RETIRED 2026-06-17 (net OOS 0.14)
+    assert "clenow_momentum_liquid_us" not in names     # RETIRED 2026-06-17 (net OOS 0.12)
+    assert "residual_momentum_liquid_us" not in names   # RETIRED 2026-06-17 (net OOS 0.26)
     assert "connors_rsi2" not in names  # PARKED 2026-06-09 — fails gate under concurrency cap
     assert "dual_ma_trend_following" not in names  # parked by simulator concurrency bug
     assert "EP" not in names          # parked by tightened gate + 8y extension
@@ -69,8 +71,10 @@ def test_deployable_setup_names_extracts():
 
 
 def test_is_deployable():
-    assert is_deployable("xs_short_term_reversal") is True
-    assert is_deployable("clenow_momentum_liquid_us") is True
+    assert is_deployable("ts_momentum_liquid_us") is True  # only net-of-cost survivor (2026-06-17)
+    assert is_deployable("xs_short_term_reversal") is False  # RETIRED 2026-06-17 — fails net-of-cost gate
+    assert is_deployable("clenow_momentum_liquid_us") is False  # RETIRED 2026-06-17 — fails net-of-cost gate
+    assert is_deployable("residual_momentum_liquid_us") is False  # RETIRED 2026-06-17 — fails net-of-cost gate
     assert is_deployable("connors_rsi2") is False  # PARKED 2026-06-09 — stale pre-cap verdict, fails gate at Sharpe 0.59
     assert is_deployable("dual_ma_trend_following") is False  # parked 2026-05-26 by simulator concurrency bug
     assert is_deployable("EP") is False           # parked 2026-05-26 by 8y extension

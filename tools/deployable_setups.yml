@@ -88,6 +88,9 @@
 deployable:
   - setup: xs_short_term_reversal
     track: generic
+    hold: true                       # RETIRED 2026-06-17 — fails net-of-cost gate
+    net_gate_retired_at: 2026-06-17
+    net_gate_verdict: "RETIRE — net OOS Sharpe 0.52 (<1.0) under realistic cost+OHLC-fill (portfolio sim). Filled vs missed fwd-return 0.19% vs 3.99% = adverse selection (limit fills losers, misses bouncers). Re-run: scripts/net_gate_rerun.py --setup xs_short_term_reversal"
     variant: "bottom_n=5, weekly rebalance"
     universe: "88-ticker SP500-leaning"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -147,6 +150,9 @@ deployable:
 
   - setup: clenow_momentum_liquid_us
     track: generic
+    hold: true                       # RETIRED 2026-06-17 — fails net-of-cost gate
+    net_gate_retired_at: 2026-06-17
+    net_gate_verdict: "RETIRE — net OOS Sharpe 0.12 (<1.0) under realistic cost+OHLC-fill. Filled vs missed fwd-return 0.90% vs 5.36% — broad high-turnover basket, per-fill edge eaten by cost. Re-run: scripts/net_gate_rerun.py --setup clenow_momentum_liquid_us"
     variant: "momentum_lookback=90d, top_k=20, weekly rebalance"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -162,6 +168,9 @@ deployable:
 
   - setup: xs_short_term_reversal_liquid_us
     track: generic
+    hold: true                       # RETIRED 2026-06-17 — fails net-of-cost gate
+    net_gate_retired_at: 2026-06-17
+    net_gate_verdict: "RETIRE — net OOS Sharpe 0.14 (<1.0) under realistic cost+OHLC-fill. Filled vs missed fwd-return 0.50% vs 7.56% = adverse selection on the broad liquid universe. Re-run: scripts/net_gate_rerun.py --setup xs_short_term_reversal_liquid_us"
     variant: "bottom_n=5, weekly rebalance"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -177,6 +186,9 @@ deployable:
 
   - setup: residual_momentum_liquid_us
     track: generic
+    hold: true                       # RETIRED 2026-06-17 — fails net-of-cost gate
+    net_gate_retired_at: 2026-06-17
+    net_gate_verdict: "RETIRE — net OOS Sharpe 0.26 (<1.0) under realistic cost+OHLC-fill. Filled vs missed fwd-return 0.71% vs 5.81% — broad high-turnover basket, per-fill edge eaten by cost. Re-run: scripts/net_gate_rerun.py --setup residual_momentum_liquid_us"
     variant: "momentum_lookback=90d, top_k=10, weekly rebalance"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
@@ -192,6 +204,8 @@ deployable:
 
   - setup: ts_momentum_liquid_us
     track: generic
+    net_gate_cleared_at: 2026-06-17
+    net_gate_verdict: "KEEP — net OOS Sharpe 1.04 (>1.0), full 1.37, |MDD| 13.7%, fill 92%, +466% full net return under realistic cost+OHLC-fill. The ONLY live generic survivor: selective (808 sig vs ~3400 for the retired baskets), real per-fill edge (5.99% filled vs 10.68% missed). Re-run: scripts/net_gate_rerun.py --setup ts_momentum_liquid_us"
     variant: "lookback=252d, monthly rebalance, top-K=8"
     universe: "liquid_us_2026q2 (1178-ticker S&P 1500 ∩ ADV>500K)"
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
