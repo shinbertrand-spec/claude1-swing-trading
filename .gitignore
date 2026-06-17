@@ -36,6 +36,10 @@ ledgers/paper-auto/
 # [auto-paper LLM/Python boundary refactor 2026-05-28] §3.7.
 ledgers/_auto_paper_runs/
 
+# Self-observability cockpit alert-state (edge-trigger de-dup; runtime, regenerable).
+# The HTML panel + snapshot json live under journal/ (already ignored above).
+ledgers/observability/
+
 # Scratch directory for one-off scripts. Operational state only.
 tmp/
 
