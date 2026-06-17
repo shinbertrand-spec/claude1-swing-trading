@@ -1,0 +1,94 @@
+# Integrated Value + Momentum — the first fundamental-factor setup.
+#
+# ONE portfolio ranked on a COMBINED score (0.5·z_value + 0.5·z_momentum), not a
+# blend of a value book and a momentum book. Value is ~negatively correlated to
+# momentum, so integrating nets opposing signals out (cheap-but-falling /
+# expensive-but-rising score middling and never trade) → lower turnover, higher
+# net IR than either standalone (AQR 2015). Banding (enter top 20%, hold until
+# past 45%) + value-weight (ADV-tilt proxy in the sim) + monthly refresh +
+# sector-neutral z-scores are the cost-survival levers.
+#
+# Fundamentals are POINT-IN-TIME (tools.fundamentals.pit_fundamentals — SEC XBRL
+# company-facts, as-filed, filed<=rebalance date). NON-CHASE entry (routed to
+# REVERSION_KINDS, limit at pivot): this is a low-turnover rebalance, not a
+# breakout.
+#
+# SHIP DISCIPLINE: hold:true until the hardened net-of-cost gate passes AND the
+# integrated book beats BOTH a value-only and a momentum-only baseline (run the
+# value_momentum gate runner, which derives the two baselines from this spec by
+# overriding value_weight). If integrated ≈ the better standalone, run the
+# standalone instead — integration must earn its complexity. Fails → retire
+# honestly (same discipline that retired the insider KIND + 4/5 generic setups).
+#
+# 8-POSITION-CAP NOTE: a true top-decile factor basket can't be held at 8 names.
+# The deployable form is the banded top-8 by combined score (CLAUDE.md hard
+# rule). This concentrates the factor; if the edge needs breadth it will fail
+# the gate honestly — that is information, not a bug to tune around.
+
+meta:
+  name: value_momentum_integrated
+  version: "1.0"
+  source: "Asness-Moskowitz-Pedersen 2013 (Value and Momentum Everywhere); AQR 2015 (integrated > blended)"
+  description: |
+    Cross-sectional integrated value+momentum on liquid_us_2026q2. Each monthly
+    rebalance: z(B/M)+z(E/P)+z(FCF yield) (winsorized, sector-neutral, PIT) for
+    value; 12-1 cross-sectional return (sector-neutral) for momentum; combine
+    0.5/0.5; rank all names; banded top-8 (enter top 20%, hold until past 45%).
+    Long-only top vs benchmark (no shorts — the sim is long-only). ATR stop.
+  horizon_days: 60
+  status: retired            # RETIRED by the hardened net-of-cost gate 2026-06-17
+  hold: true                 # never deployed (suggest-only; failed the gate)
+  # GATE VERDICT (journal/backtest/value-momentum-gate.md, 2026-06-17): RETIRE.
+  #   integrated: full net Sharpe 0.37 (n=13), OOS 0.63 (n=3) — both << 1.0.
+  #   in-sample per-trade t=0.81 (need >3). value-only -0.27 full (the 2017-26
+  #   value drawdown); momentum-only 0.43 full / ~0 OOS.
+  # Two load-bearing findings (NOT a tuning problem — do not re-litigate):
+  #   1. The diversification premise did NOT hold on this data: realized
+  #      value<->momentum daily-return correlation was +0.17, not AQR's -0.65.
+  #      Integration's whole rationale (opposing signals net out) is undercut
+  #      empirically here.
+  #   2. The 8-position cap + banding starve a cross-sectional factor of the
+  #      BREADTH it needs: only n=13 entries over 9 years (vs 54 momentum-only).
+  #      A factor edge expressed across ~8 sticky names can't clear n>=30 or
+  #      carry statistical significance — the same capacity wall that retired
+  #      the insider KIND, in factor form.
+  # The PIT fundamentals layer + sector map + factor utils built for this are
+  # general-purpose and survive the retirement (reusable for quality/profitability).
+
+kind: value_momentum_integrated
+
+universe:
+  name: liquid_us_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  value_weight: 0.5          # 1.0 = value-only baseline, 0.0 = momentum-only
+  momentum_weight: 0.5
+  top_k: 8                   # CLAUDE.md concurrent-position cap
+  rebalance_period_days: 21  # monthly
+  mom_lookback_days: 252     # 12-month momentum window...
+  mom_skip_days: 21          # ...skipping the most recent month (12-1)
+  entry_band_pct: 0.20       # enter only in the top 20% by combined score
+  exit_band_pct: 0.45        # hold until it falls past the top 45% (banding)
+  sector_neutral: true
+  winsor_limit: 0.02
+  atr_period: 20
+  atr_stop_multiple: 3.0
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30

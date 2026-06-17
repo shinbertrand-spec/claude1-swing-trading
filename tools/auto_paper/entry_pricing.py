@@ -48,6 +48,9 @@ REVERSION_KINDS = {
     "xs_short_term_reversal",
     "connors_rsi2",
     "xs_low_volatility",
+    # Integrated value+momentum is a monthly low-turnover rebalance, not a
+    # breakout — rest the limit at the pivot, never chase up.
+    "value_momentum_integrated",
 }
 
 # Marketable-limit ceiling for momentum: fills at the open whenever the gap is
