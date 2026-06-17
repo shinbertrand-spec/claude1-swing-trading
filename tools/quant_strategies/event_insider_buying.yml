@@ -27,7 +27,19 @@ meta:
     catastrophe protection only (paper-auto ATR carve-out, NOT the 8% rule).
     Event-driven, not rebalance-driven. Overlap-suppressed per ticker.
   horizon_days: 126
-  status: candidate
+  status: retired
+  # RETIRED 2026-06-17 by the Phase 1 net-of-cost gate (scripts/insider_gate_run.py).
+  # Full liquid_us_2026q2 2017-2024 build = 1383 events; 868 signals.
+  #   FULL: net Sharpe 0.14, |MDD| 25.3%, n=208, fill 24%   → FAIL
+  #   OOS : net Sharpe 0.12, |MDD|  7.0%, n=59              → FAIL
+  # Diagnostic: the signal is REAL but front-loaded into the post-filing gap —
+  # filled fwd +7.72% vs MISSED fwd +40.31% at a 24% fill rate. High-conviction
+  # insider buys gap up the day after the Form 4 hits, past the next-bar-open
+  # (+3% cap) entry, so we capture only the laggards. This is an EXECUTION-MODEL
+  # mismatch (next-bar-open momentum entry can't capture this signal net-of-cost),
+  # NOT a parameter to tune. A redesign (same-session acceptance-time entry via
+  # the live acceptanceDateTime path) is a fresh doctrine-review item, not a tweak.
+  # Per the epic: "fails the gate → retire is a valid, expected outcome."
 
 kind: event_insider_buying
 
