@@ -108,10 +108,17 @@ as the correlation control the per-position cap alone cannot provide.
 `scripts/manual_rebalance.py` pass `concentration_cap_pct=0.05` explicitly).
 The 5% references elsewhere in this file that describe the paper-auto carve-out
 remain accurate for that track — 5% is stricter than the 10% ceiling, which is
-always permitted. The theme/cluster cap is **not yet enforced in code** — it is
-written doctrine now; the deterministic enforcement layer is specced and flagged
-for build (no clean cross-track portfolio layer exists today; the stateless
-`position_sizer` cannot host it).
+always permitted.
+
+**Theme/cluster cap enforcement (shipped 2026-06-20).** The ~30% cross-track
+cluster cap is enforced by the deterministic tool `tools/cluster_concentration.py`
+against the curated membership map `tools/_themes/clusters.yml` (AI-momentum
+seeded first). It is called from BOTH pre-trade layers: the paper-auto
+`pipeline._check_track_limits` (cross-track: sums same-theme capital across both
+`positions.json` books) and the discretionary `risk-and-compliance` Gate-4
+(hard FAIL on breach). The stateless `position_sizer` does NOT host it — a
+cluster cap needs portfolio state the sizer cannot see. The map is hand-curated:
+a new themed name is not capped until added to `clusters.yml`.
 
 ### Order Execution
 - Never place a market order — always use limit orders within 0.2% of ask

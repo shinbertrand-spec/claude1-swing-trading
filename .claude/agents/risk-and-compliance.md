@@ -141,13 +141,23 @@ uv run python -m tools.position_sizer \
     --account <portfolio_value> --entry <entry> --atr <atr_from_ledger> \
     --setup-grade <grade> --regime <regime_class> \
     --cash-available <cash>
+uv run python -m tools.cluster_concentration \
+    --ticker <ticker> --proposed-cost <shares × entry> --account <portfolio_value>
 ```
+
+The `cluster_concentration` call is the CROSS-TRACK theme/cluster cap — it sums
+same-theme capital across BOTH `journal/positions.json` (this track) and
+`journal/paper-auto/positions.json`, because a correlated gap (e.g. the
+AI-momentum complex) hits both books at once. It reads both books by default.
+Theme membership is the curated map at `tools/_themes/clusters.yml`. Do NOT
+hand-compute the cluster total — the tool is the source of truth (no prose math).
 
 Then evaluate each hard rule with the math from the tool output:
 
 | Rule | Source | PASS / FAIL |
 |---|---|---|
 | Position size ≤ 10% capital (reconciled 2026-06-20 from 25%) | `position_sizer.output.capital_pct` | PASS iff ≤ 0.10 |
+| Theme/cluster ≤ 30% (cross-track, reconciled 2026-06-20) | `cluster_concentration.output.breach` | FAIL (hard) iff `breach == true` |
 | Sector exposure (post-trade) ≤ 20-25% | Re-compute manually from open positions + this trade | |
 | Cash buffer (post-trade) ≥ 15% (or regime-scaled per swing-regime-playbook) | `(cash - capital) / portfolio_value` | |
 | Total open positions (post-trade) ≤ 8 | Count + 1 ≤ 8 | |

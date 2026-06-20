@@ -108,6 +108,10 @@ def paper_dirs(tmp_path, monkeypatch):
             computed_at="2026-05-27T00:00:00+00:00",
         )
     monkeypatch.setattr(_pipeline, "_run_screener", _clean_screener)
+    # Hermetic: the cross-track cluster cap must not read the operator's live
+    # journal/positions.json during e2e placement tests. Cluster-cap behaviour
+    # is covered by the dedicated _check_track_limits unit tests above.
+    monkeypatch.setattr(_pipeline, "_load_discretionary_open_positions", lambda: [])
     return ledger_dir, positions_json
 
 
@@ -174,6 +178,52 @@ def test_track_limits_sector_cap():
         existing_cash=950_000.0,
     )
     assert "XLK" in reason and "20% cap" in reason
+
+
+def test_track_limits_cluster_cap_cross_track():
+    """Theme/cluster cap is CROSS-TRACK and spans sectors: three AI names in
+    three different sectors, each under the 20% sector cap, together breach the
+    30% theme cap — and the breach can be driven by the OTHER book.
+
+    account = $1M. NVDA add = 200 × $850.50 = $170,100 = 17.0% (under per-pos?
+    no — 17% > 5%, so engineer a small add and big existing instead).
+    """
+    # NVDA add = 50 × $850.50 = $42,525 = 4.25% (under 5% per-position, under
+    # 20% XLK sector since no other XLK held here).
+    # Existing AI cluster lives in the DISCRETIONARY book across two sectors:
+    #   CEG (power)  2000 × $140 = $280,000 = 28.0%
+    #   plus NVDA add 4.25% -> cluster 32.25% > 30% -> breach, cross-track.
+    discretionary = [
+        {"ticker": "CEG", "shares": 2000, "entry_price": 140.00,
+         "sector": "XLU", "stage": "trailing"},
+    ]
+    reason = _check_track_limits(
+        cand=_vcp_cand(shares=50),     # NVDA, XLK
+        account_net_liq=1_000_000.0,
+        existing_positions=[],          # paper-auto book empty
+        existing_cash=950_000.0,
+        discretionary_positions=discretionary,
+    )
+    assert reason is not None
+    assert "cluster" in reason and "AI-momentum" in reason and "cross-track" in reason
+
+
+def test_track_limits_cluster_cap_untagged_passes():
+    """A non-AI candidate is unaffected by the cluster cap even when the AI
+    cluster is already large."""
+    discretionary = [
+        {"ticker": "NVDA", "shares": 4000, "entry_price": 100.00,
+         "sector": "XLK", "stage": "trailing"},  # $400k AI = 40% (over cap)
+    ]
+    # Candidate XOM (not in the AI map) — cluster check must not fire.
+    reason = _check_track_limits(
+        cand=_vcp_cand(ticker="XOM", sector_etf="XLE", shares=50),
+        account_net_liq=1_000_000.0,
+        existing_positions=[],
+        existing_cash=950_000.0,
+        discretionary_positions=discretionary,
+    )
+    assert reason is None
 
 
 def test_track_limits_cash_buffer():

@@ -22,6 +22,7 @@ import os
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
 
+from .. import cluster_concentration
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..contract import TraceEntry
 from ..regime_check import classify_broad
@@ -29,10 +30,14 @@ from ..trend_template import compute_from_ticker as tt_from_ticker
 from . import config, intent_log, screener, state
 
 # Hard rules per CLAUDE.md, applied to the paper-auto track in isolation.
+# EXCEPTION: the theme/cluster cap is CROSS-TRACK (a correlated gap hits both
+# books at once) — it sums same-theme capital across this book AND the
+# human-discretionary book. See _check_track_limits.
 MAX_POSITIONS = 8
 MAX_PCT_PER_POSITION = 0.05
 MAX_PCT_PER_SECTOR = 0.20
 MIN_CASH_BUFFER_PCT = 0.15
+MAX_PCT_PER_CLUSTER = cluster_concentration.DEFAULT_CLUSTER_CAP_PCT  # 0.30
 
 # Terminal stages that are NOT live exposure: a DAY-expired-unfilled order
 # (`closed_unfilled`) or a closed-out position (`closed`) must not consume a
@@ -120,17 +125,42 @@ def _reject(ticker: str, reason: str) -> PlacementResult:
     return PlacementResult(ticker=ticker, status="rejected", reason=reason)
 
 
+def _load_discretionary_open_positions() -> list[dict[str, Any]]:
+    """Read the human-discretionary book (journal/positions.json) for the
+    CROSS-TRACK theme/cluster cap. Its own module function so tests can
+    monkeypatch it without a real file.
+
+    Fail-safe: a missing/unreadable file returns [] (the cluster cap then sees
+    only the paper-auto book — degrades to per-track rather than crashing the
+    money path). compute_from_books does its own open-stage filtering.
+    """
+    import json
+    from pathlib import Path
+
+    p = Path(__file__).resolve().parents[2] / "journal" / "positions.json"
+    try:
+        return json.loads(p.read_text()).get("positions", []) or []
+    except (FileNotFoundError, ValueError, OSError):
+        return []
+
+
 def _check_track_limits(
     *,
     cand: CandidateInput,
     account_net_liq: float,
     existing_positions: list[dict[str, Any]],
     existing_cash: float,
+    discretionary_positions: list[dict[str, Any]] | None = None,
 ) -> Optional[str]:
     """Return a rejection reason string, or None if all limits pass.
 
-    Checks against the PAPER-AUTO TRACK ONLY — does not look at
-    journal/positions.json (human-discretionary positions).
+    The position-count / per-position / sector / cash limits are checked against
+    the PAPER-AUTO TRACK ONLY (``existing_positions``). The theme/cluster cap is
+    the ONE exception — it is CROSS-TRACK and also sums same-theme capital from
+    ``discretionary_positions`` (the human-discretionary book), because a
+    correlated gap hits both books at once. Pure function: the caller does the
+    disk read and passes both books in; ``discretionary_positions=None`` means
+    "no cross-track book" (used by hermetic unit tests).
     """
     if account_net_liq <= 0:
         return "account net_liquidation is 0 or unknown — cannot size"
@@ -162,6 +192,26 @@ def _check_track_limits(
                 f"sector {cand.sector_etf} would exceed {MAX_PCT_PER_SECTOR:.0%} cap "
                 f"({sector_pct:.2%} of net liq)"
             )
+
+    # Theme / cluster cap (CROSS-TRACK correlation control) — CLAUDE.md Hard
+    # Rules, reconciled 2026-06-20. A theme (e.g. AI-momentum) spans multiple
+    # sectors, so the 20% per-sector cap above does NOT bound it. Sum same-theme
+    # capital across BOTH the paper-auto book and the human-discretionary book
+    # (a correlated gap hits both at once), add this candidate's cost, hard-FAIL
+    # if the theme would exceed the cap. Untagged tickers (no cluster) pass.
+    cluster = cluster_concentration.compute_from_books(
+        ticker=cand.ticker,
+        proposed_cost_usd=cost,
+        account_value_usd=account_net_liq,
+        books=[existing_positions, discretionary_positions or []],
+        cap_pct=MAX_PCT_PER_CLUSTER,
+    )
+    if cluster.output["breach"]:
+        return (
+            f"theme cluster {cluster.output['theme']} would exceed "
+            f"{cluster.output['cap_pct']:.0%} cap "
+            f"({cluster.output['cluster_pct']:.2%} of net liq, cross-track)"
+        )
 
     # Cash buffer
     cash_after = existing_cash - cost
@@ -402,6 +452,8 @@ def place_candidate(
         account_net_liq=net_liq,
         existing_positions=existing_positions,
         existing_cash=cash,
+        # Cross-track theme/cluster cap reads the human-discretionary book too.
+        discretionary_positions=_load_discretionary_open_positions(),
     )
     if reject is not None:
         return _reject(cand.ticker, reject)

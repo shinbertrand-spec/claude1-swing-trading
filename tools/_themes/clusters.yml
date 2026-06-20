@@ -1,0 +1,79 @@
+# Correlated-theme / cluster membership map for the concentration cap.
+#
+# Source of truth for tools/cluster_concentration.py. Each entry is a
+# correlated theme -> the tickers that move together enough to count as ONE
+# bet against the market. The theme/cluster cap (CLAUDE.md Hard Rules,
+# ~30% of net liq per theme, cross-track) is enforced against this map.
+#
+# WHY a curated map (decision LOCKED 2026-06-20): a hard rule that rejects
+# trades needs membership you can point at and defend, not a correlation
+# number that drifts week to week. A correlation-based AUDIT that flags names
+# this map missed is a future informational layer, not the load-bearing rule.
+#
+# A theme here is INTENTIONALLY BROADER than a sector ETF: the AI complex
+# spans XLK (semis), XLU/utilities (power), XLRE (DC REITs), XLI (electrical /
+# cooling). The 20% per-sector cap does NOT catch it — you can hold 20% XLK +
+# 20% XLU + 15% XLRE = 55% "AI" and pass every per-sector check. That gap is
+# exactly what this map closes.
+#
+# MAINTENANCE: hand-curated. A new AI name is NOT capped until it is added
+# here. When onboarding a name that belongs to a theme, add it. Tickers use
+# yfinance convention (hyphen share-class separators: BRK-B not BRK.B).
+#
+# Provenance: AI-momentum seeded 2026-06-20 from the hand-curated 41-ticker
+# ai_thematic_pure_2026q2 universe (tools/quant_strategies/_universes/), which
+# is itself the swing morning-research AI complex. Ticker formatting + survivor
+# caveats inherit from that file.
+
+version: 1
+updated_at: 2026-06-20
+
+themes:
+  AI-momentum:
+    description: >
+      The AI build-out complex — primes / compute, hyperscalers, power
+      generation, cooling, DC REITs, networking/optical, memory, semicap,
+      AI software/infra, AI-native cloud. Spans multiple sector ETFs; the
+      per-sector cap does not bound it.
+    tickers:
+      - AEHR
+      - ALAB
+      - AMAT
+      - AMD
+      - AMZN
+      - ANET
+      - ASML
+      - AVGO
+      - BWXT
+      - CEG
+      - CIEN
+      - COHR
+      - CRDO
+      - CRWV
+      - DDOG
+      - DLR
+      - EQIX
+      - ETN
+      - GOOGL
+      - IRM
+      - LITE
+      - LRCX
+      - META
+      - MOD
+      - MRVL
+      - MSFT
+      - MU
+      - NBIS
+      - NOW
+      - NRG
+      - NVDA
+      - ORCL
+      - PLTR
+      - QCOM
+      - SMCI
+      - SNOW
+      - STX
+      - TLN
+      - VRT
+      - VST
+      - WDC
