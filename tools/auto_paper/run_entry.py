@@ -257,6 +257,27 @@ def phase_init(
             )
             return 2
 
+    # Intent recovery (write-ahead protocol): resolve any dangling intent from
+    # a prior crashed/interrupted run BEFORE scanning or placing. A
+    # placed-but-unledgered order gets its ledger reconstructed here so it
+    # counts toward the concurrent-position cap + carries a protective stop on
+    # the next reconcile — and so the double-place guard in place_candidate
+    # sees a resolved (terminal) intent rather than a dangling one. Best-effort:
+    # a failure here must not block the entry run (it re-runs every session).
+    try:
+        intent_results = reconcile.reconcile_intents(client=c)
+        if intent_results:
+            recovered = [r for r in intent_results if r.action.startswith("ledgered")]
+            abandoned = [r for r in intent_results if r.action == "abandoned"]
+            _emit(
+                f"[init] intent recovery: {len(recovered)} ledgered, "
+                f"{len(abandoned)} abandoned, {len(intent_results)} total"
+            )
+            for r in intent_results:
+                _emit(f"[init]   intent {r.ticker} -> {r.action} ({r.reason})")
+    except Exception as exc:  # never let recovery crash the run
+        _emit(f"[init] WARN intent recovery errored (continuing): {exc!r}")
+
     # Account + regime
     summary = c.account_summary().output
     net_liq = float(summary.get("net_liquidation") or 0.0)

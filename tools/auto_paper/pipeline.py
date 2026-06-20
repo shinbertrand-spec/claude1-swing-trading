@@ -18,6 +18,7 @@ Session 2.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
 
@@ -25,7 +26,7 @@ from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..contract import TraceEntry
 from ..regime_check import classify_broad
 from ..trend_template import compute_from_ticker as tt_from_ticker
-from . import config, screener, state
+from . import config, intent_log, screener, state
 
 # Hard rules per CLAUDE.md, applied to the paper-auto track in isolation.
 MAX_POSITIONS = 8
@@ -100,6 +101,8 @@ class PlacementResult:
     screener_trace: Optional[dict[str, Any]] = None  # set when screener ran
     panel_verdict: Optional[dict[str, Any]] = None   # mirrors CandidateInput.panel_verdict
     panel_sizing_applied: bool = False               # True iff sizing_multiplier was applied to shares
+    client_order_id: Optional[str] = None            # write-ahead intent key (set on real placements)
+    recoverable: bool = False                        # True iff an error left a recoverable intent (no orphan)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -246,6 +249,20 @@ def place_candidate(
         return _reject(
             cand.ticker,
             f"paper-auto ledger already exists at {state.ledger_path(cand.ticker)}",
+        )
+
+    # 2a. Re-fire double-place guard: refuse if a non-terminal write-ahead
+    # intent for this ticker is still dangling. A prior attempt placed (or may
+    # have placed) an order that hasn't been reconciled to a ledger yet —
+    # placing again would double up. The recovery sweep
+    # (reconcile.reconcile_intents) resolves the dangling intent to `ledgered`
+    # or `abandoned` first; only then does a fresh placement proceed.
+    if intent_log.has_unresolved_intent(cand.ticker):
+        return _reject(
+            cand.ticker,
+            f"unresolved write-ahead intent pending for {cand.ticker}; "
+            f"reconcile_intents must resolve it before re-placing "
+            f"(double-place guard)",
         )
 
     # 2b. Pre-placement screener — strategy-blind disqualifiers (litigation,
@@ -436,22 +453,73 @@ def place_candidate(
             panel_sizing_applied=panel_sizing_applied,
         )
 
-    # 5. Place the limit order
+    # 5. WRITE-AHEAD INTENT (durable, BEFORE the broker call).
+    # This is the load-bearing anti-orphan invariant: the framework records
+    # the *intended* order on disk before placing it, so a crash or exception
+    # at any later step leaves a recoverable breadcrumb (never a silent live
+    # order the ledger doesn't know about). The recovery sweep
+    # (reconcile.reconcile_intents) drives any non-terminal intent to a
+    # terminal state — `ledgered` (reconstruct the ledger from the intent) or
+    # `abandoned` (the order never reached the broker).
+    run_tag = os.path.basename(auto_paper_run_dir.rstrip("/\\")) if auto_paper_run_dir else None
+    cloid = intent_log.make_cloid(cand.ticker, run_tag)
+    try:
+        intent_log.write_intent(intent_log.IntentRecord(
+            client_order_id=cloid,
+            ticker=cand.ticker.upper(),
+            setup_type=cand.setup_type,
+            setup_grade=cand.setup_grade,
+            pivot_price=cand.pivot_price,
+            limit_price=cand.limit_price,
+            stop_price=cand.stop_price,
+            target_price=cand.target_price,
+            shares=cand.shares,
+            broker="tiger_paper",
+            sector_etf=cand.sector_etf,
+            reasoning_trace=cand.reasoning_trace,
+            run_dir=auto_paper_run_dir,
+            status=intent_log.STATUS_INTENT,
+        ))
+    except FileExistsError:
+        # An intent for this exact (ticker, run) already exists — a same-run
+        # retry. The dangling-intent guard (step 2a) normally catches this; if
+        # we reach here the prior intent is terminal/being-reconciled. Refuse
+        # to place a duplicate; let the sweep own the existing record.
+        return _reject(
+            cand.ticker,
+            f"intent {cloid} already exists; refusing duplicate placement",
+        )
+
+    # 6. Place the limit order. Tag it with the write-ahead cloid (user_mark) so
+    # a crash-orphaned order can be recovered by exact tag echo, not a heuristic.
     try:
         order_entry = c.place_limit_buy(
             symbol=cand.ticker,
             quantity=cand.shares,
             limit_price=cand.limit_price,
+            user_mark=cloid,
         )
     except BrokerOrderError as exc:
+        # The broker rejected the order — it never reached the book. Mark the
+        # intent abandoned (clean terminal); nothing is orphaned.
+        intent_log.mark(
+            cloid, intent_log.STATUS_ABANDONED,
+            note=f"place_limit_buy rejected: {exc}",
+        )
         return PlacementResult(
             ticker=cand.ticker, status="error",
             reason=f"place_limit_buy: {exc}",
+            client_order_id=cloid,
         )
 
     order_id = order_entry.output.get("order_id")
 
-    # 6. Write the submitted ledger
+    # 6b. Intent → placed (durable). From here the broker holds a live order;
+    # the intent now carries its broker_order_id, so even a hard crash before
+    # the ledger write is recoverable by the sweep.
+    intent_log.mark(cloid, intent_log.STATUS_PLACED, broker_order_id=order_id)
+
+    # 7. Write the submitted ledger
     try:
         path = state.write_submitted_ledger(
             ticker=cand.ticker,
@@ -467,20 +535,25 @@ def place_candidate(
             reasoning_trace=cand.reasoning_trace,
         )
     except state.PaperAutoStateError as exc:
-        # The order is already at the broker — surface that the ledger
-        # write failed so the user can manually reconcile.
+        # The order is live at the broker but the ledger write failed. NOT an
+        # orphan: the intent (status=placed, broker_order_id set) durably knows
+        # about it. reconcile_intents will reconstruct the ledger from the
+        # intent on the next sweep. Surface as a recoverable error.
         return PlacementResult(
             ticker=cand.ticker,
             status="error",
             reason=(
-                f"order #{order_id} placed at broker but ledger write failed: {exc}. "
-                f"Manual reconciliation needed."
+                f"order #{order_id} placed; ledger write failed: {exc}. "
+                f"RECOVERABLE — intent {cloid} holds the order; "
+                f"reconcile_intents will reconstruct the ledger."
             ),
             broker_order_id=order_id,
             cost_estimate_usd=cost_estimate,
+            client_order_id=cloid,
+            recoverable=True,
         )
 
-    # 7. Append to paper-auto positions.json
+    # 8. Append to paper-auto positions.json
     try:
         state.append_to_positions_json({
             "ticker": cand.ticker.upper(),
@@ -498,17 +571,27 @@ def place_candidate(
             "setup_grade": cand.setup_grade,
         })
     except state.PaperAutoStateError as exc:
+        # Ledger written, positions.json append failed. Still recoverable: the
+        # intent (status=placed) + the submitted ledger both exist; the sweep
+        # repairs the positions.json row from the ledger.
         return PlacementResult(
             ticker=cand.ticker,
             status="error",
             reason=(
-                f"order #{order_id} placed + ledger written but positions.json append "
-                f"failed: {exc}. Manual reconciliation needed."
+                f"order #{order_id} placed + ledger written; positions.json append "
+                f"failed: {exc}. RECOVERABLE — intent {cloid} + ledger exist; "
+                f"reconcile_intents will repair the positions.json row."
             ),
             broker_order_id=order_id,
             ledger_path=path,
             cost_estimate_usd=cost_estimate,
+            client_order_id=cloid,
+            recoverable=True,
         )
+
+    # 9. Intent → ledgered (terminal happy path). The canonical ledger +
+    # positions.json now own the lifecycle; the intent is a settled breadcrumb.
+    intent_log.mark(cloid, intent_log.STATUS_LEDGERED)
 
     return PlacementResult(
         ticker=cand.ticker,
@@ -519,4 +602,5 @@ def place_candidate(
         screener_trace=screener_trace_dict,
         panel_verdict=cand.panel_verdict,
         panel_sizing_applied=panel_sizing_applied,
+        client_order_id=cloid,
     )

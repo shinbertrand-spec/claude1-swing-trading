@@ -388,6 +388,10 @@
           "type": "integer",
           "description": "Broker-side global order ID for the in-flight exit limit-sell, populated when tools.auto_paper.exits transitions the ledger to pending_close. Cleared by tools.auto_paper.reconcile on fill (state -> closed) or expiry (state -> starter). Paper-auto track only."
         },
+        "stop_place_error": {
+          "type": "string",
+          "description": "Set by tools.auto_paper.reconcile when a protective-stop placement FAILED on a starter position (e.g. a held-orphan recovery whose _ensure_stop_for errored). Marks the position as NAKED (no live stop_order_id) so the observability health check surfaces it on the pageable surface. Cleared once a stop is successfully (re-)armed. Paper-auto track only."
+        },
         "operator_locked": {
           "type": "boolean",
           "description": "When true, tools.auto_paper.exits refuses to cancel stop_order_id and refuses to place new limit-sells against this position — only records the sell_eval_history entry. Set manually when an operator restores a stop or wants to override the automated monitor for a specific position. Paper-auto track only."

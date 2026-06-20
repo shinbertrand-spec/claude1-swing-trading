@@ -232,8 +232,15 @@ class TigerClient:
         except Exception as exc:
             raise BrokerOrderError(f"get_positions failed: {exc}") from exc
 
+        # Absence-of-evidence guard (broadened): None or any non-list is an
+        # unconfirmed soft-failure, not a flat account. Raise so the sweeps fail safe.
+        if not isinstance(raw, (list, tuple)):
+            raise BrokerOrderError(
+                f"get_positions returned {type(raw).__name__} (unconfirmed) — "
+                f"refusing to treat as flat"
+            )
         positions = []
-        for p in raw or []:
+        for p in raw:
             positions.append({
                 "symbol": getattr(p.contract, "symbol", None) if hasattr(p, "contract") else None,
                 "quantity": float(getattr(p, "quantity", 0) or 0),
@@ -258,8 +265,17 @@ class TigerClient:
         except Exception as exc:
             raise BrokerOrderError(f"get_open_orders failed: {exc}") from exc
 
+        # Absence-of-evidence guard (2026-06-20, broadened): a successful empty
+        # book is an empty LIST; None — or any non-list — is an unconfirmed
+        # soft-failure. Treating it as "no orders" would let reconcile abandon a
+        # genuinely-live order. Raise so the caller fails safe.
+        if not isinstance(raw, (list, tuple)):
+            raise BrokerOrderError(
+                f"get_open_orders returned {type(raw).__name__} (unconfirmed) — "
+                f"refusing to treat as empty"
+            )
         orders = []
-        for o in raw or []:
+        for o in raw:
             orders.append({
                 "order_id": getattr(o, "id", None) or getattr(o, "order_id", None),
                 "symbol": getattr(o.contract, "symbol", None) if hasattr(o, "contract") else None,
@@ -270,6 +286,7 @@ class TigerClient:
                     float(getattr(o, "limit_price", 0.0)) if getattr(o, "limit_price", None) is not None else None
                 ),
                 "status": getattr(o, "status", None),
+                "user_mark": getattr(o, "user_mark", None),
             })
         return TraceEntry(
             tool=TOOL,
@@ -339,18 +356,29 @@ class TigerClient:
 
     def place_limit_buy(
         self, symbol: str, quantity: float, limit_price: float,
+        *, user_mark: str | None = None,
     ) -> TraceEntry:
-        """Place a paper limit-buy. Returns a TraceEntry with the broker order id."""
-        return self._place_limit(symbol, "BUY", quantity, limit_price)
+        """Place a paper limit-buy. Returns a TraceEntry with the broker order id.
+
+        ``user_mark`` stamps a deterministic client-order tag on the broker order
+        (the auto-paper write-ahead cloid) so a crash-orphaned order can be
+        recovered by EXACT TAG ECHO rather than a symbol/qty/limit heuristic
+        (origin proof — never adopts a human order). Best-effort: if the SDK /
+        paper API does not persist the tag, recovery falls back to the strict
+        heuristic match.
+        """
+        return self._place_limit(symbol, "BUY", quantity, limit_price, user_mark=user_mark)
 
     def place_limit_sell(
         self, symbol: str, quantity: float, limit_price: float,
+        *, user_mark: str | None = None,
     ) -> TraceEntry:
         """Place a paper limit-sell. Returns a TraceEntry with the broker order id."""
-        return self._place_limit(symbol, "SELL", quantity, limit_price)
+        return self._place_limit(symbol, "SELL", quantity, limit_price, user_mark=user_mark)
 
     def _place_limit(
         self, symbol: str, action: str, quantity: float, limit_price: float,
+        *, user_mark: str | None = None,
     ) -> TraceEntry:
         if quantity <= 0:
             raise BrokerOrderError(f"quantity must be positive; got {quantity}")
@@ -378,6 +406,14 @@ class TigerClient:
             quantity=quantity,
             limit_price=limit_price,
         )
+        # Stamp the client-order tag (origin proof for crash recovery). Best-
+        # effort: the Order dataclass exposes user_mark; if a future SDK drops it
+        # this must not break placement.
+        if user_mark is not None:
+            try:
+                order.user_mark = str(user_mark)[:32]
+            except Exception:  # noqa: BLE001
+                pass
         try:
             order_id = self._tc.place_order(order)
         except Exception as exc:
@@ -493,8 +529,15 @@ class TigerClient:
         except Exception as exc:
             raise BrokerOrderError(f"get_filled_orders failed: {exc}") from exc
 
+        # Absence-of-evidence guard (broadened): None or any non-list is an
+        # unconfirmed soft-failure, not "no fills". Raise so reconcile fails safe.
+        if not isinstance(raw, (list, tuple)):
+            raise BrokerOrderError(
+                f"get_filled_orders returned {type(raw).__name__} (unconfirmed) — "
+                f"refusing to treat as empty"
+            )
         orders = []
-        for o in raw or []:
+        for o in raw:
             orders.append({
                 "order_id": getattr(o, "id", None) or getattr(o, "order_id", None),
                 "symbol": getattr(o.contract, "symbol", None) if hasattr(o, "contract") else None,
@@ -512,6 +555,7 @@ class TigerClient:
                 ),
                 "status": getattr(o, "status", None),
                 "trade_time": getattr(o, "trade_time", None),
+                "user_mark": getattr(o, "user_mark", None),
             })
         return TraceEntry(
             tool=TOOL,

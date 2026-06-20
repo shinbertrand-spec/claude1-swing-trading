@@ -43,6 +43,71 @@ def _alarm_sf(run_id="2026-06-10T13-35-11"):
     )
 
 
+def _orphan_sf(run_id="2026-06-10T13-35-11", orphans=None):
+    return SilentFailure(
+        run_id=run_id, run_dir="x", session_started_iso="2026-06-10T13:35:11+00:00",
+        is_scheduled_entry=False, intended=0, placed=0, dry_run=0, errors=0,
+        rejected=0, defer=0, n_total=0, alarm=True, reason="orphan intent",
+        orphan_intents=orphans if orphans is not None else [
+            {"client_order_id": "ap-NVDA-r1", "ticker": "NVDA", "status": "placed"}],
+    )
+
+
+# ---- orphan intents (FIX 3: re-page on identity + backoff, not run_id) ---
+
+
+def test_orphan_repages_within_same_run_id_after_backoff(tmp_path):
+    """A persistent orphan keeps the SAME run_id across the day's checks. The
+    run_id-keyed silent-failure path would suppress it — the orphan path must
+    re-page once the backoff elapses."""
+    from datetime import timedelta
+    from tools.observability import health_alerts as ha
+    cap = []
+    state = tmp_path / "state.json"
+    snap = _snap(sf=_orphan_sf())
+    r1 = dispatch_alerts(snap, state_path=state, send=_fake_send(cap), now_utc=NOW)
+    assert "safety_page" in r1.sent
+    # same identity, shortly after → suppressed (backoff not elapsed)
+    r2 = dispatch_alerts(snap, state_path=state, send=_fake_send(cap),
+                         now_utc=NOW + timedelta(minutes=30))
+    assert "safety_page" in r2.suppressed
+    # backoff elapsed → re-pages despite identical run_id
+    later = NOW + timedelta(seconds=ha.ORPHAN_REPAGE_SECONDS + 60)
+    r3 = dispatch_alerts(snap, state_path=state, send=_fake_send(cap), now_utc=later)
+    assert "safety_page" in r3.sent
+    assert len(cap) == 2
+
+
+def test_orphan_repages_immediately_on_identity_change(tmp_path):
+    from datetime import timedelta
+    cap = []
+    state = tmp_path / "state.json"
+    dispatch_alerts(_snap(sf=_orphan_sf(orphans=[{"client_order_id": "a", "ticker": "AAA"}])),
+                    state_path=state, send=_fake_send(cap), now_utc=NOW)
+    # a DIFFERENT orphan set → re-page right away (no backoff wait)
+    dispatch_alerts(_snap(sf=_orphan_sf(orphans=[{"client_order_id": "b", "ticker": "BBB"}])),
+                    state_path=state, send=_fake_send(cap), now_utc=NOW + timedelta(minutes=5))
+    assert len(cap) == 2
+
+
+def test_orphan_clear_resets_then_repages(tmp_path):
+    from datetime import timedelta
+    cap = []
+    state = tmp_path / "state.json"
+    dispatch_alerts(_snap(sf=_orphan_sf()), state_path=state, send=_fake_send(cap), now_utc=NOW)
+    # orphan resolved (no orphan_intents) → no page, state reset
+    clean = _snap(sf=SilentFailure(
+        run_id="r", run_dir="x", session_started_iso=None, is_scheduled_entry=False,
+        intended=0, placed=0, dry_run=0, errors=0, rejected=0, defer=0, n_total=0,
+        alarm=False, reason="ok"))
+    dispatch_alerts(clean, state_path=state, send=_fake_send(cap),
+                    now_utc=NOW + timedelta(minutes=10))
+    # a new orphan appears → pages immediately (state was reset)
+    dispatch_alerts(_snap(sf=_orphan_sf()), state_path=state, send=_fake_send(cap),
+                    now_utc=NOW + timedelta(minutes=20))
+    assert len(cap) == 2
+
+
 # ---- silent failure -----------------------------------------------------
 
 

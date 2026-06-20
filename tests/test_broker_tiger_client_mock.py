@@ -265,6 +265,59 @@ def test_positions_empty(paper_client):
     assert entry.output["positions"] == []
 
 
+# --- FIX 1a (2026-06-20): a None SDK return is an UNCONFIRMED soft-failure and
+# must RAISE, not be treated as an empty book / flat account (which would let
+# the intent sweep abandon a genuinely-live order). An empty LIST is still a
+# confirmed-empty success (tested above).
+
+
+def test_open_orders_none_raises(paper_client):
+    paper_client._tc.get_open_orders = lambda *, account, **_: None
+    with pytest.raises(BrokerOrderError, match="returned None"):
+        paper_client.open_orders()
+
+
+def test_get_filled_orders_none_raises(paper_client):
+    paper_client._tc.get_filled_orders = lambda **_: None
+    with pytest.raises(BrokerOrderError, match="returned None"):
+        paper_client.get_filled_orders(start_time="2026-06-01", end_time="2026-06-20")
+
+
+def test_positions_none_raises(paper_client):
+    paper_client._tc.get_positions = lambda *, account, **_: None
+    with pytest.raises(BrokerOrderError, match="returned"):
+        paper_client.positions()
+
+
+# --- FIX 5: broaden the guard — a non-None, non-list soft-fail (e.g. an error
+# object / dict) must ALSO raise, not be trusted as a (truthy) empty/odd result.
+
+
+def test_open_orders_nonlist_raises(paper_client):
+    paper_client._tc.get_open_orders = lambda *, account, **_: {"error": "rate_limited"}
+    with pytest.raises(BrokerOrderError, match="unconfirmed"):
+        paper_client.open_orders()
+
+
+def test_get_filled_orders_nonlist_raises(paper_client):
+    paper_client._tc.get_filled_orders = lambda **_: {"error": "rate_limited"}
+    with pytest.raises(BrokerOrderError, match="unconfirmed"):
+        paper_client.get_filled_orders(start_time="2026-06-01", end_time="2026-06-20")
+
+
+def test_user_mark_tag_threads_to_order(paper_client):
+    """FIX 4 plumbing: place_limit_buy stamps user_mark on the order object."""
+    captured = {}
+    orig = paper_client._tc.place_order
+
+    def _capture(order):
+        captured["user_mark"] = getattr(order, "user_mark", None)
+        return orig(order)
+    paper_client._tc.place_order = _capture
+    paper_client.place_limit_buy("NVDA", quantity=5, limit_price=100.0, user_mark="ap-NVDA-x")
+    assert captured["user_mark"] == "ap-NVDA-x"
+
+
 def test_place_limit_buy_records_correct_fields(paper_client):
     entry = paper_client.place_limit_buy("NVDA", quantity=10, limit_price=850.50)
     out = entry.output

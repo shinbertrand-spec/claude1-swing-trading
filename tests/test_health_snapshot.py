@@ -47,6 +47,127 @@ def _write_run(runs_dir: Path, run_id: str, rows, *, started=SCHEDULED_START,
     return d
 
 
+# ---- unprotected starter (FOLD-IN #1: naked held-recovery) --------------
+
+
+def _write_paper_ledger(ledgers_dir: Path, ticker: str, *, state: str,
+                        stop_order_id=None, stop_place_error=None):
+    ledgers_dir.mkdir(parents=True, exist_ok=True)
+    ps = {"stage": "STARTER", "starter": {"shares": 5}}
+    if stop_order_id is not None:
+        ps["stop_order_id"] = stop_order_id
+    if stop_place_error is not None:
+        ps["stop_place_error"] = stop_place_error
+    (ledgers_dir / f"{ticker}.yml").write_text(yaml.safe_dump({
+        "meta": {"ticker": ticker, "state": state, "account_track": "paper-auto"},
+        "position_state": ps,
+    }))
+
+
+def test_unprotected_starter_is_surfaced(tmp_path):
+    from tools.observability.health_snapshot import scan_unprotected_starters
+    led = tmp_path / "ledgers" / "paper-auto"
+    # naked: starter, no stop_order_id, stop placement errored
+    _write_paper_ledger(led, "NAK", state="starter", stop_place_error="place_stop_loss failed")
+    # healthy: starter WITH a live stop → must NOT be flagged
+    _write_paper_ledger(led, "OK", state="starter", stop_order_id=12345)
+    # closed: irrelevant
+    _write_paper_ledger(led, "DONE", state="closed")
+    found = scan_unprotected_starters(paper_auto_ledgers=led)
+    tickers = {f["ticker"] for f in found}
+    assert tickers == {"NAK"}
+
+
+def test_naked_starter_not_held_does_not_page(tmp_path):
+    """FIX #5: a starter still carrying a stop_place_error flag but NO LONGER
+    held at the broker (closed externally before the flag was cleared) must NOT
+    page — only a still-held starter is actually naked. Holdings gate the scan."""
+    from tools.observability.health_snapshot import scan_unprotected_starters
+    led = tmp_path / "ledgers" / "paper-auto"
+    _write_paper_ledger(led, "NAK", state="starter", stop_place_error="x")
+    _write_paper_ledger(led, "HELD", state="starter", stop_place_error="x")
+    # Broker holds HELD (5 sh) but NOT NAK → only HELD is genuinely naked.
+    found = scan_unprotected_starters(paper_auto_ledgers=led, holdings={"HELD": 5})
+    assert {f["ticker"] for f in found} == {"HELD"}
+
+
+def test_naked_starter_zero_qty_not_held(tmp_path):
+    """A holdings snapshot that lists the symbol at 0 shares is not-held."""
+    from tools.observability.health_snapshot import scan_unprotected_starters
+    led = tmp_path / "ledgers" / "paper-auto"
+    _write_paper_ledger(led, "NAK", state="starter", stop_place_error="x")
+    found = scan_unprotected_starters(paper_auto_ledgers=led, holdings={"NAK": 0})
+    assert found == []
+
+
+def test_naked_starter_holdings_none_keeps_flag(tmp_path):
+    """holdings=None (broker read unavailable) → conservative: still surface, so a
+    blackout can never silence a genuine naked position."""
+    from tools.observability.health_snapshot import scan_unprotected_starters
+    led = tmp_path / "ledgers" / "paper-auto"
+    _write_paper_ledger(led, "NAK", state="starter", stop_place_error="x")
+    found = scan_unprotected_starters(paper_auto_ledgers=led, holdings=None)
+    assert {f["ticker"] for f in found} == {"NAK"}
+
+
+def test_unprotected_starter_fires_alarm(tmp_path):
+    d = _write_run(tmp_path, "2026-06-10T13-35-11", [("AMD", "placed", 111)])
+    pj = tmp_path / "journal" / "paper-auto" / "positions.json"
+    pj.parent.mkdir(parents=True, exist_ok=True)
+    pj.write_text(json.dumps({"positions": []}))
+    led = tmp_path / "ledgers" / "paper-auto"
+    _write_paper_ledger(led, "NAK", state="starter", stop_place_error="boom")
+    snap = build_snapshot(run_dir=d, runs_dir=tmp_path, positions_json=pj,
+                          paper_auto_ledgers=led, check_feeds=False, write=False)
+    assert snap.silent_failure is not None
+    assert any(f["ticker"] == "NAK" for f in snap.silent_failure.unprotected_starters)
+    assert snap.silent_failure.alarm is True
+    assert snap.overall_ok is False
+
+
+# ---- orphan-intent alarm (v2 write-ahead path) --------------------------
+
+
+def _write_intent(positions_json: Path, cloid: str, ticker: str, status: str,
+                  broker_order_id=None):
+    intents_dir = positions_json.parent / "intents"
+    intents_dir.mkdir(parents=True, exist_ok=True)
+    (intents_dir / f"{cloid}.yml").write_text(yaml.safe_dump({
+        "client_order_id": cloid, "ticker": ticker, "status": status,
+        "broker_order_id": broker_order_id, "created_at": "2026-06-10T13:35:00+00:00",
+    }))
+
+
+def test_dangling_placed_intent_fires_alarm(tmp_path):
+    """A non-terminal write-ahead intent (status=placed) pages regardless of
+    whether the run placed cleanly — an order intent is dangling."""
+    d = _write_run(tmp_path, "2026-06-10T13-35-11", [("AMD", "placed", 111)])
+    pj = tmp_path / "journal" / "paper-auto" / "positions.json"
+    pj.parent.mkdir(parents=True, exist_ok=True)
+    pj.write_text(json.dumps({"positions": [
+        {"ticker": "AMD", "broker_order_id": 111, "stage": "starter"}]}))
+    _write_intent(pj, "ap-XYZ-1", "XYZ", "placed", broker_order_id=999)
+    sf = compute_silent_failure(d, positions_json=pj)
+    assert sf.alarm is True
+    assert len(sf.orphan_intents) == 1
+    assert sf.orphan_intents[0]["ticker"] == "XYZ"
+    assert "dangling" in sf.reason
+
+
+def test_terminal_intents_do_not_alarm(tmp_path):
+    """ledgered / abandoned intents are settled — no alarm."""
+    d = _write_run(tmp_path, "2026-06-10T13-35-11", [("AMD", "placed", 111)])
+    pj = tmp_path / "journal" / "paper-auto" / "positions.json"
+    pj.parent.mkdir(parents=True, exist_ok=True)
+    pj.write_text(json.dumps({"positions": [
+        {"ticker": "AMD", "broker_order_id": 111, "stage": "starter"}]}))
+    _write_intent(pj, "ap-AMD-1", "AMD", "ledgered", broker_order_id=111)
+    _write_intent(pj, "ap-OLD-1", "OLD", "abandoned")
+    sf = compute_silent_failure(d, positions_json=pj)
+    assert sf.alarm is False
+    assert sf.orphan_intents == []
+
+
 # ---- silent-failure core ------------------------------------------------
 
 

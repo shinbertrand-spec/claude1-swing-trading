@@ -504,6 +504,9 @@ def record_stop_order_id(ticker: str, stop_order_id: int) -> str:
 
     ps = doc.setdefault("position_state", {})
     ps["stop_order_id"] = int(stop_order_id)
+    # A live stop is now armed → clear any prior NAKED marker so the health
+    # check stops paging it as unprotected.
+    ps.pop("stop_place_error", None)
 
     doc.setdefault("meta", {})
     doc["meta"]["updated_by"] = "auto_paper/reconcile"

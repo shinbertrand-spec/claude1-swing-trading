@@ -667,6 +667,42 @@ def test_stop_out_closes_and_records_outcome(paper_dirs, tmp_path):
     assert "stop" in o["exit_reason"].lower()
 
 
+def test_realized_close_clears_naked_flag(paper_dirs, tmp_path):
+    """FIX #5: closing a position that still carries a stale stop_place_error must
+    drop that flag, so a closed ledger can never false-page as NAKED."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    # Inject a stale naked flag (e.g. a held-recovery whose stop placement failed).
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    doc["position_state"]["stop_place_error"] = "place_stop_loss failed"
+    with open(state.ledger_path("NVDA"), "w") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+
+    reconcile._apply_realized_close("NVDA", exit_price=810.00, exit_reason="stop_out")
+
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    assert doc["meta"]["state"] == "closed"
+    assert "stop_place_error" not in doc["position_state"]
+
+
+def test_flip_to_starter_clears_naked_flag(paper_dirs):
+    """Mode A flip closed→starter must not carry a stale stop_place_error from a
+    prior failed close, which would otherwise mis-page a freshly-revived starter."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    doc["meta"]["state"] = "closed"
+    doc["position_state"]["stop_place_error"] = "stale"
+    with open(state.ledger_path("NVDA"), "w") as fh:
+        yaml.safe_dump(doc, fh, sort_keys=False)
+
+    reconcile._flip_to_starter_from_closed("NVDA", reason="broker still holds")
+
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    assert doc["meta"]["state"] == "starter"
+    assert "stop_place_error" not in doc["position_state"]
+
+
 def test_stop_out_noop_when_stop_still_resting(paper_dirs):
     _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
                   stop_order_id=55001)

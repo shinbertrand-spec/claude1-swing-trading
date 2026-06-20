@@ -32,6 +32,11 @@ UTC = timezone.utc
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 ALERT_STATE_DEFAULT = _REPO_ROOT / "ledgers" / "observability" / "_state" / "alert_state.json"
 
+# A dangling write-ahead intent (orphan) is a LIVE-order safety condition: it
+# must keep paging until resolved, not page once and go silent. We re-page when
+# the orphan IDENTITY changes OR this many seconds elapse since the last page.
+ORPHAN_REPAGE_SECONDS = 4 * 3600
+
 
 @dataclass
 class DispatchResult:
@@ -49,6 +54,25 @@ class DispatchResult:
 
 
 def format_silent_failure(sf: Any) -> str:
+    naked = getattr(sf, "unprotected_starters", None) or []
+    if naked:
+        names = ", ".join(sorted({str(n.get("ticker")) for n in naked}))
+        return (
+            "🚨 *AUTO-PAPER NAKED POSITION*\n"
+            f"{len(naked)} held starter(s) with NO live stop: {names}\n"
+            "A position is believed protected but the protective stop is missing "
+            "(placement failed). Re-arm the stop or flatten — do not leave it naked."
+        )
+    orphans = getattr(sf, "orphan_intents", None) or []
+    if orphans:
+        names = ", ".join(sorted({str(o.get("ticker")) for o in orphans}))
+        return (
+            "🚨 *AUTO-PAPER ORPHAN INTENT*\n"
+            f"{len(orphans)} write-ahead intent(s) dangling: {names}\n"
+            f"Session: `{sf.run_id}`\n"
+            "An order was intended/placed but never reconciled to a ledger. "
+            "Run /auto-paper-reconcile (reconcile_intents) to recover or abandon it."
+        )
     return (
         "🚨 *AUTO-PAPER SILENT FAILURE*\n"
         f"ANOMALY: {sf.intended} intended, {sf.placed} placed, "
@@ -57,6 +81,26 @@ def format_silent_failure(sf: Any) -> str:
         "Scheduled entry run placed nothing it intended to. "
         "Check the entry task isn't stuck in --dry-run."
     )
+
+
+def _safety_identity(orphans: list, naked: list) -> str:
+    """Stable identity for the live-order safety set (dangling intents + naked
+    held starters). Same set → same identity (suppress within backoff); a changed
+    set re-pages immediately."""
+    keys = [f"orphan:{o.get('client_order_id') or ''}|{o.get('ticker') or ''}"
+            for o in orphans if isinstance(o, dict)]
+    keys += [f"naked:{n.get('ticker') or ''}" for n in naked if isinstance(n, dict)]
+    return ";".join(sorted(keys))
+
+
+def _parse_iso_ts(s: Any):
+    if not isinstance(s, str) or not s.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(s.strip())
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def format_feed_down(feed: Any) -> str:
@@ -141,9 +185,43 @@ def dispatch_alerts(
             except Exception as exc:  # noqa: BLE001
                 result.errors.append(f"{label}: {exc!r}")
 
-        # --- A. silent failure (edge: one per run_id) ---
+        # --- A. live-order safety conditions (orphan intents + NAKED held
+        # starters). These are live-capital conditions that must keep paging until
+        # resolved. Edge-trigger on the IDENTITY (sorted set), NOT run_id (which
+        # stays constant across the day's checks). Cadence ESCALATES then digests
+        # so an unresolvable dangle doesn't spam every 4h forever and train the
+        # operator to ignore it: immediate on first-seen / identity change, then
+        # 4h for the first day, then once daily.
         sf = snapshot.silent_failure
-        if sf and sf.alarm:
+        orphans = (sf.orphan_intents if sf else None) or []
+        naked = (sf.unprotected_starters if sf else None) or []
+        if orphans or naked:
+            identity = _safety_identity(orphans, naked)
+            last_id = state.get("safety_identity")
+            last_at = _parse_iso_ts(state.get("safety_last_paged_at"))
+            first_at = _parse_iso_ts(state.get("safety_first_seen_at"))
+            if identity != last_id or first_at is None:
+                first_at = now
+            persisted = (now - first_at).total_seconds()
+            backoff = ORPHAN_REPAGE_SECONDS if persisted < 86400 else 86400  # 4h → daily digest
+            elapsed = (now - last_at).total_seconds() if last_at else None
+            should = (identity != last_id) or (elapsed is None) or (elapsed >= backoff)
+            if should:
+                _push("safety_page", format_silent_failure(sf))
+                state["safety_identity"] = identity
+                state["safety_last_paged_at"] = now.isoformat(timespec="seconds")
+                state["safety_first_seen_at"] = first_at.isoformat(timespec="seconds")
+            else:
+                result.suppressed.append("safety_page")
+        else:
+            # cleared — reset so the next condition pages immediately
+            state.pop("safety_identity", None)
+            state.pop("safety_last_paged_at", None)
+            state.pop("safety_first_seen_at", None)
+
+        # --- A2. silent failure (edge: one per run_id) — ONLY the non-safety
+        # dry-run/placed anomaly; orphans + naked starters re-page above.
+        if sf and sf.alarm and not (orphans or naked):
             if state.get("silent_failure_run_id") != sf.run_id:
                 _push("silent_failure", format_silent_failure(sf))
                 state["silent_failure_run_id"] = sf.run_id

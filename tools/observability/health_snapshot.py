@@ -46,6 +46,13 @@ SNAPSHOT_OUT_DEFAULT = _REPO_ROOT / "journal" / "observability" / "health_snapsh
 PLACEMENT_FILE = "07_placement_results.yml"
 STATUS_FILE = "_status.yml"
 
+# Write-ahead intent journal (sibling of positions.json). Read-only here — this
+# module never imports the placement path; it just inspects the breadcrumbs.
+INTENTS_DIRNAME = "intents"
+# Non-terminal intent statuses (mirror tools.auto_paper.intent_log without
+# importing it, to keep the observe-only boundary).
+UNRESOLVED_INTENT_STATES = frozenset({"intent", "placed"})
+
 # Statuses that represent a candidate that REACHED placement (i.e. intent to
 # trade). 'rejected' and 'defer' are legitimate gate decisions, not intent.
 INTENT_STATUSES = frozenset({"placed", "dry_run", "error"})
@@ -85,6 +92,14 @@ class SilentFailure:
     alarm: bool
     reason: str
     placed_not_at_broker: list[dict[str, Any]] = field(default_factory=list)
+    # Write-ahead intents (v2 path) that never reached a terminal state — a
+    # placed-or-intended order the framework may have lost track of. ANY of
+    # these is pageable regardless of the run being scheduled: it means an
+    # order intent is dangling until the recovery sweep resolves it.
+    orphan_intents: list[dict[str, Any]] = field(default_factory=list)
+    # NAKED held positions (FOLD-IN #1): starter ledgers with no live stop and a
+    # recorded stop-placement failure — believed-protected but actually unstopped.
+    unprotected_starters: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -210,12 +225,139 @@ def find_latest_entry_session(runs_dir: Path = RUNS_DIR_DEFAULT) -> Optional[Pat
     return None
 
 
+def scan_orphan_intents(positions_json: Path = POSITIONS_JSON_DEFAULT) -> list[dict[str, Any]]:
+    """Read-only scan of the write-ahead intent journal for non-terminal intents.
+
+    Returns one dict per dangling intent (status in {intent, placed}). Empty on
+    a clean track or any read error — this must never raise. Derives the intents
+    dir from the positions.json path so a test-redirected index is honoured.
+    """
+    out: list[dict[str, Any]] = []
+    try:
+        intents_dir = positions_json.parent / INTENTS_DIRNAME
+        if not intents_dir.is_dir():
+            return []
+        for p in sorted(intents_dir.glob("*.yml")):
+            doc = _load_yaml(p)
+            if not isinstance(doc, dict):
+                continue
+            status = str(doc.get("status", "")).strip()
+            if status in UNRESOLVED_INTENT_STATES:
+                out.append({
+                    "client_order_id": doc.get("client_order_id"),
+                    "ticker": doc.get("ticker"),
+                    "status": status,
+                    "broker_order_id": doc.get("broker_order_id"),
+                    "created_at": doc.get("created_at"),
+                })
+    except Exception:  # noqa: BLE001 — observe-only, never raise
+        return out
+    return out
+
+
+def _held_qty(holdings: Any, ticker: str) -> Optional[float]:
+    """Return the held share count for ``ticker`` from a holdings snapshot, or
+    None if ``holdings`` is None (snapshot unavailable). Accepts a
+    ``{ticker: qty}`` mapping or a set/list/tuple of held tickers (treated as
+    qty 1). Symbol match is case-insensitive."""
+    if holdings is None:
+        return None
+    key = ticker.upper()
+    if isinstance(holdings, dict):
+        for k, v in holdings.items():
+            if str(k).upper() == key:
+                try:
+                    return abs(float(v))
+                except (TypeError, ValueError):
+                    return 0.0
+        return 0.0
+    if isinstance(holdings, (set, list, tuple)):
+        return 1.0 if any(str(k).upper() == key for k in holdings) else 0.0
+    return None
+
+
+def scan_unprotected_starters(
+    paper_auto_ledgers: Path = PAPER_AUTO_LEDGERS_DEFAULT,
+    *,
+    holdings: Any = None,
+) -> list[dict[str, Any]]:
+    """Read-only scan for NAKED held positions (FOLD-IN #1): a paper-auto ledger
+    in ``starter`` state with NO live ``stop_order_id`` AND a recorded
+    ``stop_place_error`` — a position the system believes is protected but isn't
+    (e.g. a held-orphan recovery whose stop placement failed and was never
+    re-armed). Surfaced onto the pageable health surface. Never raises.
+
+    FIX #5 (false-page guard): when a ``holdings`` snapshot is supplied
+    (``{ticker: qty}`` mapping or set of held tickers), only a position the
+    broker STILL HOLDS (>=1 share) is naked — a position closed externally before
+    its stale flag was cleared is filtered out. When ``holdings`` is None (broker
+    read unavailable / blackout), the scan is conservative and surfaces the flag
+    regardless, so a blackout can never silence a genuine naked position."""
+    out: list[dict[str, Any]] = []
+    try:
+        if not paper_auto_ledgers.is_dir():
+            return []
+        for p in sorted(paper_auto_ledgers.glob("*.yml")):
+            doc = _load_yaml(p)
+            if not isinstance(doc, dict):
+                continue
+            meta = doc.get("meta") or {}
+            ps = doc.get("position_state") or {}
+            if not isinstance(meta, dict) or not isinstance(ps, dict):
+                continue
+            state_v = str(meta.get("state", "")).strip().lower()
+            has_stop = ps.get("stop_order_id") is not None
+            err = ps.get("stop_place_error")
+            if not (state_v == "starter" and not has_stop and err):
+                continue
+            ticker = meta.get("ticker") or p.stem
+            held = _held_qty(holdings, str(ticker))
+            # held is None → snapshot unavailable → surface (conservative).
+            # held < 1 → broker no longer holds it → not naked, skip.
+            if held is not None and held < 1:
+                continue
+            out.append({
+                "ticker": ticker,
+                "stop_place_error": str(err),
+            })
+    except Exception:  # noqa: BLE001 — observe-only, never raise
+        return out
+    return out
+
+
+def _fetch_broker_holdings() -> Optional[dict[str, float]]:
+    """Best-effort live holdings snapshot ``{ticker: qty}`` for the naked-starter
+    guard (FIX #5). Returns None on any failure / blackout — callers treat None as
+    "unavailable" and stay conservative (surface the flag). Never raises."""
+    try:
+        from ..broker.tiger import TigerClient
+        client = TigerClient(allow_live=False)
+        positions = client.positions().output["positions"]
+        out: dict[str, float] = {}
+        for p in positions:
+            sym = str(p.get("symbol", "")).upper()
+            if sym:
+                try:
+                    out[sym] = abs(float(p.get("quantity", 0)))
+                except (TypeError, ValueError):
+                    out[sym] = 0.0
+        return out
+    except Exception:  # noqa: BLE001 — observe-only, never raise
+        return None
+
+
 def compute_silent_failure(
     run_dir: Path,
     *,
     positions_json: Path = POSITIONS_JSON_DEFAULT,
+    paper_auto_ledgers: Path = PAPER_AUTO_LEDGERS_DEFAULT,
+    holdings: Any = None,
 ) -> SilentFailure:
-    """Compute the silent-failure verdict for one entry-session run dir."""
+    """Compute the silent-failure verdict for one entry-session run dir.
+
+    ``holdings`` is an optional ``{ticker: qty}`` broker snapshot (or set of held
+    tickers) used to gate the naked-starter scan — a starter no longer held is
+    not naked (FIX #5). None → conservative (surface regardless)."""
     placement = _load_yaml(run_dir / PLACEMENT_FILE)
     status = _load_yaml(run_dir / STATUS_FILE)
 
@@ -246,11 +388,32 @@ def compute_silent_failure(
         session_started = status.get("run_started_at")
         run_id = status.get("run_id") or run_id
 
+    # Write-ahead intent orphans (v2 path). A dangling intent is ALWAYS
+    # pageable — it means an order intent the framework hasn't reconciled to a
+    # fill/cancel/abandon — independent of whether this run was scheduled.
+    orphan_intents = scan_orphan_intents(positions_json)
+    # NAKED held starters (FOLD-IN #1) — believed-protected but unstopped.
+    # Gated on a live holdings snapshot (FIX #5): a starter no longer held is
+    # not naked; None → conservative (surface regardless).
+    unprotected_starters = scan_unprotected_starters(paper_auto_ledgers, holdings=holdings)
+
     is_scheduled = _is_scheduled_entry_window(session_started)
     raw_anomaly = intended > 0 and (placed == 0 or dry > 0)
-    alarm = bool(is_scheduled and raw_anomaly)
+    alarm = bool((is_scheduled and raw_anomaly) or orphan_intents or unprotected_starters)
 
-    if alarm:
+    if unprotected_starters:
+        reason = (
+            f"{len(unprotected_starters)} NAKED held starter(s) "
+            f"({', '.join(sorted({str(o.get('ticker')) for o in unprotected_starters}))}) "
+            f"— position believed protected but has NO live stop (placement failed)"
+        )
+    elif orphan_intents:
+        reason = (
+            f"{len(orphan_intents)} unresolved write-ahead intent(s) "
+            f"({', '.join(sorted({str(o.get('ticker')) for o in orphan_intents}))}) "
+            f"— order intent dangling, not yet reconciled to fill/cancel"
+        )
+    elif is_scheduled and raw_anomaly:
         reason = (
             f"scheduled entry session placed {placed} of {intended} intended "
             f"({dry} dry-run) — silent failure"
@@ -280,6 +443,8 @@ def compute_silent_failure(
         alarm=alarm,
         reason=reason,
         placed_not_at_broker=placed_not_at_broker,
+        orphan_intents=orphan_intents,
+        unprotected_starters=unprotected_starters,
     )
 
 
@@ -499,16 +664,27 @@ def build_snapshot(
     check_feeds: bool = True,
     write: bool = True,
     snapshot_out: Path = SNAPSHOT_OUT_DEFAULT,
+    holdings: Any = None,
 ) -> HealthSnapshot:
-    """Build the full health snapshot. Never raises; degrades per-field."""
+    """Build the full health snapshot. Never raises; degrades per-field.
+
+    ``holdings`` gates the naked-starter scan (FIX #5). When None and
+    ``check_feeds`` is on (the live cron path), a best-effort live holdings
+    snapshot is fetched from the paper broker; pass an explicit dict/set (or
+    leave None with ``check_feeds=False``) in tests for determinism."""
     now = now_utc or _utc_now()
 
     target = run_dir or find_latest_entry_session(runs_dir)
 
+    if holdings is None and check_feeds:
+        holdings = _fetch_broker_holdings()
+
     sf: Optional[SilentFailure] = None
     if target is not None:
         try:
-            sf = compute_silent_failure(target, positions_json=positions_json)
+            sf = compute_silent_failure(target, positions_json=positions_json,
+                                        paper_auto_ledgers=paper_auto_ledgers,
+                                        holdings=holdings)
         except Exception as exc:  # noqa: BLE001
             sf = SilentFailure(
                 run_id=getattr(target, "name", None), run_dir=str(target),
