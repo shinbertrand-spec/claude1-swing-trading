@@ -68,3 +68,13 @@ gate:
   sharpe_min: 1.0
   max_dd_pct: 25.0
   n_min: 30
+  # Per-window robustness clause (added 2026-06-20 after adversarial review).
+  # A single 70/30 OOS Sharpe of 1.04 is statistically indistinguishable from
+  # 1.0 (SE ~0.6 over ~2.8y), so the deploy decision must rest on per-window
+  # robustness, not the aggregate alone. >= min_window_pass_rate of the rolling
+  # OOS windows must individually clear min_window_sharpe — evaluated under the
+  # REALISTIC fill (marketable_limit, buffer 0.03) + full-spread cost via
+  # tools.backtest.portfolio_simulator.simulate_walk_forward. The legacy 6/6
+  # per-window figure was zero-cost and does NOT satisfy this clause.
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5

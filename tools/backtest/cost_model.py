@@ -48,9 +48,22 @@ def one_side_cost_bps(
     trade_dollars: float,
     dollar_adv: Optional[float],
     half_spread_bps: float,
+    *,
+    marketable_cross: bool = False,
 ) -> float:
-    """Total one-side cost (bps) = half effective spread + sqrt-law impact."""
-    return half_spread_bps + impact_bps(trade_dollars, dollar_adv)
+    """Total one-side cost (bps) = spread component + sqrt-law impact.
+
+    ``marketable_cross`` selects the spread component:
+      * False (DEFAULT, passive fill) → HALF the effective spread. A resting
+        limit that gets hit pays at most half-spread (often earns it).
+      * True (marketable order) → the FULL effective spread. A market /
+        marketable-limit order CROSSES the book: it lifts the offer on a buy,
+        hits the bid on a sell. Charging only half-spread on a marketable
+        order systematically under-costs it (the 2026-06-20 cert bug — the
+        momentum class places a marketable buy limit yet was charged half).
+    """
+    spread_component = (2.0 * half_spread_bps) if marketable_cross else half_spread_bps
+    return spread_component + impact_bps(trade_dollars, dollar_adv)
 
 
 def apply_buy_cost(price: float, cost_bps: float) -> float:

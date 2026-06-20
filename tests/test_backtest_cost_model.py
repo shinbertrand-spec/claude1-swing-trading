@@ -105,3 +105,13 @@ def test_thin_name_costs_more_than_liquid_for_same_clip():
     liquid = cost_model.one_side_cost_bps(clip, 100_000_000, sm.liquidity_tier(100_000_000).half_spread_bps)
     thin = cost_model.one_side_cost_bps(clip, 2_000_000, sm.liquidity_tier(2_000_000).half_spread_bps)
     assert thin > liquid
+
+
+def test_marketable_cross_charges_full_spread():
+    """A marketable order crosses the book → FULL spread; passive → half.
+    Only the spread component changes; the impact term is identical."""
+    half = cost_model.one_side_cost_bps(10_000, 20_000_000, 5.0, marketable_cross=False)
+    full = cost_model.one_side_cost_bps(10_000, 20_000_000, 5.0, marketable_cross=True)
+    assert (full - half) == pytest.approx(5.0)   # the extra half-spread (5 bps)
+    # default is passive (back-compat)
+    assert cost_model.one_side_cost_bps(10_000, 20_000_000, 5.0) == pytest.approx(half)
