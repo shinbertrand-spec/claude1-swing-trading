@@ -78,10 +78,40 @@ entry-point list.
 ## Hard Rules (Never Violate)
 
 ### Position Sizing & Capital
-- Never invest more than **5% of total portfolio value** in a single position
+- Never invest more than **10% of total portfolio value** in a single position
+  (reconciled 2026-06-20 — see note below)
+- Never let one **correlated theme / cluster** exceed **~25–30% of total
+  portfolio value** in aggregate, even when each name is individually
+  risk-sized (the correlation control — see note below)
 - Never have more than **20% exposure to a single sector**
 - Keep at least **15% cash buffer** at all times
 - Maximum **8 concurrent open positions**
+
+#### Per-position cap reconciliation (codified 2026-06-20)
+
+The per-position cap was reconciled from a **written 5% / executed 25%** split
+to a single **10%** value. `tools/position_sizer.py` had drifted to a 0.25
+default (comment: "relaxed because risk-based math now governs") while this Hard
+Rule said 5% — the discretionary track was sizing 5× looser than the written
+rule. The "risk-math makes the cap redundant" reasoning was **wrong**: per-name
+risk-parity sizing (`risk_budget_$ / stop_distance`) bounds *idiosyncratic*
+dollar risk but does nothing about **correlated / clustered-gap risk** — several
+correlated names (e.g. AI-momentum) gapping down together is one bet, and
+per-name sizing does not save you.
+
+Reconciliation: the EXECUTED cap tightens **25% → 10%**; the WRITTEN rule moves
+**5% → 10%** to match; and the **theme/cluster cap (~25–30% aggregate)** is added
+as the correlation control the per-position cap alone cannot provide.
+
+**Per-track note:** the **paper-auto / quant track** pins the per-position cap
+*tighter* at **5%** deliberately (`tools/auto_paper/quant_scanner.py` and
+`scripts/manual_rebalance.py` pass `concentration_cap_pct=0.05` explicitly).
+The 5% references elsewhere in this file that describe the paper-auto carve-out
+remain accurate for that track — 5% is stricter than the 10% ceiling, which is
+always permitted. The theme/cluster cap is **not yet enforced in code** — it is
+written doctrine now; the deterministic enforcement layer is specced and flagged
+for build (no clean cross-track portfolio layer exists today; the stateless
+`position_sizer` cannot host it).
 
 ### Order Execution
 - Never place a market order — always use limit orders within 0.2% of ask
@@ -200,7 +230,8 @@ is "I don't know," do not trade — research more or skip.
 ### Portfolio State
 1. What is the current portfolio cash balance?
 2. What positions are already open, and what's the total $ at risk?
-3. Does this trade keep me under 5% / 20% / 8-position limits?
+3. Does this trade keep me under 10% (per-position) / 20% (sector) / ~25–30%
+   (correlated theme) / 8-position limits?
 
 ### Fundamental Case
 4. Why is this company's business doing well right now? (one sentence)

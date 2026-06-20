@@ -55,7 +55,22 @@ REGIME_MULTIPLIER: dict[str, float] = {
     "stage_4": 0.0,
 }
 
-DEFAULT_CONCENTRATION_CAP_PCT = 0.25
+# Per-position concentration cap. Reconciled 2026-06-20 from 0.25 -> 0.10.
+#
+# This is a CORRELATION / clustered-gap control, NOT redundant with the
+# risk-parity path above. shares_by_risk holds *idiosyncratic* dollar risk
+# constant (a fixed risk_budget_$ / stop_distance), but it does nothing about
+# several correlated names (e.g. AI-momentum) gapping down together — that is
+# one bet, and per-name sizing does not save you. The cap bounds how much of
+# the book any single name can be regardless of how tight its stop is.
+#
+# The prior 0.25 ("relaxed because risk-based math now governs") was wrong on
+# exactly that point and had drifted 5x looser than CLAUDE.md's written 5%
+# per-position Hard Rule. 0.10 is the reconciled value: the EXECUTED cap
+# tightens 25%->10%, the WRITTEN rule moves 5%->10% to match, and a separate
+# theme/cluster cap (portfolio-level, not in this stateless sizer) is the
+# correlation control for baskets of individually-risk-sized names.
+DEFAULT_CONCENTRATION_CAP_PCT = 0.10
 
 
 def compute(
@@ -80,8 +95,10 @@ def compute(
         adr_pct: optional Kullamägi ADR input.
         atr_multiple: ATR multiplier for stop. Default 2.0.
         concentration_cap_pct: max single-position capital fraction.
-            Default 0.25 per swing-position-sizing (relaxed from v1 0.05
-            because risk-based math now governs).
+            Default 0.10 (reconciled 2026-06-20 from 0.25). A per-position
+            correlation/clustered-gap control, NOT made redundant by the
+            risk-parity path — that bounds idiosyncratic dollar risk only.
+            The paper-auto/quant callers pin this tighter (0.05) deliberately.
         cash_available: optional sanity check — final capital cannot
             exceed this.
 

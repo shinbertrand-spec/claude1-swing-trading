@@ -147,7 +147,7 @@ Then evaluate each hard rule with the math from the tool output:
 
 | Rule | Source | PASS / FAIL |
 |---|---|---|
-| Position size ≤ 5% / Concentration ≤ 25% capital | `position_sizer.output.capital_pct` | PASS iff ≤ 0.25 (Phase 2 risk-budget cap) |
+| Position size ≤ 10% capital (reconciled 2026-06-20 from 25%) | `position_sizer.output.capital_pct` | PASS iff ≤ 0.10 |
 | Sector exposure (post-trade) ≤ 20-25% | Re-compute manually from open positions + this trade | |
 | Cash buffer (post-trade) ≥ 15% (or regime-scaled per swing-regime-playbook) | `(cash - capital) / portfolio_value` | |
 | Total open positions (post-trade) ≤ 8 | Count + 1 ≤ 8 | |

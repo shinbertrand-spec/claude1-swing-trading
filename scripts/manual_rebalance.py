@@ -318,7 +318,10 @@ def _candidates_for_row(
                 regime_class=regime_class,
                 atr_multiple=atr_mult,
                 cash_available=cash_available,
-                concentration_cap_pct=0.05,  # CLAUDE.md hard rule
+                # Paper-auto/quant track pins the per-position cap at 5% —
+                # intentionally TIGHTER than the 10% Hard-Rule ceiling
+                # (reconciled 2026-06-20). Stricter is always permitted.
+                concentration_cap_pct=0.05,
             )
         except ValueError:
             continue

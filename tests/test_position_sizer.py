@@ -13,7 +13,8 @@ def test_apple_a_plus_example_concentration_binds():
 
     Risk budget = 2% × $150k = $3,000.
     ATR×2 = $9.14; shares-by-risk = 3000 / 9.14 ≈ 328.
-    Concentration cap 25% = $37,500 / $192.74 ≈ 194 shares — binds.
+    Concentration cap 10% (reconciled 2026-06-20 from 25%) =
+    $15,000 / $192.74 ≈ 77 shares — binds.
     """
     e = compute(
         account=150_000.0,
@@ -23,9 +24,11 @@ def test_apple_a_plus_example_concentration_binds():
         regime_class="stage_2_confirmed",
     )
     assert e.output["binding_constraint"] == "concentration_cap"
-    assert e.output["shares"] == 194
-    assert math.isclose(e.output["capital"], 194 * 192.74, rel_tol=1e-9)
-    # Effective risk should be well under 2%: 194 × 9.14 / 150000 ≈ 1.18%
+    assert e.output["shares"] == 77
+    assert math.isclose(e.output["capital"], 77 * 192.74, rel_tol=1e-9)
+    # Position capital must not exceed the 10% per-position cap.
+    assert e.output["capital_pct"] <= 0.10
+    # Effective risk should be well under 2%: 77 × 9.14 / 150000 ≈ 0.47%
     assert e.output["effective_risk_pct"] < 0.015
 
 
@@ -45,7 +48,7 @@ def test_tesla_c_grade_high_vol_minervini_cap_binds():
     assert e.output["binding_constraint"] == "minervini_8pct_cap"
     # Risk budget 0.5% × $150k = $750
     # shares-by-risk = 750 / 20 = 37.5 → 37
-    # concentration: 37500 / 250 = 150
+    # concentration (10% cap): 15000 / 250 = 60 — does not bind (risk does)
     assert e.output["shares"] == 37
     assert e.output["stop_sizer_output"]["skip_signal_atr_exceeds_cap"] is True
 
@@ -76,9 +79,9 @@ def test_regime_weakening_scales_risk():
     # Effective risk pct should be ~ 1.5% × 0.75 = 1.125%
     # Risk budget = 100000 × 0.01125 = 1125
     # Stop = ATR×2 = 2; shares = 1125 / 2 = 562
-    # Concentration cap: 25000 / 50 = 500 — binds
+    # Concentration cap 10% (reconciled 2026-06-20): 10000 / 50 = 200 — binds
     assert e.output["binding_constraint"] == "concentration_cap"
-    assert e.output["shares"] == 500
+    assert e.output["shares"] == 200
     assert math.isclose(e.output["regime_multiplier"], 0.75, rel_tol=1e-9)
     assert math.isclose(e.output["base_risk_budget_pct"], 0.015, rel_tol=1e-9)
 
@@ -115,10 +118,50 @@ def test_cash_available_caps_shares():
         regime_class="stage_2_confirmed",
         cash_available=10_000.0,
     )
-    # Without cash cap: concentration cap would give 187 shares.
-    # With cash cap: floor(10000/200) = 50 shares.
+    # Without cash cap: 10% concentration cap gives 75 shares (15000/200).
+    # With cash cap: floor(10000/200) = 50 shares — cash binds.
     assert e.output["shares"] == 50
     assert e.output["binding_constraint"] == "cash_available"
+
+
+def test_default_cap_is_ten_percent_and_clamps():
+    """Reconciliation 2026-06-20: the default per-position cap is 10%, and a
+    position whose risk-budget size would exceed 10% of the account is clamped
+    to 10% with binding_constraint == concentration_cap.
+    """
+    from tools.position_sizer import DEFAULT_CONCENTRATION_CAP_PCT
+
+    assert DEFAULT_CONCENTRATION_CAP_PCT == 0.10
+    # Tight stop (low ATR) -> risk-budget path would buy a huge position;
+    # the 10% cap must clamp it.
+    e = compute(
+        account=100_000.0,
+        entry_price=100.0,
+        atr=0.50,            # ATR×2 = $1 stop -> shares_by_risk = 2000/1 = 2000
+        setup_grade="A+",    # 2% budget = $2,000
+        regime_class="stage_2_confirmed",
+    )
+    assert e.output["binding_constraint"] == "concentration_cap"
+    # 10% of 100k / $100 = 100 shares exactly.
+    assert e.output["shares"] == 100
+    assert math.isclose(e.output["capital_pct"], 0.10, rel_tol=1e-9)
+
+
+def test_explicit_tighter_cap_still_honoured():
+    """The paper-auto/quant callers pin a tighter 0.05 explicitly; the sizer
+    must still honour an explicit override below the new 10% default.
+    """
+    e = compute(
+        account=100_000.0,
+        entry_price=100.0,
+        atr=0.50,
+        setup_grade="A+",
+        regime_class="stage_2_confirmed",
+        concentration_cap_pct=0.05,
+    )
+    assert e.output["binding_constraint"] == "concentration_cap"
+    assert e.output["shares"] == 50   # 5% of 100k / $100
+    assert math.isclose(e.output["capital_pct"], 0.05, rel_tol=1e-9)
 
 
 def test_ep_grade_uses_2_percent_budget():
