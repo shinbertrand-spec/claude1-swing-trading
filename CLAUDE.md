@@ -82,8 +82,12 @@ entry-point list.
   (reconciled 2026-06-20 — see note below)
 - Never let one **correlated theme / cluster** exceed **~25–30% of total
   portfolio value** in aggregate, even when each name is individually
-  risk-sized (the correlation control — see note below)
-- Never have more than **20% exposure to a single sector**
+  risk-sized (the correlation control — see note below). **Hard on the
+  automated track; WARNING-only on the human-discretionary track per the
+  2026-06-22 carve-out below.**
+- Never have more than **20% exposure to a single sector**. **Hard on the
+  automated track; WARNING-only on the human-discretionary track per the
+  2026-06-22 carve-out below.**
 - Keep at least **15% cash buffer** at all times
 - Maximum **8 concurrent open positions**
 
@@ -119,6 +123,42 @@ seeded first). It is called from BOTH pre-trade layers: the paper-auto
 (hard FAIL on breach). The stateless `position_sizer` does NOT host it — a
 cluster cap needs portfolio state the sizer cannot see. The map is hand-curated:
 a new themed name is not capped until added to `clusters.yml`.
+
+#### Discretionary-track concentration carve-out (codified 2026-06-22)
+
+**Operator-authorized.** On the **human-discretionary track only**, the
+**sector cap (20%)** and the **theme/cluster cap (~30%)** are downgraded from
+hard blocks to **WARNINGS**. Bertrand runs his personal cash book as a
+deliberate, conviction-led concentration vehicle — he willingly overweights
+high-upside themes (AI: NBIS / MRVL / QCOM-type names) and does not want the
+diversification caps to block a discretionary add. See
+[[feedback_ai_concentration_preference]].
+
+What this changes:
+- `risk-and-compliance` Gate-4, when evaluating a **discretionary** trade,
+  treats a sector or cluster breach as a loud **WARNING** in the verdict
+  (surface the % and the correlated-gap downside scenario) — **not** a BLOCK.
+  The operator decides.
+
+What this does NOT change (the surviving discipline — concentration without
+recklessness):
+- **Per-position 10% cap** — still binding. No single name dominates.
+- **15% cash buffer** — still binding.
+- **8-position cap** — still binding.
+- **Stops** (8% Minervini on discretionary; trail-to-breakeven / trail-to-+5%)
+  — still binding. Once you give up diversification, the stop is the downside
+  control; it is non-negotiable.
+- **The automated / paper-auto track is unchanged** — sector + cluster caps
+  remain HARD blocks there (`pipeline._check_track_limits`). This carve-out is
+  scoped strictly to the human-discretionary track.
+
+Rationale and trade-off accepted: dropping the diversification caps raises
+correlated-gap risk (a bad week in the overweight theme hits much of the book at
+once). The operator accepts this in exchange for upside capture; the per-position
+cap + cash buffer + stops bound the damage. If this ever produces a
+concentration-driven drawdown the operator judges unacceptable, the response is
+to restore the caps as WARN-with-teeth (e.g. force half-size on breach), not to
+silently re-block.
 
 ### Order Execution
 - Never place a market order — always use limit orders within 0.2% of ask

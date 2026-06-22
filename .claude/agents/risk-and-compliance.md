@@ -152,13 +152,22 @@ AI-momentum complex) hits both books at once. It reads both books by default.
 Theme membership is the curated map at `tools/_themes/clusters.yml`. Do NOT
 hand-compute the cluster total — the tool is the source of truth (no prose math).
 
-Then evaluate each hard rule with the math from the tool output:
+Then evaluate each hard rule with the math from the tool output.
+
+**Track determination (drives the sector/cluster WARN-vs-FAIL split below):** a
+trade is **automated-track** if its ledger carries `meta.account_track:
+"paper-auto"` (or it was routed via `tools.auto_paper`); otherwise it is
+**human-discretionary**. Per the 2026-06-22 carve-out, the sector + cluster caps
+are hard blocks on the automated track but WARNINGS-only on the discretionary
+track (the operator runs his cash book as a deliberate concentration vehicle —
+[[feedback_ai_concentration_preference]]). All OTHER rules below bind on both
+tracks identically.
 
 | Rule | Source | PASS / FAIL |
 |---|---|---|
-| Position size ≤ 10% capital (reconciled 2026-06-20 from 25%) | `position_sizer.output.capital_pct` | PASS iff ≤ 0.10 |
-| Theme/cluster ≤ 30% (cross-track, reconciled 2026-06-20) | `cluster_concentration.output.breach` | FAIL (hard) iff `breach == true` |
-| Sector exposure (post-trade) ≤ 20-25% | Re-compute manually from open positions + this trade | |
+| Position size ≤ 10% capital (reconciled 2026-06-20 from 25%) | `position_sizer.output.capital_pct` | PASS iff ≤ 0.10 (both tracks) |
+| Theme/cluster ≤ 30% (cross-track, reconciled 2026-06-20) | `cluster_concentration.output.breach` | **Automated track:** FAIL (hard) iff `breach == true`. **Discretionary track:** WARN only iff `breach == true` — surface the cluster % + correlated-gap downside, do NOT block (carve-out 2026-06-22) |
+| Sector exposure (post-trade) ≤ 20% | Re-compute manually from open positions + this trade | **Automated track:** FAIL iff > 0.20. **Discretionary track:** WARN only iff > 0.20 — surface it, do NOT block (carve-out 2026-06-22) |
 | Cash buffer (post-trade) ≥ 15% (or regime-scaled per swing-regime-playbook) | `(cash - capital) / portfolio_value` | |
 | Total open positions (post-trade) ≤ 8 | Count + 1 ≤ 8 | |
 | Stop distance ≤ 8% | `position_sizer.output.stop_distance_pct` | PASS iff ≤ 0.08 |
