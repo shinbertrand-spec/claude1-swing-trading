@@ -161,9 +161,13 @@ def main() -> int:
     print(f"=== entry watcher === SPY {out['stage_class']} (regime_ok={out['regime_ok']})")
     if not out["evaluated"]:
         print("  no watchlist entries with a structured trigger block — nothing to watch.")
+    # ASCII-only console markers (the emoji in _EMOJI are for Telegram, which is
+    # UTF-8; the Windows console is cp1252 and would raise on them).
+    _MARK = {STATUS_FIRED: ">>", STATUS_IN_ZONE: " *",
+             STATUS_APPROACHING: " ~", STATUS_BLOCKED: " x"}
     for s in out["evaluated"]:
-        em = _EMOJI.get(s["status"], "•")
-        print(f"  {em} {s['ticker']:6} {s['status']:11} ${s['price']:>8.2f}  {s['reason']}")
+        mk = _MARK.get(s["status"], "  ")
+        print(f"  {mk} {s['ticker']:6} {s['status']:11} ${s['price']:>8.2f}  {s['reason']}")
     if out["to_push"]:
         print(f"  -> {'WOULD PUSH' if out['dry_run'] else 'PUSHED'}: {', '.join(out['to_push'])}")
     if out["skipped"]:
