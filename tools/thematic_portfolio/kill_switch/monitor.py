@@ -35,6 +35,7 @@ inspection).
 from __future__ import annotations
 
 import argparse
+import os
 import time as _time
 import traceback
 import uuid
@@ -229,7 +230,26 @@ def cycle(
     # 10. Best-effort Telegram alert on non-hold actions + unprotected state.
     #     Alert failures NEVER crash Process B — they become the watchdog's
     #     concern (if alerts go silent that's itself an observability gap).
-    send = alert_fn or telegram_alert.send_alert
+    #
+    #     MUTE GUARD (added 2026-06-24): Process B is paper-only and was never
+    #     shipped live (its installer was never run). A misconfigured loop with
+    #     non-persisting state re-fires the same TIER alert every cycle, spamming
+    #     Telegram (observed: 4× "TIER 3 URGENT" in a row, ~15:21 ET 2026-06-24).
+    #     Alerts are therefore OPT-IN: they send only when KILL_SWITCH_ALERTS=1.
+    #     The cycle still runs + logs + (in live) places orders — only the
+    #     Telegram page is suppressed. Set KILL_SWITCH_ALERTS=1 to re-enable.
+    #     An explicitly injected alert_fn (tests / deliberate callers) is always
+    #     honored; only the DEFAULT Telegram sender is gated by the env flag, so
+    #     the live/cloud path (alert_fn=None) is muted unless KILL_SWITCH_ALERTS=1.
+    alerts_enabled = os.environ.get("KILL_SWITCH_ALERTS", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    if alert_fn is not None:
+        send = alert_fn
+    elif alerts_enabled:
+        send = telegram_alert.send_alert
+    else:
+        send = lambda *_a, **_k: None  # noqa: E731 — muted default sender
     if decision.action != "hold":
         try:
             send(telegram_alert.format_tier_fire(
