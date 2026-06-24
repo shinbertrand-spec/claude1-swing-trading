@@ -143,7 +143,7 @@ uv run python -m tools.position_sizer \
     --cash-available <cash>
 uv run python -m tools.cluster_concentration \
     --ticker <ticker> --proposed-cost <shares × entry> --account <portfolio_value> \
-    --regime-class <regime_class> --track discretionary
+    --regime-class <regime_class> --track discretionary --calibrate
 ```
 
 The `cluster_concentration` call is the CROSS-TRACK theme/cluster cap — it sums
@@ -158,6 +158,9 @@ for the `position_sizer --regime` call above (one regime read drives both). It
 scales the cap (0.30 → 0.25 → 0.20 → 0.15 as the tape weakens) and selects the
 deterministic `output.action` you must obey on a breach (see the cluster row
 below). `--track discretionary` tells the tool this is the cash book.
+`--calibrate` appends the decision to `ledgers/cluster-cap/_calibration/` so the
+discretionary warns / half-sizes / blocks are measurable alongside the automated
+track — it does NOT change the emitted decision or how you obey `output.action`.
 
 Then evaluate each hard rule with the math from the tool output.
 

@@ -22,7 +22,7 @@ import os
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
 
-from .. import cluster_concentration
+from .. import cluster_calibration, cluster_concentration
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..contract import TraceEntry
 from ..regime_check import classify_broad
@@ -489,6 +489,29 @@ def place_candidate(
         # cluster cap so both sizing and the cap share one regime read.
         regime_class=regime_class,
     )
+    # Calibration sink (PURE INSTRUMENTATION — changes no decision). The 6e992a7
+    # reasoning_trace append only persists for PLACED candidates, so it drops the
+    # BLOCK cases (a breach returns a reject string and _reject discards
+    # cand.reasoning_trace). Write the cluster decision here — BEFORE the reject
+    # return — so blocks are captured too. Best-effort: a calibration failure must
+    # NEVER abort or alter a placement. Real placement attempts only (dry-run
+    # previews excluded; flip `not dry_run` to include them).
+    if not dry_run:
+        cluster_entry = next(
+            (t for t in reversed(cand.reasoning_trace)
+             if t.get("tool") == cluster_concentration.TOOL),
+            None,
+        )
+        if cluster_entry is not None:
+            try:
+                cluster_calibration.append_decision(
+                    output=cluster_entry["output"],
+                    fetched_at=cluster_entry["fetched_at"],
+                    ticker=cand.ticker,
+                    source="paper-auto-pipeline",
+                )
+            except Exception:  # noqa: BLE001 — instrumentation never breaks the money path
+                pass
     if reject is not None:
         return _reject(cand.ticker, reject)
 

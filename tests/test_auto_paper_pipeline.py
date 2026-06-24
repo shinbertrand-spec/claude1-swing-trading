@@ -112,6 +112,9 @@ def paper_dirs(tmp_path, monkeypatch):
     # journal/positions.json during e2e placement tests. Cluster-cap behaviour
     # is covered by the dedicated _check_track_limits unit tests above.
     monkeypatch.setattr(_pipeline, "_load_discretionary_open_positions", lambda: [])
+    # Hermetic: redirect the cluster-cap calibration sink to tmp so live
+    # placements in these tests don't write into the real repo ledger.
+    monkeypatch.setenv("CLUSTER_CALIB_DIR", str(tmp_path / "cluster-calib"))
     return ledger_dir, positions_json
 
 
@@ -235,6 +238,63 @@ def test_track_limits_cluster_cap_regime_tightens():
     assert reason is not None
     assert "cluster" in reason and "AI-momentum" in reason and "cross-track" in reason
     assert _check_track_limits(**common) is None  # flat/None regime == old behaviour
+
+
+def test_place_candidate_block_writes_calibration(paper_dirs, paper_client, monkeypatch, tmp_path):
+    """GAP-CLOSER: a cluster-BREACH candidate on the automated track is rejected
+    AND its block decision is written to the calibration sink — the exact case
+    the 6e992a7 reasoning_trace append drops (because _reject discards the
+    trace). The reject returns before any broker call, so no working broker is
+    needed beyond the mock."""
+    import json
+
+    from tools.auto_paper import pipeline as _pipeline
+    # Softening tape: the 0.25 weakening cap binds where the 0.30 confirmed cap
+    # would not — so this block is regime-conditional.
+    monkeypatch.setattr(_pipeline, "_resolve_regime_multiplier",
+                        lambda: ("stage_2_weakening", 0.75))
+    # Big AI cluster in the DISCRETIONARY book -> the NVDA add breaches the cap.
+    monkeypatch.setattr(
+        _pipeline, "_load_discretionary_open_positions",
+        lambda: [{"ticker": "CEG", "shares": 1850, "entry_price": 140.00,
+                  "sector": "XLU", "stage": "trailing"}],  # $259k = 25.9% AI
+    )
+    res = place_candidate(_vcp_cand(shares=50), client=paper_client, dry_run=False)
+    assert res.status == "rejected"
+    assert "cluster" in res.reason and "AI-momentum" in res.reason
+
+    calib = tmp_path / "cluster-calib"
+    files = list(calib.glob("*.jsonl"))
+    assert len(files) == 1
+    rows = [json.loads(ln) for ln in files[0].read_text().splitlines() if ln.strip()]
+    assert len(rows) == 1
+    assert rows[0]["action"] == "block"
+    assert rows[0]["breach"] is True
+    assert rows[0]["source"] == "paper-auto-pipeline"
+    assert rows[0]["track"] == "paper-auto"
+    assert rows[0]["regime_class"] == "stage_2_weakening"
+    assert rows[0]["ticker"] == "NVDA"
+
+
+def test_place_candidate_dry_run_writes_no_calibration(paper_dirs, paper_client, tmp_path):
+    """Dry-run previews are intentionally excluded from the calibration sink."""
+    res = place_candidate(_vcp_cand(shares=50), client=paper_client, dry_run=True)
+    assert res.status == "dry_run"
+    assert not (tmp_path / "cluster-calib").exists()
+
+
+def test_check_track_limits_direct_writes_no_file(tmp_path, monkeypatch):
+    """Purity guard: _check_track_limits itself does NO I/O — the calibration
+    write lives in place_candidate, not the pure limit-checker."""
+    calib = tmp_path / "cluster-calib"
+    monkeypatch.setenv("CLUSTER_CALIB_DIR", str(calib))
+    _check_track_limits(
+        cand=_vcp_cand(shares=50),
+        account_net_liq=1_000_000.0,
+        existing_positions=[],
+        existing_cash=950_000.0,
+    )
+    assert not calib.exists()
 
 
 def test_track_limits_records_cluster_calibration_trace():

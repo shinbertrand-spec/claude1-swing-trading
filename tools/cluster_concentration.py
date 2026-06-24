@@ -343,21 +343,39 @@ def main() -> None:
         dest="books",
         help="path to a positions.json; repeatable. Defaults to both tracks.",
     )
+    p.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="also append this decision to ledgers/cluster-cap/_calibration/ "
+        "(pure instrumentation; does not change the emitted decision).",
+    )
     args = p.parse_args()
 
     book_paths = args.books if args.books else [str(x) for x in DEFAULT_BOOK_PATHS]
     books = [_load_book(bp) for bp in book_paths]
-    emit(
-        compute_from_books(
-            ticker=args.ticker,
-            proposed_cost_usd=args.proposed_cost_usd,
-            account_value_usd=args.account_value_usd,
-            books=books,
-            cap_pct=args.cap_pct,
-            regime_class=args.regime_class,
-            track=args.track,
-        )
+    e = compute_from_books(
+        ticker=args.ticker,
+        proposed_cost_usd=args.proposed_cost_usd,
+        account_value_usd=args.account_value_usd,
+        books=books,
+        cap_pct=args.cap_pct,
+        regime_class=args.regime_class,
+        track=args.track,
     )
+    emit(e)
+    if args.calibrate:
+        # Best-effort instrumentation — the agent still has the emitted decision
+        # on stdout even if the calibration write fails.
+        from .cluster_calibration import append_decision
+        try:
+            append_decision(
+                output=e.output,
+                fetched_at=e.fetched_at,
+                ticker=args.ticker,
+                source="discretionary-cli",
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
 
 if __name__ == "__main__":

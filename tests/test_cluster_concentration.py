@@ -266,6 +266,45 @@ def test_below_ceiling_healthy_tape_still_warns():
     assert out["action"] == "warn"
 
 
+def test_cli_calibrate_writes_record(tmp_path, monkeypatch):
+    """`main() --calibrate` appends a discretionary-cli record; the book path is
+    a nonexistent file so the run is hermetic (existing cluster = 0)."""
+    import json
+    import sys
+
+    from tools import cluster_concentration as cc
+    monkeypatch.setenv("CLUSTER_CALIB_DIR", str(tmp_path))
+    monkeypatch.setattr(sys, "argv", [
+        "prog", "--ticker", "NVDA", "--proposed-cost", "9000",
+        "--account", "100000", "--regime-class", "stage_2_weakening",
+        "--track", "discretionary", "--calibrate",
+        "--book", str(tmp_path / "nobook.json"),
+    ])
+    cc.main()
+    files = list(tmp_path.glob("*.jsonl"))
+    assert len(files) == 1
+    rows = [json.loads(ln) for ln in files[0].read_text().splitlines() if ln.strip()]
+    assert len(rows) == 1
+    assert rows[0]["source"] == "discretionary-cli"
+    assert rows[0]["ticker"] == "NVDA"
+    assert rows[0]["track"] == "discretionary"
+    assert rows[0]["regime_class"] == "stage_2_weakening"
+
+
+def test_cli_without_calibrate_writes_nothing(tmp_path, monkeypatch):
+    import sys
+
+    from tools import cluster_concentration as cc
+    monkeypatch.setenv("CLUSTER_CALIB_DIR", str(tmp_path))
+    monkeypatch.setattr(sys, "argv", [
+        "prog", "--ticker", "NVDA", "--proposed-cost", "9000",
+        "--account", "100000", "--track", "discretionary",
+        "--book", str(tmp_path / "nobook.json"),
+    ])
+    cc.main()
+    assert list(tmp_path.glob("*.jsonl")) == []
+
+
 def test_untagged_ticker_clean_pass_carries_regime_fields():
     """The theme=None early-return also emits the new fields (action=allow)."""
     e = compute(
