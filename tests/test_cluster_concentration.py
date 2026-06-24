@@ -7,6 +7,7 @@ import pytest
 
 from tools.cluster_concentration import (
     DEFAULT_CLUSTER_CAP_PCT,
+    REGIME_CLUSTER_CAP,
     compute,
     compute_from_books,
     load_theme_map,
@@ -138,3 +139,143 @@ def test_real_map_loads_with_expected_membership():
 
 def test_default_cap_is_thirty_percent():
     assert DEFAULT_CLUSTER_CAP_PCT == 0.30
+
+
+# ----------------------------------------------------- regime-conditional cap
+
+
+def _at(*, cluster_pct, regime_class, track, account=100_000.0):
+    """Run compute() with existing=0 so proposed == cluster_total, giving a
+    cluster of exactly ``cluster_pct``. Returns the output dict."""
+    e = compute(
+        theme="AI-momentum",
+        proposed_cost_usd=cluster_pct * account,
+        account_value_usd=account,
+        existing_same_cluster_cost_usd=0.0,
+        regime_class=regime_class,
+        track=track,
+    )
+    return e.output
+
+
+def test_effective_cap_scales_by_regime():
+    """The effective cap is 0.30 / 0.25 / 0.20 / 0.15 by SPY stage."""
+    expected = {
+        "stage_2_confirmed": 0.30,
+        "stage_2_weakening": 0.25,
+        "stage_3_transitional": 0.20,
+        "stage_4": 0.15,
+    }
+    assert REGIME_CLUSTER_CAP == expected
+    for regime, cap in expected.items():
+        out = _at(cluster_pct=0.10, regime_class=regime, track="discretionary")
+        assert out["effective_cap_pct"] == cap
+    # A 27% cluster: within the healthy-tape cap, breaches once the tape weakens.
+    assert _at(cluster_pct=0.27, regime_class="stage_2_confirmed", track="discretionary")["breach"] is False
+    assert _at(cluster_pct=0.27, regime_class="stage_2_weakening", track="discretionary")["breach"] is True
+    assert _at(cluster_pct=0.27, regime_class="stage_3_transitional", track="discretionary")["breach"] is True
+    assert _at(cluster_pct=0.27, regime_class="stage_4", track="discretionary")["breach"] is True
+
+
+@pytest.mark.parametrize(
+    "track, regime_class, cluster_pct, expected_action",
+    [
+        # no breach (5% cluster) -> always allow, regardless of track/regime
+        ("paper-auto",    "stage_4",              0.05, "allow"),
+        ("discretionary", "stage_2_weakening",    0.05, "allow"),
+        (None,            None,                   0.05, "allow"),
+        # breach (35% cluster, over every cap) -> action by (track, regime)
+        ("paper-auto",    "stage_2_confirmed",    0.35, "block"),      # automated: hard, every regime
+        ("paper-auto",    "stage_2_weakening",    0.35, "block"),
+        ("paper-auto",    "stage_3_transitional", 0.35, "block"),
+        ("paper-auto",    "stage_4",              0.35, "block"),
+        ("discretionary", "stage_2_confirmed",    0.35, "warn"),       # healthy tape -> warn
+        ("discretionary", "stage_2_weakening",    0.35, "half_size"),  # softening -> half
+        ("discretionary", "stage_3_transitional", 0.35, "block"),      # risk-off -> block
+        ("discretionary", "stage_4",              0.35, "block"),
+        ("discretionary", None,                   0.35, "warn"),       # no regime -> flat WARN
+        (None,            None,                   0.35, "warn"),       # unspecified -> WARN
+    ],
+)
+def test_action_matrix(track, regime_class, cluster_pct, expected_action):
+    out = _at(cluster_pct=cluster_pct, regime_class=regime_class, track=track)
+    assert out["action"] == expected_action
+
+
+def test_automated_track_hard_blocks_on_breach_in_every_regime():
+    """The automated track stays a HARD block on breach in EVERY regime — incl.
+    a cluster that only breaches because the regime tightened the cap."""
+    # 22% cluster: under 0.30 (confirmed) but over 0.20 (stage_3) and 0.15 (stage_4).
+    for regime in ("stage_2_confirmed", "stage_2_weakening", "stage_3_transitional", "stage_4"):
+        out = _at(cluster_pct=0.22, regime_class=regime, track="paper-auto")
+        if out["breach"]:
+            assert out["action"] == "block", regime
+    # half_size NEVER appears on the automated track, even in the weakening tape
+    # where the discretionary track would half-size.
+    out = _at(cluster_pct=0.35, regime_class="stage_2_weakening", track="paper-auto")
+    assert out["action"] == "block"
+
+
+def test_backward_compat_regime_none_reproduces_today():
+    """regime_class=None (and track=None) reproduces the pre-regime behaviour
+    exactly: cap measured at the flat 0.30, effective_cap == cap_pct."""
+    # Same scenario as test_compute_breach_and_within: 31% vs flat 30% -> breach.
+    e = compute(
+        theme="AI-momentum",
+        proposed_cost_usd=6_000.0,
+        account_value_usd=100_000.0,
+        existing_same_cluster_cost_usd=25_000.0,
+    )
+    assert e.output["breach"] is True
+    assert e.output["binding_constraint"] == "theme_cluster_cap"
+    assert e.output["cap_pct"] == 0.30
+    assert e.output["effective_cap_pct"] == 0.30   # None regime -> no scaling
+    assert e.output["regime_class"] is None
+    # within case unchanged too
+    e2 = compute(
+        theme="AI-momentum",
+        proposed_cost_usd=4_000.0,
+        account_value_usd=100_000.0,
+        existing_same_cluster_cost_usd=25_000.0,
+    )
+    assert e2.output["breach"] is False
+    assert e2.output["effective_cap_pct"] == 0.30
+
+
+def test_hard_ceiling_blocks_both_tracks_every_regime():
+    """A cluster over the 0.45 hard ceiling blocks regardless of track/regime —
+    incl. the discretionary track in a HEALTHY tape (where it would otherwise be
+    a mere warning). This is the bet-the-whole-book backstop."""
+    from tools.cluster_concentration import CLUSTER_HARD_CEILING
+    assert CLUSTER_HARD_CEILING == 0.45
+    for track in ("discretionary", "paper-auto", None):
+        for regime in ("stage_2_confirmed", "stage_2_weakening",
+                       "stage_3_transitional", "stage_4", None):
+            out = _at(cluster_pct=0.50, regime_class=regime, track=track)
+            assert out["action"] == "block", (track, regime)
+            assert out["ceiling_breach"] is True
+            assert out["binding_constraint"] == "theme_cluster_hard_ceiling"
+
+
+def test_below_ceiling_healthy_tape_still_warns():
+    """Just under the ceiling, a healthy-tape discretionary breach stays a WARN
+    — the operator's concentration band (cap..ceiling) is preserved."""
+    out = _at(cluster_pct=0.44, regime_class="stage_2_confirmed", track="discretionary")
+    assert out["breach"] is True
+    assert out["ceiling_breach"] is False
+    assert out["action"] == "warn"
+
+
+def test_untagged_ticker_clean_pass_carries_regime_fields():
+    """The theme=None early-return also emits the new fields (action=allow)."""
+    e = compute(
+        theme=None,
+        proposed_cost_usd=50_000.0,
+        account_value_usd=100_000.0,
+        existing_same_cluster_cost_usd=0.0,
+        regime_class="stage_4",
+        track="discretionary",
+    )
+    assert e.output["breach"] is False
+    assert e.output["action"] == "allow"
+    assert e.output["effective_cap_pct"] == 0.15  # scaled, but no cluster to breach

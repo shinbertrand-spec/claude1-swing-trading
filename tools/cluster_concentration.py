@@ -40,6 +40,69 @@ TOOL = "tools/cluster_concentration.py"
 
 DEFAULT_CLUSTER_CAP_PCT = 0.30
 
+# Regime-conditional cluster cap (operator-tunable). The flat ~30% cap is
+# regime-blind; the 2026-06-22 carve-out made it a WARNING on the discretionary
+# cash book in ALL regimes — which removes the correlated-gap governor exactly in
+# a softening tape (correlated AI names gap down together; stops gap through). The
+# SPY regime classifier already runs on every placement (classify_broad), so we
+# condition the cap on it: tighten + add teeth as the tape weakens, leave it a
+# warning in a healthy tape. Keys are the four classify_broad stages.
+REGIME_CLUSTER_CAP = {
+    "stage_2_confirmed": 0.30,
+    "stage_2_weakening": 0.25,
+    "stage_3_transitional": 0.20,
+    "stage_4": 0.15,
+}
+
+# Regime-INDEPENDENT hard ceiling — the final governor. The discretionary
+# carve-out turns a breach into a WARNING in a healthy tape (stage_2_confirmed),
+# which means WITHOUT this ceiling an arbitrarily large one-theme book (e.g. 8
+# different AI names at the 10% per-position cap = 64% of net liq, one
+# correlated gap) trips no rule at all. This ceiling blocks on BOTH tracks in
+# EVERY regime, above the operator's intended concentration band (~30-45%).
+# It is the "deliberate concentration vehicle, NOT bet-the-whole-book" backstop.
+CLUSTER_HARD_CEILING = 0.45
+
+
+def _effective_cap(cap_pct: float, regime_class: Optional[str]) -> float:
+    """Regime-scaled cap. ``regime_class=None`` reproduces the configured
+    ``cap_pct`` exactly (backward-compat); an unrecognised regime string also
+    falls back to ``cap_pct`` rather than raising."""
+    if not regime_class:
+        return cap_pct
+    return REGIME_CLUSTER_CAP.get(regime_class, cap_pct)
+
+
+def _decide_action(
+    *, breach: bool, ceiling_breach: bool, track: Optional[str], regime_class: Optional[str]
+) -> str:
+    """Deterministic action from (breach, ceiling_breach, track, regime):
+
+    - no breach                                      -> ``allow``
+    - ``ceiling_breach`` (over CLUSTER_HARD_CEILING) -> ``block`` (BOTH tracks,
+      EVERY regime — the regime-independent backstop; takes precedence)
+    - breach, ``track == "paper-auto"`` (any regime) -> ``block`` (automated stays
+      hard — it just binds earlier at the regime-scaled cap; ``half_size`` never
+      applies to the automated track)
+    - breach, discretionary, ``stage_2_confirmed`` -> ``warn``
+    - breach, discretionary, ``stage_2_weakening`` -> ``half_size``
+    - breach, discretionary, ``stage_3_transitional`` / ``stage_4`` -> ``block``
+    - breach, discretionary, regime ``None`` / unrecognised -> ``warn`` (today's
+      flat discretionary WARN — backward-compat)
+    """
+    if not breach:
+        return "allow"
+    if ceiling_breach:
+        return "block"
+    if track == "paper-auto":
+        return "block"
+    # discretionary (or unspecified) track
+    if regime_class == "stage_2_weakening":
+        return "half_size"
+    if regime_class in ("stage_3_transitional", "stage_4"):
+        return "block"
+    return "warn"
+
 _ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_THEME_MAP_PATH = _ROOT / "tools" / "_themes" / "clusters.yml"
 
@@ -118,6 +181,8 @@ def compute(
     account_value_usd: float,
     existing_same_cluster_cost_usd: float,
     cap_pct: float = DEFAULT_CLUSTER_CAP_PCT,
+    regime_class: Optional[str] = None,
+    track: Optional[str] = None,
 ) -> TraceEntry:
     """Pure arithmetic: does the proposed trade breach the theme cluster cap?
 
@@ -130,9 +195,19 @@ def compute(
 
     A ``theme`` of ``None`` (untagged ticker) is a clean pass — no cluster to
     cap.
+
+    Regime-conditional (no data fetch here — ``regime_class`` is a param the
+    caller already resolved): the breach is measured against the regime-scaled
+    ``effective_cap_pct`` (``REGIME_CLUSTER_CAP``). The deterministic ``action``
+    (allow / warn / half_size / block) tells the caller how hard the breach
+    binds for its ``track``. **Backward-compat:** ``regime_class=None`` makes
+    ``effective_cap_pct == cap_pct``, reproducing the prior 0.30 / breach
+    behaviour exactly.
     """
     if account_value_usd <= 0:
         raise ValueError(f"account_value_usd must be positive; got {account_value_usd}")
+
+    effective_cap = _effective_cap(cap_pct, regime_class)
 
     if theme is None:
         return TraceEntry(
@@ -141,6 +216,8 @@ def compute(
                 "theme": None,
                 "proposed_cost_usd": proposed_cost_usd,
                 "account_value_usd": account_value_usd,
+                "regime_class": regime_class,
+                "track": track,
             },
             output={
                 "theme": None,
@@ -149,12 +226,22 @@ def compute(
                 "cluster_total_usd": proposed_cost_usd,
                 "cluster_pct": proposed_cost_usd / account_value_usd,
                 "cap_pct": cap_pct,
+                "effective_cap_pct": effective_cap,
+                "hard_ceiling_pct": CLUSTER_HARD_CEILING,
+                "ceiling_breach": False,
+                "regime_class": regime_class,
+                "track": track,
+                "action": "allow",
             },
         )
 
     cluster_total = existing_same_cluster_cost_usd + proposed_cost_usd
     cluster_pct = cluster_total / account_value_usd
-    breach = cluster_pct > cap_pct
+    breach = cluster_pct > effective_cap
+    ceiling_breach = cluster_pct > CLUSTER_HARD_CEILING
+    action = _decide_action(
+        breach=breach, ceiling_breach=ceiling_breach, track=track, regime_class=regime_class
+    )
 
     return TraceEntry(
         tool=TOOL,
@@ -164,16 +251,28 @@ def compute(
             "account_value_usd": account_value_usd,
             "existing_same_cluster_cost_usd": existing_same_cluster_cost_usd,
             "cap_pct": cap_pct,
+            "regime_class": regime_class,
+            "track": track,
         },
         output={
             "theme": theme,
             "breach": breach,
-            "binding_constraint": "theme_cluster_cap" if breach else "within_cluster_cap",
+            "binding_constraint": (
+                "theme_cluster_hard_ceiling" if ceiling_breach
+                else "theme_cluster_cap" if breach
+                else "within_cluster_cap"
+            ),
             "existing_same_cluster_cost_usd": existing_same_cluster_cost_usd,
             "proposed_cost_usd": proposed_cost_usd,
             "cluster_total_usd": cluster_total,
             "cluster_pct": cluster_pct,
             "cap_pct": cap_pct,
+            "effective_cap_pct": effective_cap,
+            "hard_ceiling_pct": CLUSTER_HARD_CEILING,
+            "ceiling_breach": ceiling_breach,
+            "regime_class": regime_class,
+            "track": track,
+            "action": action,
         },
     )
 
@@ -186,9 +285,12 @@ def compute_from_books(
     books: Iterable[list[dict[str, Any]]],
     theme_map: dict[str, str] | None = None,
     cap_pct: float = DEFAULT_CLUSTER_CAP_PCT,
+    regime_class: Optional[str] = None,
+    track: Optional[str] = None,
 ) -> TraceEntry:
     """Convenience: resolve the ticker's theme, sum existing same-cluster cost
-    across ``books``, and run :func:`compute`.
+    across ``books``, and run :func:`compute`. ``regime_class`` / ``track`` are
+    threaded straight through (no fetch here — the caller resolves regime once).
     """
     tmap = theme_map if theme_map is not None else load_theme_map()
     theme = theme_of(ticker, tmap)
@@ -199,6 +301,8 @@ def compute_from_books(
         account_value_usd=account_value_usd,
         existing_same_cluster_cost_usd=existing,
         cap_pct=cap_pct,
+        regime_class=regime_class,
+        track=track,
     )
 
 
@@ -221,6 +325,19 @@ def main() -> None:
     p.add_argument("--account", type=float, required=True, dest="account_value_usd")
     p.add_argument("--cap-pct", type=float, default=DEFAULT_CLUSTER_CAP_PCT)
     p.add_argument(
+        "--regime-class",
+        default=None,
+        choices=sorted(REGIME_CLUSTER_CAP.keys()),
+        help="SPY broad-market stage from classify_broad; scales the cap + the "
+        "action. Omit for the flat (regime-blind) cap_pct behaviour.",
+    )
+    p.add_argument(
+        "--track",
+        default=None,
+        choices=["paper-auto", "discretionary"],
+        help="which book — drives the breach action (paper-auto always hard-blocks).",
+    )
+    p.add_argument(
         "--book",
         action="append",
         dest="books",
@@ -237,6 +354,8 @@ def main() -> None:
             account_value_usd=args.account_value_usd,
             books=books,
             cap_pct=args.cap_pct,
+            regime_class=args.regime_class,
+            track=args.track,
         )
     )
 

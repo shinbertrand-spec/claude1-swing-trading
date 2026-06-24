@@ -208,6 +208,58 @@ def test_track_limits_cluster_cap_cross_track():
     assert "cluster" in reason and "AI-momentum" in reason and "cross-track" in reason
 
 
+def test_track_limits_cluster_cap_regime_tightens():
+    """The SAME cluster passes in a healthy tape but hard-blocks once the regime
+    tightens the cap — proves regime_class is threaded into the cluster cap and
+    the automated track stays a hard block at the regime-scaled cap.
+
+    account = $1M. CEG (power) 1625 × $140 = $227,500 = 22.75% AI (discretionary
+    book); NVDA add 50 × $850.50 = $42,525 = 4.25% -> cluster = 27.0%.
+      stage_2_confirmed (cap 0.30): 27% within  -> passes
+      stage_2_weakening (cap 0.25): 27% breaches -> block (automated, hard)
+      regime None (flat 0.30):       27% within  -> passes (backward-compat)
+    """
+    discretionary = [
+        {"ticker": "CEG", "shares": 1625, "entry_price": 140.00,
+         "sector": "XLU", "stage": "trailing"},
+    ]
+    common = dict(
+        cand=_vcp_cand(shares=50),  # NVDA, XLK
+        account_net_liq=1_000_000.0,
+        existing_positions=[],
+        existing_cash=950_000.0,
+        discretionary_positions=discretionary,
+    )
+    assert _check_track_limits(**common, regime_class="stage_2_confirmed") is None
+    reason = _check_track_limits(**common, regime_class="stage_2_weakening")
+    assert reason is not None
+    assert "cluster" in reason and "AI-momentum" in reason and "cross-track" in reason
+    assert _check_track_limits(**common) is None  # flat/None regime == old behaviour
+
+
+def test_track_limits_records_cluster_calibration_trace():
+    """Every placement records the cluster decision on the candidate's
+    reasoning_trace (calibration trail) — allow or block alike."""
+    cand = _vcp_cand(shares=50)
+    assert cand.reasoning_trace == []
+    _check_track_limits(
+        cand=cand,
+        account_net_liq=1_000_000.0,
+        existing_positions=[],
+        existing_cash=950_000.0,
+        regime_class="stage_2_weakening",
+    )
+    cluster_entries = [
+        t for t in cand.reasoning_trace
+        if "cluster_concentration" in str(t.get("tool", ""))
+    ]
+    assert len(cluster_entries) == 1
+    out = cluster_entries[0]["output"]
+    assert "action" in out and "effective_cap_pct" in out and "regime_class" in out
+    assert out["regime_class"] == "stage_2_weakening"
+    assert out["track"] == "paper-auto"
+
+
 def test_track_limits_cluster_cap_untagged_passes():
     """A non-AI candidate is unaffected by the cluster cap even when the AI
     cluster is already large."""

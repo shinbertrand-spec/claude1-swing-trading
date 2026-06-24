@@ -151,6 +151,7 @@ def _check_track_limits(
     existing_positions: list[dict[str, Any]],
     existing_cash: float,
     discretionary_positions: list[dict[str, Any]] | None = None,
+    regime_class: str | None = None,
 ) -> Optional[str]:
     """Return a rejection reason string, or None if all limits pass.
 
@@ -161,6 +162,13 @@ def _check_track_limits(
     correlated gap hits both books at once. Pure function: the caller does the
     disk read and passes both books in; ``discretionary_positions=None`` means
     "no cross-track book" (used by hermetic unit tests).
+
+    ``regime_class`` (the SPY stage the caller already resolved via
+    ``_resolve_regime_multiplier`` — resolve once, use for both sizing and this
+    cap, per the long-standing 393-397 note) scales the cluster cap: it tightens
+    as the tape weakens (0.30 → 0.25 → 0.20 → 0.15). The automated track stays a
+    HARD block on breach in every regime — the regime only moves *where* the
+    block binds. ``regime_class=None`` reproduces the flat 0.30 behaviour.
     """
     if account_net_liq <= 0:
         return "account net_liquidation is 0 or unknown — cannot size"
@@ -205,11 +213,34 @@ def _check_track_limits(
         account_value_usd=account_net_liq,
         books=[existing_positions, discretionary_positions or []],
         cap_pct=MAX_PCT_PER_CLUSTER,
+        regime_class=regime_class,
+        track="paper-auto",
     )
+    # Calibration trail: record the cluster decision (action / cluster_pct /
+    # effective_cap / regime) on the candidate's reasoning_trace for EVERY
+    # placement — allow, warn, or block alike. It persists into the paper-auto
+    # ledger at write time, so we can later see whether the regime-conditioning
+    # actually bit and how often. No new file; dry-run / hermetic tests that
+    # never write a ledger simply carry it in-memory and discard.
+    cand.reasoning_trace.append(cluster.to_dict())
+    # NOTE on stage_4 (the circuit breaker): on the AUTOMATED track, a stage_4
+    # regime sets regime_mult == 0.0 and is rejected at step 4b BEFORE this check
+    # runs, so the 0.15 stage_4 cluster cap never actually executes here — it
+    # only bites on the DISCRETIONARY track (Gate-4), which has no circuit
+    # breaker. The 0.15 value is intentional there; do not "simplify" it away.
     if cluster.output["breach"]:
+        # Automated track: hard-block on breach in EVERY regime. The action is
+        # "block" here by construction (track=paper-auto); the regime only moves
+        # the effective cap the breach is measured against. A breach over the
+        # regime-independent hard ceiling reports as such.
+        over = (
+            f"hard ceiling {cluster.output['hard_ceiling_pct']:.0%}"
+            if cluster.output["ceiling_breach"]
+            else f"{cluster.output['effective_cap_pct']:.0%} cap "
+            f"(regime {cluster.output['regime_class'] or 'flat'})"
+        )
         return (
-            f"theme cluster {cluster.output['theme']} would exceed "
-            f"{cluster.output['cap_pct']:.0%} cap "
+            f"theme cluster {cluster.output['theme']} would exceed {over} "
             f"({cluster.output['cluster_pct']:.2%} of net liq, cross-track)"
         )
 
@@ -454,6 +485,9 @@ def place_candidate(
         existing_cash=cash,
         # Cross-track theme/cluster cap reads the human-discretionary book too.
         discretionary_positions=_load_discretionary_open_positions(),
+        # Regime resolved once above (step 4b); reused for the regime-scaled
+        # cluster cap so both sizing and the cap share one regime read.
+        regime_class=regime_class,
     )
     if reject is not None:
         return _reject(cand.ticker, reject)

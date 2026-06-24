@@ -142,7 +142,8 @@ uv run python -m tools.position_sizer \
     --setup-grade <grade> --regime <regime_class> \
     --cash-available <cash>
 uv run python -m tools.cluster_concentration \
-    --ticker <ticker> --proposed-cost <shares × entry> --account <portfolio_value>
+    --ticker <ticker> --proposed-cost <shares × entry> --account <portfolio_value> \
+    --regime-class <regime_class> --track discretionary
 ```
 
 The `cluster_concentration` call is the CROSS-TRACK theme/cluster cap — it sums
@@ -151,6 +152,12 @@ same-theme capital across BOTH `journal/positions.json` (this track) and
 AI-momentum complex) hits both books at once. It reads both books by default.
 Theme membership is the curated map at `tools/_themes/clusters.yml`. Do NOT
 hand-compute the cluster total — the tool is the source of truth (no prose math).
+
+Pass `--regime-class <regime_class>` — the **same** value you already resolved
+for the `position_sizer --regime` call above (one regime read drives both). It
+scales the cap (0.30 → 0.25 → 0.20 → 0.15 as the tape weakens) and selects the
+deterministic `output.action` you must obey on a breach (see the cluster row
+below). `--track discretionary` tells the tool this is the cash book.
 
 Then evaluate each hard rule with the math from the tool output.
 
@@ -166,7 +173,7 @@ tracks identically.
 | Rule | Source | PASS / FAIL |
 |---|---|---|
 | Position size ≤ 10% capital (reconciled 2026-06-20 from 25%) | `position_sizer.output.capital_pct` | PASS iff ≤ 0.10 (both tracks) |
-| Theme/cluster ≤ 30% (cross-track, reconciled 2026-06-20) | `cluster_concentration.output.breach` | **Automated track:** FAIL (hard) iff `breach == true`. **Discretionary track:** WARN only iff `breach == true` — surface the cluster % + correlated-gap downside, do NOT block (carve-out 2026-06-22) |
+| Theme/cluster ≤ regime-scaled cap (cross-track; 0.30/0.25/0.20/0.15 by SPY stage — reconciled 2026-06-20, regime-conditional 2026-06-24) + a regime-independent hard ceiling (0.45) | `cluster_concentration.output.action` (computed from `breach` × `ceiling_breach` × `track` × `regime_class`) | **Obey `output.action` literally:** `allow` → PASS. `warn` → surface the cluster % + correlated-gap downside, do NOT block (healthy tape, `stage_2_confirmed`). `half_size` → **HARD: size this cash-book entry at HALF; you may NOT soften this** (softening tape, `stage_2_weakening`). `block` → FAIL, reject the cluster add (risk-off — `stage_3_transitional`/`stage_4`; OR any automated-track breach; OR the cluster is over the **0.45 hard ceiling**, which blocks in EVERY regime incl. a healthy tape — the deliberate-concentration-but-not-bet-the-whole-book backstop). The 2026-06-22 discretionary carve-out is now regime-conditional: still a warning in a healthy tape below the ceiling, but it grows teeth as the tape weakens. |
 | Sector exposure (post-trade) ≤ 20% | Re-compute manually from open positions + this trade | **Automated track:** FAIL iff > 0.20. **Discretionary track:** WARN only iff > 0.20 — surface it, do NOT block (carve-out 2026-06-22) |
 | Cash buffer (post-trade) ≥ 15% (or regime-scaled per swing-regime-playbook) | `(cash - capital) / portfolio_value` | |
 | Total open positions (post-trade) ≤ 8 | Count + 1 ≤ 8 | |
