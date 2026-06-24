@@ -186,6 +186,13 @@ What gets pushed to Telegram this hour. Each entry has a `reason` keyed to
 the Phase 1 threshold table below and a one-sentence `summary` ready to
 drop into the message body. Empty array = no push.
 
+**`ticker` field:** include it only when the delta is about a single name.
+For **non-ticker-specific reasons** (`sector_move`, `fed_speak`,
+`fomc_release`) either **omit `ticker` entirely** or set the **sector ETF
+symbol** (e.g. `XLK` for a semis move) — never write `ticker: null`. The
+schema tolerates an explicit `null` so one stray field can't reject the whole
+hourly snapshot, but omit-or-ETF is the convention.
+
 ---
 
 ## Material-delta thresholds (Phase 1 + 1.5 baseline; tune after first day's data)

@@ -284,7 +284,7 @@ When a `social_signals[]` entry from Pass 3 fires `buzz_spike` on a top-mover, t
 
 1. Build `market_context` — WebFetch finviz or WebSearch for SPY / QQQ / VIX / a few sector ETFs (XLK, XLE, XLF at minimum; XLI, XLV, XLY when relevant to positions or watchlist).
 2. Compute `delta_vs_prior` for each `per_ticker_item` by comparing against the prior-hour snapshot's items (match on `ticker` + similar `title` keyword overlap). Use `vs_prior_snapshot_pct` for market_context quotes.
-3. Apply the **material-delta table** below and populate `material_deltas[]`. Empty array = no Telegram push.
+3. Apply the **material-delta table** below and populate `material_deltas[]`. Empty array = no Telegram push. For non-ticker-specific reasons (`sector_move`, `fed_speak`, `fomc_release`) **omit the `ticker` field** or set the sector ETF symbol (e.g. `XLK`) — never write `ticker: null`.
 4. Write the snapshot YAML. Write `HH-summary.txt` ONLY if `material_deltas[]` is non-empty.
 
 ## Material-delta table (Phase 1 + 1.5 + schema-1.2 baseline)

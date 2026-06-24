@@ -287,7 +287,13 @@
           ],
           "description": "Which row of the material-delta threshold table triggered this push. Phase 1 reasons are the first eight; Phase 1.5 adds the three social_* reasons sourced from social_signals[]; Phase 1.2 adds the three x_signal_* reasons sourced from x_signals[]."
         },
-        "ticker": { "$ref": "#/$defs/ticker" },
+        "ticker": {
+          "oneOf": [
+            { "$ref": "#/$defs/ticker" },
+            { "type": "null" }
+          ],
+          "description": "The subject ticker, when the delta is about a single name. For non-ticker-specific reasons (sector_move, fed_speak, fomc_release) OMIT this field or set the sector ETF symbol (e.g. XLK) — but an explicit null is tolerated so a sector-level delta never rejects the whole snapshot."
+        },
         "summary": {
           "type": "string",
           "description": "One-sentence Telegram-ready line."
