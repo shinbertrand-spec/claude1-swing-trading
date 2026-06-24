@@ -30,6 +30,11 @@ from typing import Any, Optional
 _ROOT = Path(__file__).resolve().parents[1]
 CALIBRATION_DIR = _ROOT / "ledgers" / "cluster-cap" / "_calibration"
 
+# Record schema version — append-only, so the fields are fixed at write time and
+# cannot be backfilled. Bump when the record shape changes so a later reader can
+# branch on it.
+SCHEMA_VERSION = 1
+
 # Test / override hook — matches the panel's ``panel_dir`` param convention but
 # also honours an env var so callers that can't pass a param (the pipeline money
 # path, the CLI) can still redirect writes in tests. Precedence: explicit
@@ -52,6 +57,8 @@ def append_decision(
     fetched_at: str,
     ticker: str,
     source: str,
+    dry_run: bool = False,
+    run_id: str | None = None,
     ledger_date: date | None = None,
     calib_dir: Path | None = None,
 ) -> Path:
@@ -67,6 +74,11 @@ def append_decision(
         ticker: the candidate ticker.
         source: which write site produced this — ``paper-auto-pipeline`` or
             ``discretionary-cli``.
+        dry_run: tag (not exclude) dry-run decisions, so a dry-run shadow period
+            is not a calibration blind spot — these rows carry ``dry_run=true``
+            and are trivially filtered downstream.
+        run_id: the auto-paper run-dir basename when available, for grouping a
+            run's decisions; ``None`` for the discretionary CLI (real evals).
         ledger_date: partition date (defaults to today).
         calib_dir: override the output directory (tests); see ``CALIB_DIR_ENV``.
 
@@ -77,7 +89,10 @@ def append_decision(
     cal_dir = _resolve_dir(calib_dir)
     cal_dir.mkdir(parents=True, exist_ok=True)
     path = cal_dir / f"{ledger_date.isoformat()}.jsonl"
-    record = {"ts": fetched_at, "source": source, "ticker": ticker, **output}
+    record = {
+        "v": SCHEMA_VERSION, "ts": fetched_at, "source": source,
+        "ticker": ticker, "dry_run": dry_run, "run_id": run_id, **output,
+    }
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
     return path

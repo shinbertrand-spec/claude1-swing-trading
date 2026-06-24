@@ -33,13 +33,27 @@ def test_append_decision_writes_wellformed_line(tmp_path):
     assert len(rows) == 1
     r = rows[0]
     # the trailer fields the sink adds
+    assert r["v"] == 1
     assert r["ts"] == "2026-06-24T12:00:00+00:00"
     assert r["source"] == "discretionary-cli"
     assert r["ticker"] == "NVDA"
+    assert r["dry_run"] is False   # default
+    assert r["run_id"] is None     # default
     # everything from compute() output, flattened in
     for k in ("track", "action", "cluster_pct", "effective_cap_pct",
               "regime_class", "breach", "ceiling_breach", "hard_ceiling_pct"):
         assert r[k] == _OUTPUT[k]
+
+
+def test_append_decision_tags_dry_run_and_run_id(tmp_path):
+    path = append_decision(
+        output=_OUTPUT, fetched_at="t", ticker="NVDA", source="paper-auto-pipeline",
+        dry_run=True, run_id="2026-06-24T05_11_40Z-abc", ledger_date=date(2026, 6, 24),
+        calib_dir=tmp_path,
+    )
+    r = _read(path)[0]
+    assert r["dry_run"] is True
+    assert r["run_id"] == "2026-06-24T05_11_40Z-abc"
 
 
 def test_append_is_append_not_overwrite(tmp_path):

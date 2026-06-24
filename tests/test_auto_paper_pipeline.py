@@ -274,13 +274,51 @@ def test_place_candidate_block_writes_calibration(paper_dirs, paper_client, monk
     assert rows[0]["track"] == "paper-auto"
     assert rows[0]["regime_class"] == "stage_2_weakening"
     assert rows[0]["ticker"] == "NVDA"
+    assert rows[0]["dry_run"] is False
+    assert rows[0]["v"] == 1
+    assert "run_id" in rows[0]
 
 
-def test_place_candidate_dry_run_writes_no_calibration(paper_dirs, paper_client, tmp_path):
-    """Dry-run previews are intentionally excluded from the calibration sink."""
+def test_place_candidate_dry_run_writes_tagged_calibration(paper_dirs, paper_client, tmp_path):
+    """Dry-run is TAGGED (dry_run=True), not excluded — a dry-run shadow period
+    must not be a calibration blind spot. The row is trivially filtered later."""
+    import json
+
     res = place_candidate(_vcp_cand(shares=50), client=paper_client, dry_run=True)
     assert res.status == "dry_run"
-    assert not (tmp_path / "cluster-calib").exists()
+    files = list((tmp_path / "cluster-calib").glob("*.jsonl"))
+    assert len(files) == 1
+    rows = [json.loads(ln) for ln in files[0].read_text().splitlines() if ln.strip()]
+    assert len(rows) == 1
+    assert rows[0]["dry_run"] is True
+    assert rows[0]["v"] == 1
+
+
+def test_calibration_writer_failure_never_blocks_placement(paper_dirs, paper_client, monkeypatch):
+    """A calibration-sink failure must NEVER abort or alter a placement — the
+    write is best-effort inside a swallowing try."""
+    from tools import cluster_calibration
+
+    def _boom(**_kw):
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(cluster_calibration, "append_decision", _boom)
+    res = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
+    assert res.status == "placed"
+
+
+def test_calibration_malformed_trace_never_aborts(paper_dirs, paper_client):
+    """A non-dict element in reasoning_trace must not abort a placement —
+    retrieval is inside the try and skips non-dicts (isinstance guard). Uses a
+    per-position-breach candidate so the reject happens BEFORE the cluster
+    compute: no matching cluster entry is appended, so the malformed element is
+    the one the sink's generator actually scans (a cluster-gate reject would
+    append a matching dict that short-circuits the scan first). Pre-fix this
+    raised AttributeError past the guard; post-fix it is inert."""
+    cand = _vcp_cand(shares=10_000)  # 10_000 × $850.50 ≫ 5% of $1M → per-position reject
+    cand.reasoning_trace.append("not-a-dict")  # malformed element scanned by the sink
+    res = place_candidate(cand, client=paper_client, dry_run=False)
+    assert res.status == "rejected"
+    assert "5% cap" in res.reason
 
 
 def test_check_track_limits_direct_writes_no_file(tmp_path, monkeypatch):

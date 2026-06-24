@@ -11,6 +11,19 @@ import pandas as pd
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_cluster_calib(tmp_path, monkeypatch):
+    """Hermeticity: NO test may write the real cluster-cap calibration sink
+    (``ledgers/cluster-cap/_calibration/``). The sink's override seam is the
+    ``CLUSTER_CALIB_DIR`` env var (not a monkeypatchable module attr), and the
+    integration / run_entry harnesses place for real — so redirect it to tmp for
+    EVERY test. Per-test overrides (the ``paper_dirs`` fixture's own setenv, and
+    the explicit-``calib_dir`` / env-precedence tests in
+    ``test_cluster_calibration.py``) run after this autouse fixture and still win.
+    """
+    monkeypatch.setenv("CLUSTER_CALIB_DIR", str(tmp_path / "_cluster_calib"))
+
+
 def _make_ohlcv(
     n: int,
     start_price: float,

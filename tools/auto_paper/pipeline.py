@@ -489,29 +489,33 @@ def place_candidate(
         # cluster cap so both sizing and the cap share one regime read.
         regime_class=regime_class,
     )
-    # Calibration sink (PURE INSTRUMENTATION — changes no decision). The 6e992a7
-    # reasoning_trace append only persists for PLACED candidates, so it drops the
-    # BLOCK cases (a breach returns a reject string and _reject discards
-    # cand.reasoning_trace). Write the cluster decision here — BEFORE the reject
-    # return — so blocks are captured too. Best-effort: a calibration failure must
-    # NEVER abort or alter a placement. Real placement attempts only (dry-run
-    # previews excluded; flip `not dry_run` to include them).
-    if not dry_run:
+    # Calibration sink (PURE INSTRUMENTATION — changes no decision). Captures every
+    # cluster decision on BOTH outcomes, so the BLOCK cases the 6e992a7 reasoning_trace
+    # append drops (a breach returns a reject string; _reject discards the trace) are
+    # recorded. Source = the entry _check_track_limits already appended to
+    # cand.reasoning_trace — guarded by test_track_limits_records_cluster_calibration_trace
+    # (if that append is removed, this silently stops capturing). Retrieval AND write are
+    # inside ONE try so a malformed trace or a write failure can NEVER abort/alter a
+    # placement. Dry-run is TAGGED, not excluded, so a dry-run shadow isn't a blind spot.
+    try:
         cluster_entry = next(
             (t for t in reversed(cand.reasoning_trace)
-             if t.get("tool") == cluster_concentration.TOOL),
+             if isinstance(t, dict) and t.get("tool") == cluster_concentration.TOOL),
             None,
         )
         if cluster_entry is not None:
-            try:
-                cluster_calibration.append_decision(
-                    output=cluster_entry["output"],
-                    fetched_at=cluster_entry["fetched_at"],
-                    ticker=cand.ticker,
-                    source="paper-auto-pipeline",
-                )
-            except Exception:  # noqa: BLE001 — instrumentation never breaks the money path
-                pass
+            run_id = (os.path.basename(auto_paper_run_dir.rstrip("/\\"))
+                      if auto_paper_run_dir else None)
+            cluster_calibration.append_decision(
+                output=cluster_entry["output"],
+                fetched_at=cluster_entry["fetched_at"],
+                ticker=cand.ticker,
+                source="paper-auto-pipeline",
+                dry_run=dry_run,
+                run_id=run_id,
+            )
+    except Exception:  # noqa: BLE001 — instrumentation never breaks the money path
+        pass
     if reject is not None:
         return _reject(cand.ticker, reject)
 
