@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 import yaml
 
-from tools.auto_paper import exits, state
+from tools.auto_paper import cron_gate, exits, state
 from tools.auto_paper.exits import ExitResult, evaluate_exits
 
 
@@ -128,6 +128,10 @@ def paper_dirs(tmp_path, monkeypatch):
     positions_json = tmp_path / "journal" / "paper-auto" / "positions.json"
     monkeypatch.setattr(state, "PAPER_AUTO_LEDGER_DIR", str(ledger_dir))
     monkeypatch.setattr(state, "PAPER_AUTO_POSITIONS_JSON", str(positions_json))
+    # Hermeticity: isolate the cron-gate file (GATE_PATH is a relative constant)
+    # so the new live-pass gate check doesn't read the real journal gate.
+    monkeypatch.setattr(cron_gate, "GATE_PATH",
+                        str(positions_json.parent / "cron_gate.json"))
     return ledger_dir, positions_json
 
 
@@ -687,3 +691,29 @@ def test_sell_proceeds_when_broker_long_backs_it(paper_dirs, monkeypatch):
     r = results[0]
     assert r.action == "sell_50" and r.placed is True
     assert len([c for c in client._tc.calls if c[0] == "place_order"]) == 1
+
+
+# ---- cron-gate honoring (2026-07-24, Alfred Q2): monitor stands down when gated ----
+
+def test_exits_stands_down_when_cron_gated(paper_dirs):
+    """A LIVE monitor pass with the cron gate set -> cron_gated, NO placement."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+                  stop_price=820.00, stop_order_id=55_559)
+    cron_gate.set_gate("short_anomaly", {"short_anomaly": ["NFLX"]})
+    client = _client()
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)))
+    assert [r.action for r in results] == ["cron_gated"]
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+
+
+def test_exits_dry_run_still_runs_when_gated(paper_dirs, monkeypatch):
+    """dry_run bypasses the stand-down so the operator can inspect while gated."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+                  stop_price=820.00, stop_order_id=55_560)
+    cron_gate.set_gate("short_anomaly", {"short_anomaly": ["NFLX"]})
+    monkeypatch.setattr(exits, "sell_decision_compute",
+                        lambda **kw: SimpleNamespace(output=_SELL_50))
+    results = evaluate_exits(
+        dry_run=True, fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)))
+    assert results[0].action != "cron_gated"   # ran the composer, did not stand down

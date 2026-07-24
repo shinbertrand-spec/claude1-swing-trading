@@ -122,6 +122,10 @@ def paper_dirs(tmp_path, monkeypatch):
     # Isolate calibration-outcome writes (record_calibration_outcome, called by
     # _apply_realized_close on every close) to tmp — never the real ledger dir.
     monkeypatch.setattr(critic_panel, "_PANEL_LEDGER_DIR", tmp_path / "swing-critics")
+    # Hermeticity: isolate the cron-gate file so the new live-pass gate check in
+    # reconcile_today doesn't read the real journal gate.
+    monkeypatch.setattr(cron_gate, "GATE_PATH",
+                        str(positions_json.parent / "cron_gate.json"))
     return ledger_dir, positions_json
 
 
@@ -821,3 +825,36 @@ def test_reconcile_stuck_closing_short_gates_and_places_nothing(paper_dirs, monk
     gated, payload = cron_gate.is_gated()
     assert gated is True
     assert payload and payload.get("reason") == "short_anomaly"
+
+
+# ---- cron-gate honoring (2026-07-24, Alfred Q2): reconcile stands down when gated ----
+
+def test_reconcile_today_stands_down_when_cron_gated(paper_dirs):
+    """reconcile_today LIVE pass with the cron gate set -> cron_gated, no broker work."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, stop_price=820.00,
+                  stop_order_id=55001)
+    cron_gate.set_gate("short_anomaly", {"short_anomaly": ["NFLX"]})
+    client = _client()
+    results = reconcile_today(client=client, dry_run=False)
+    assert [r.action for r in results] == ["cron_gated"]
+    assert not any(c[0] == "place_order" for c in client._tc.calls)
+
+
+def test_reconcile_today_dry_run_runs_when_gated(paper_dirs):
+    """dry_run bypasses the stand-down (Step-5 dry-verify must work while gated)."""
+    _seed_submitted(paper_dirs, ticker="TSLA", order_id=10004)
+    cron_gate.set_gate("short_anomaly", {"short_anomaly": ["NFLX"]})
+    client = _client(filled=[], open_=[])
+    results = reconcile_today(client=client, dry_run=True)
+    assert all(r.action != "cron_gated" for r in results)
+
+
+def test_fix4_submitted_with_broker_short_expires_not_held(paper_dirs):
+    """FIX-4 held_symbols is longs-only: a submitted order whose symbol the broker
+    is SHORT must EXPIRE, not park forever in held_no_expire (the old abs() bug)."""
+    _seed_submitted(paper_dirs, ticker="NFLX", order_id=10099)
+    client = _client(filled=[], open_=[], positions=[_pos("NFLX", -29760)])
+    results = reconcile_today(client=client, dry_run=False)
+    actions = [r.action for r in results]
+    assert "held_no_expire" not in actions
+    assert any(r.action == "expired" and r.ticker == "NFLX" for r in results)

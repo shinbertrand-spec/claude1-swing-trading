@@ -1797,6 +1797,19 @@ def reconcile_today(
         list[ReconcileResult] — one per pending paper-auto position.
         Empty list if nothing pending.
     """
+    # Gate honoring (2026-07-24, Alfred Q2): if the cron gate is set, an
+    # unreconciled anomaly (orphan / short / corrupt) needs the operator. Stand
+    # down on a LIVE pass so no automated intent-recovery / flip / stop / fill
+    # touches an unreconciled book — the gate previously blocked only entries.
+    # dry_run still runs fully so the operator can inspect what WOULD happen.
+    if not dry_run:
+        gated, _gate_doc = cron_gate.is_gated()
+        if gated:
+            return [ReconcileResult(
+                ticker="*", action="cron_gated",
+                reason="cron gate set — reconcile stood down; operator must resolve + clear",
+            )]
+
     # Recover any dangling write-ahead intents FIRST (a crash-orphaned order
     # gets its ledger reconstructed here) so the pending-submitted loop below
     # then reconciles its fill / expiry in the same pass. Run for side effects;

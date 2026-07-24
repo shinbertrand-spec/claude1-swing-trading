@@ -23,7 +23,7 @@ import pandas as pd
 import pytest
 import yaml
 
-from tools.auto_paper import state
+from tools.auto_paper import cron_gate, state
 from tools.auto_paper.stop_ratchet import ratchet_all
 
 
@@ -90,6 +90,10 @@ def paper_dirs(tmp_path, monkeypatch):
     positions_json = tmp_path / "journal" / "paper-auto" / "positions.json"
     monkeypatch.setattr(state, "PAPER_AUTO_LEDGER_DIR", str(ledger_dir))
     monkeypatch.setattr(state, "PAPER_AUTO_POSITIONS_JSON", str(positions_json))
+    # Hermeticity: isolate the cron-gate file so the new live-pass gate check
+    # doesn't read the real journal gate.
+    monkeypatch.setattr(cron_gate, "GATE_PATH",
+                        str(positions_json.parent / "cron_gate.json"))
     return ledger_dir, positions_json
 
 
@@ -365,3 +369,16 @@ def test_ratchet_proceeds_when_broker_long_backs_it(paper_dirs):
                           holdings={"T1": 10})
     assert results[0].action == "ratcheted"
     assert len([c for c in client._tc.calls if c[0] == "place_order"]) == 1
+
+
+# ---- cron-gate honoring (2026-07-24, Alfred Q2): ratchet stands down when gated ----
+
+def test_ratchet_stands_down_when_cron_gated(paper_dirs):
+    """A LIVE ratchet pass with the cron gate set -> cron_gated, NO placement."""
+    _seed_starter(paper_dirs, ticker="T1", shares=10, fill_price=100.0,
+                  stop_price=92.0, stop_order_id=70_557)
+    cron_gate.set_gate("short_anomaly", {"short_anomaly": ["NFLX"]})
+    client = _client()
+    results = ratchet_all(client=client, fetch_ohlcv_fn=_fake_fetch(106.0))
+    assert [r.action for r in results] == ["cron_gated"]
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []

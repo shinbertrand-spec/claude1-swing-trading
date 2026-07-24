@@ -47,7 +47,7 @@ from ..pe_expansion_check import compute_from_ticker as pe_expansion_from_ticker
 from ..sell_decision import compute as sell_decision_compute
 from ..sell_into_strength import compute as sis_compute
 from ..violations_detect import compute_from_ohlcv as violations_compute
-from . import holdings_guard, state
+from . import cron_gate, holdings_guard, state
 
 # Actions that the sell-decision composer can return that should trigger an
 # auto-exit at the paper broker. ``tighten_stop`` is non-trivial in v1 —
@@ -504,6 +504,22 @@ def evaluate_exits(
     starters = _starter_positions()
     if not starters:
         return []
+
+    # Gate honoring (2026-07-24, Alfred Q2): stand down a LIVE monitor pass when
+    # the cron gate is set — an unreconciled anomaly (orphan / short / corrupt)
+    # needs the operator. The gate previously blocked only /auto-paper entries,
+    # so a monitor tick still ran exits. The point-of-sale guard already refuses
+    # a short-backed SELL; this closes the whole pass. dry_run still runs so the
+    # operator can inspect what WOULD happen.
+    if not dry_run:
+        gated, _gate_doc = cron_gate.is_gated()
+        if gated:
+            return [
+                ExitResult(
+                    ticker=p["ticker"], action="cron_gated", placed=False,
+                    reason="cron gate set — monitor stood down; operator must reconcile + clear",
+                ) for p in starters
+            ]
 
     # Only construct the client if we have work to do — same pattern as
     # reconcile_today. Surface BrokerConfigError uniformly as per-position

@@ -47,7 +47,7 @@ import yaml
 
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..data import fetch_ohlcv
-from . import holdings_guard, state
+from . import cron_gate, holdings_guard, state
 
 # Two-tier ratchet per CLAUDE.md § Risk Management. Edit these in lockstep
 # with the doctrine; consider any change a behavior change.
@@ -371,6 +371,17 @@ def ratchet_all(
     starters = _starter_positions()
     if not starters:
         return []
+
+    # Gate honoring (2026-07-24, Alfred Q2): stand down a LIVE ratchet pass when
+    # the cron gate is set. dry_run still computes targets for inspection.
+    if not dry_run:
+        gated, _gate_doc = cron_gate.is_gated()
+        if gated:
+            return [
+                RatchetResult(ticker=p["ticker"], action="cron_gated",
+                              reason="cron gate set — ratchet stood down; operator must reconcile + clear")
+                for p in starters
+            ]
 
     c: TigerClient | None = client
     if not dry_run and c is None:
