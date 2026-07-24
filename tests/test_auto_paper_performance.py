@@ -538,3 +538,45 @@ def test_report_to_dict_round_trips(paper_dirs, deployable_path):
     assert "NVDA" in s
     assert d["n_realized"] == 1
     assert d["overall_trade_stats"]["n_trades"] == 1
+
+
+# ---------------------------------------------------------- A2 baselines
+
+
+def _fake_price_loader(ticker, start, end):
+    import pandas as pd
+    n = max((end - start).days + 1, 2)
+    idx = pd.date_range(start, periods=n, freq="D")
+    base = {"SPY": 100.0}.get(ticker, 50.0)
+    return pd.Series([base * (1.001 ** i) for i in range(n)], index=idx)
+
+
+def test_baselines_computed_on_realized_window(paper_dirs, deployable_path):
+    """include_baselines=True attaches same-window baselines (A2)."""
+    _seed_closed_position(
+        paper_dirs, ticker="NVDA",
+        fill_price=100.0, initial_stop=95.0, exit_price=110.0,
+        fill_date="2026-05-01", exit_date="2026-05-15",
+    )
+    report = performance.compute_performance(
+        deployable_path=deployable_path,
+        include_baselines=True,
+        baseline_price_loader=_fake_price_loader,
+    )
+    assert report.baselines is not None
+    assert report.baselines["window_start"] == "2026-05-01"
+    assert report.baselines["window_end"] == "2026-05-15"
+    names = [b["name"] for b in report.baselines["baselines"]]
+    assert "spy_buy_hold" in names
+    assert "spy_ts_momentum_12_1" in names
+    # Serializes cleanly alongside the rest of the report.
+    json.dumps(report.to_dict(), default=str)
+
+
+def test_baselines_off_by_default(paper_dirs, deployable_path):
+    _seed_closed_position(
+        paper_dirs, ticker="NVDA",
+        fill_price=100.0, initial_stop=95.0, exit_price=110.0,
+    )
+    report = performance.compute_performance(deployable_path=deployable_path)
+    assert report.baselines is None

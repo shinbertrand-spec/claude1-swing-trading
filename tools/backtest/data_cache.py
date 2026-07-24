@@ -136,14 +136,26 @@ def fetch(
     )
 
 
-def load(ticker: str) -> pd.DataFrame:
-    """Load cached OHLCV for ``ticker``. Raises if not cached."""
+def load(ticker: str, end: str | date | None = None) -> pd.DataFrame:
+    """Load cached OHLCV for ``ticker``. Raises if not cached.
+
+    ``end`` (A3 as-of contract): when given, bars after this date are dropped
+    at the adapter layer — backtest/eval callers pass the simulation date so
+    the full cached parquet (which may extend past the window) never leaks
+    future bars into a caller that forgets to trim.
+    """
     path = _cache_path(ticker)
     if not path.exists():
         raise FileNotFoundError(
             f"No cache for {ticker} at {path}. Run `fetch({ticker!r})` first."
         )
-    return pd.read_parquet(path)
+    df = pd.read_parquet(path)
+    if end is not None:
+        if isinstance(end, str):
+            end = date.fromisoformat(end[:10])
+        # .index is tz-aware DatetimeIndex from yfinance; compare on dates.
+        df = df[[ts.date() <= end for ts in df.index]]
+    return df
 
 
 def info(ticker: str) -> CacheEntry | None:

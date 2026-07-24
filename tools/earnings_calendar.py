@@ -42,14 +42,22 @@ def _trading_days_between(today: date, target: date) -> int:
     return int(np.busday_count(today, target))
 
 
-def _parse_next_earnings_date(ticker_obj) -> tuple[date | None, str]:
+def _parse_next_earnings_date(
+    ticker_obj, as_of: date | None = None
+) -> tuple[date | None, str]:
     """Extract next earnings date from a yfinance Ticker.
 
     yfinance exposes earnings dates via ``.calendar`` (dict) and
     ``.earnings_dates`` (DataFrame). Both shapes occur depending on the
     underlying Yahoo response. Returns (date, source_field) or (None, reason).
+
+    ``as_of`` (A3 as-of contract): anchor "next" to a simulation date instead
+    of now — returns the earliest earnings date >= as_of. Honest caveat:
+    yfinance serves the CURRENT calendar, so a historical as_of can only
+    re-anchor within today's known dates (earnings dates are typically
+    announced weeks ahead; second-order look-ahead for far-past windows).
     """
-    today = datetime.now(timezone.utc).date()
+    today = as_of or datetime.now(timezone.utc).date()
 
     # Try .calendar first (typical for single-stock queries).
     try:
@@ -85,8 +93,15 @@ def _parse_next_earnings_date(ticker_obj) -> tuple[date | None, str]:
     return None, "no future earnings dates found"
 
 
-def compute_from_ticker(ticker: str) -> TraceEntry:
+def compute_from_ticker(ticker: str, as_of: date | str | None = None) -> TraceEntry:
     """Fetch next earnings date via yfinance.
+
+    Args:
+        ticker: symbol.
+        as_of: optional simulation date (A3 as-of contract) — "next" and the
+            blackout window are computed relative to this date instead of
+            now. Backtest/eval paths MUST pass it. See the docstring of
+            :func:`_parse_next_earnings_date` for the honest replay caveat.
 
     Returns TraceEntry with output:
         - next_earnings_date: ISO-date string or None
@@ -97,16 +112,20 @@ def compute_from_ticker(ticker: str) -> TraceEntry:
     """
     import yfinance as yf
 
+    if isinstance(as_of, str):
+        as_of = date.fromisoformat(as_of[:10])
+
     t = yf.Ticker(ticker)
-    next_date, source_field = _parse_next_earnings_date(t)
-    today = datetime.now(timezone.utc).date()
+    next_date, source_field = _parse_next_earnings_date(t, as_of=as_of)
+    today = as_of or datetime.now(timezone.utc).date()
     tdays = _trading_days_between(today, next_date) if next_date else None
     within_blackout = (
         tdays is not None and 0 <= tdays <= EARNINGS_BLACKOUT_DAYS
     )
     return TraceEntry(
         tool=TOOL,
-        inputs={"ticker": ticker, "today": today.isoformat()},
+        inputs={"ticker": ticker, "today": today.isoformat(),
+                "as_of": as_of.isoformat() if as_of else None},
         output={
             "next_earnings_date": next_date.isoformat() if next_date else None,
             "trading_days_to_earnings": tdays,
@@ -124,8 +143,13 @@ def main() -> None:
         description="Next earnings date + trading days to + blackout check.",
     )
     p.add_argument("ticker")
+    p.add_argument(
+        "--as-of", default=None,
+        help="ISO simulation date (A3): anchor 'next earnings' + blackout to "
+             "this date instead of now.",
+    )
     args = p.parse_args()
-    emit(compute_from_ticker(args.ticker))
+    emit(compute_from_ticker(args.ticker, as_of=args.as_of))
 
 
 if __name__ == "__main__":

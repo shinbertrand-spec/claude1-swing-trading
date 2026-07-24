@@ -431,6 +431,56 @@ this project should be aware of:
 
 Run the test suite before any tool change: `uv run pytest` (957 tests, ~15 s — count grows as new phases ship).
 
+## Evaluation-honesty policies (adopted 2026-07-24, cherry-pick Batch A)
+
+Four standing rules governing how ANY performance number in this project is
+produced and reported. Provenance: the 2026-07-24 GitHub cherry-pick trawl
+(DeepFund / stockbench / TradingAgents / INVESTOR-BENCH patterns); operator-
+carried spec in the vault (`Output/2026-07-24-claude1-cherrypick-implementation-spec.md`).
+
+**A1 — Post-knowledge-cutoff evaluation of LLM judgment.** Any evaluation of
+*LLM-generated* signal or judgment (critic-panel verdicts, debate outcomes,
+thematic picks, news-agent calls) is scored ONLY on market windows dated
+after the underlying model's knowledge cutoff — pre-cutoff windows may
+validate *deterministic rules* only, because the model may simply remember
+the period. Per-model rule: evals of model M are valid only on data after
+M's TRAINING-DATA cutoff (the conservative gate); record the cutoff in the
+eval artifact. Registry + contamination check: `tools/model_cutoffs.py`
+(sourced from the vendor model docs — re-verify, never guess, when adding
+models). Eval artifacts carry `model` + `model_cutoff` (panel schema,
+calibration log). An existing eval that violates the rule is FLAGGED
+(`contaminated: true` + one line of why), not deleted. Audit of pre-policy
+artifacts (2026-07-24): all existing LLM-judgment evals are live-window
+(2026-05/06+) — post-cutoff for every model in use; no contaminated
+artifacts. The 2017-2025 backtests score deterministic rules only — exempt.
+
+**A2 — Baseline honesty.** No LLM-facet or sleeve performance number is ever
+reported alone. Every paper/eval report shows, on the IDENTICAL window:
+buy-and-hold (SPY + equal-weight traded names), a dumb momentum baseline
+(12-1 TS momentum on SPY), Sortino, and max drawdown. Computed in code
+(`tools/auto_paper/benchmarks.py`, wired into
+`tools.auto_paper.performance.compute_performance(include_baselines=True)`),
+never composed in prompts.
+
+**A3 — As-of filtering is a data-layer contract.** Look-ahead exclusion is
+enforced in code at the adapter layer, never in prompts. Backtest and eval
+paths pass the simulation date (`as_of`), not "now". Shared helper:
+`tools/asof.py` (`filter_as_of`, `parse_as_of`, `latest_knowable`). Adapters
+that structurally cannot replay the past are registered in
+`tools.asof.LIVE_ONLY_ADAPTERS` (finviz screener, live X search, market
+temperature, edgar_eps latest-TTM) and MUST NOT feed a backtest or dated
+eval — pipelines gate with `tools.asof.assert_backtest_safe(<module>)`.
+PIT-capable paths: `data_cache` (date-bounded incl. `load(end=)`),
+`pit_fundamentals` (filed<=asof), insider FILING_DATE loaders,
+`security_master`, `earnings_calendar(as_of=)`.
+
+**A4 — Warmup/test split for LLM-judgment evals.** LLM-facet paper evals get
+an unscored warmup window (context/memory building) before the scored
+window; both recorded in the eval artifact (`warmup_start` / `scored_start`
+in `tools.auto_paper.calibration_analysis` — records before `scored_start`
+are counted but excluded from discrimination stats). Cold-start noise is not
+evidence about steady-state judgment, in either direction.
+
 ## Subagent Workflow
 
 Six specialized subagents handle the heavy lifting. All use the fact-ledger
