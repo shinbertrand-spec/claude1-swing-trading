@@ -213,6 +213,12 @@ deployable:
     backtest_window: "2017-01-01..2026-05-25 (6 OOS years)"
     rolling_agg_sharpe: 2.13
     rolling_agg_max_dd_pct: -11.66
+    # Net-of-cost OOS-aggregate Sharpe from the 2026-06-20 fill-model re-cert
+    # (see fill_model_recert_verdict above) — the realistic live expectation.
+    # Read by tools.auto_paper.live_vs_backtest as the PSR benchmark (B3);
+    # rolling_agg_sharpe stays the ZERO-COST research figure and must not be
+    # used as a live benchmark.
+    live_benchmark_sharpe: 1.23
     n: 576
     per_window_oos_sharpe: [2.66, 1.81, 1.23, 1.95, 3.17, 1.48]   # 2020 / 2021 / 2022 / 2023 / 2024 / 2025
     per_window_pass_rate: 1.00     # 6/6 windows clear Sharpe > 0.5 (top-K fix recovered 2022)
