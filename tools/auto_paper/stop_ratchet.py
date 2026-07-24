@@ -47,7 +47,7 @@ import yaml
 
 from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..data import fetch_ohlcv
-from . import state
+from . import holdings_guard, state
 
 # Two-tier ratchet per CLAUDE.md § Risk Management. Edit these in lockstep
 # with the doctrine; consider any change a behavior change.
@@ -165,6 +165,7 @@ def _ratchet_one(
     client: TigerClient | None,
     dry_run: bool,
     fetch_ohlcv_fn,
+    holdings: dict[str, float] | None = None,
 ) -> RatchetResult:
     ticker = pos["ticker"]
     doc = _read_ledger(ticker)
@@ -238,6 +239,24 @@ def _ratchet_one(
     if client is None:
         return RatchetResult(ticker=ticker, action="error",
                              reason="no client passed and dry_run=False")
+
+    # Point-of-sale long-only guard (2026-07-24): never cancel + re-arm a STP the
+    # broker can't back with a LONG >= shares. A corrupt/stale positive `shares`
+    # (NFLX 29,760 while flat/short) would otherwise cancel the real stop AND
+    # place a 29,760 STP SELL that deepens the short. Refuse BEFORE the cancel so
+    # a legit stop is never torn down on a desynced position. Guard only runs
+    # when a holdings snapshot is available (a failed read stands it down).
+    if holdings is not None and not holdings_guard.long_backs_sell(holdings, ticker, shares):
+        broker_qty = holdings.get(ticker.upper(), 0.0)
+        return RatchetResult(
+            ticker=ticker, action="refused_short_guard",
+            fill_price=fill_price, current_price=current_price,
+            gain_pct=gain_pct, old_stop=current_stop, new_stop=target_stop,
+            old_stop_order_id=old_stop_order_id, shares=shares, tier=tier,
+            reason=(f"broker holds {broker_qty:g} {ticker}; refusing to re-arm a "
+                    f"{shares}-share STP SELL (would deepen/create a short; "
+                    "long-only invariant; ledger/broker desync)."),
+        )
 
     # Cancel old stop. If broker says no, surface and bail without placing.
     try:
@@ -333,6 +352,7 @@ def ratchet_all(
     client: TigerClient | None = None,
     dry_run: bool = False,
     fetch_ohlcv_fn=fetch_ohlcv,
+    holdings: dict[str, float] | None = None,
 ) -> list[RatchetResult]:
     """Ratchet broker-side stops upward for every starter paper-auto position.
 
@@ -363,7 +383,18 @@ def ratchet_all(
                 for p in starters
             ]
 
+    # Point-of-sale long-only guard: fetch signed broker holdings once so a
+    # corrupt positive `shares` can't cancel + re-arm a short-deepening STP.
+    # `holdings` is a test seam; fail-open on a broker read error.
+    signed_holdings: dict[str, float] | None = holdings
+    if signed_holdings is None and not dry_run and c is not None:
+        try:
+            signed_holdings = holdings_guard.fetch_signed_holdings(c)
+        except Exception:  # noqa: BLE001 — read failed; guard stands down per-position
+            signed_holdings = None
+
     return [
-        _ratchet_one(pos=pos, client=c, dry_run=dry_run, fetch_ohlcv_fn=fetch_ohlcv_fn)
+        _ratchet_one(pos=pos, client=c, dry_run=dry_run,
+                     fetch_ohlcv_fn=fetch_ohlcv_fn, holdings=signed_holdings)
         for pos in starters
     ]

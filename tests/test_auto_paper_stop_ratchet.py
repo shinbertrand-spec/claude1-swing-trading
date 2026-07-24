@@ -332,3 +332,36 @@ def test_multi_position_each_evaluated_independently(paper_dirs):
     assert by_ticker["HOLDING"].action == "no_change"
     assert by_ticker["MOVING"].action == "ratcheted"
     assert by_ticker["MOVING"].tier == 2
+
+
+# ---- Point-of-sale long-only guard (2026-07-24, second layer under the fix) ----
+# stop_ratchet sized STP re-arms from ledger `shares`, guarded only by shares<=0,
+# so a corrupt 29,760 starter at +5%/+10% would cancel the real stop and arm a
+# 29,760 STP SELL. Guard: refuse BEFORE the cancel when the broker can't back it.
+
+def test_ratchet_refused_when_broker_short(paper_dirs):
+    """Broker SHORT the name (corrupt ledger) → refused, and CRITICALLY the
+    existing stop is NOT cancelled (guard fires before cancel)."""
+    _seed_starter(paper_dirs, ticker="NFLX", shares=29760, fill_price=81.59,
+                  stop_price=77.23, stop_order_id=70_555)
+    client = _client()
+    results = ratchet_all(client=client, fetch_ohlcv_fn=_fake_fetch(90.0),  # +10%
+                          holdings={"NFLX": -29760})
+    r = results[0]
+    assert r.action == "refused_short_guard"
+    # No cancel AND no place — the real stop survives untouched.
+    assert [c for c in client._tc.calls if c[0] == "cancel_order"] == []
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+    doc = yaml.safe_load(open(state.ledger_path("NFLX")))
+    assert doc["position_state"]["stop_order_id"] == 70_555
+
+
+def test_ratchet_proceeds_when_broker_long_backs_it(paper_dirs):
+    """Guard does NOT over-block: broker holds the full long → ratchet proceeds."""
+    _seed_starter(paper_dirs, ticker="T1", shares=10, fill_price=100.0,
+                  stop_price=92.0, stop_order_id=70_556)
+    client = _client()
+    results = ratchet_all(client=client, fetch_ohlcv_fn=_fake_fetch(106.0),  # +6% → tier-1
+                          holdings={"T1": 10})
+    assert results[0].action == "ratcheted"
+    assert len([c for c in client._tc.calls if c[0] == "place_order"]) == 1

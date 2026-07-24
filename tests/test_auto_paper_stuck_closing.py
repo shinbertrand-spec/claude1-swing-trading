@@ -182,3 +182,37 @@ def test_corrupt_held_surfaced_not_orphaned(dirs):
     res = reconcile.reconcile_stuck_closing(client=client, holdings={"BAD": 50}, dry_run=False)
     assert [r.action for r in res] == ["corrupt_ledger"]
     assert cron_gate.is_gated()[0] is False           # corrupt != orphan; no gate
+
+
+# ---- short anomaly (2026-07-24): gated + surfaced, but a legit long still flips ----
+
+def test_short_gates_but_legit_long_still_flips(dirs):
+    """A broker SHORT and a genuine stuck_closing LONG in the same pass: the short
+    is gated + surfaced (short_anomaly, NEVER flipped/stopped), while the LONG
+    still reverts to starter + gets its stop. Guards against over-blocking."""
+    _seed("MXL", "closed", shares=503, stop=85.0)     # legit stuck LONG
+    _seed("NFLX", "closed", shares=465, stop=77.0)    # ledger long, but broker SHORT
+    client = _client(open_=[])
+    res = reconcile.reconcile_stuck_closing(
+        client=client, holdings={"MXL": 503, "NFLX": -29760}, dry_run=False)
+    actions = {r.ticker: r.action for r in res}
+    assert actions.get("NFLX") == "short_anomaly"
+    assert actions.get("MXL") == "reverted_to_starter"
+    assert _meta_state("MXL") == "starter"            # long recovered
+    assert _meta_state("NFLX") == "closed"            # short NOT flipped
+    # exactly one STP SELL — for MXL 503, never a 29,760 NFLX stop
+    sells = _stp_sell_calls(client)
+    assert len(sells) == 1 and sells[0][3] == "MXL" and sells[0][2] == 503
+    gated, doc = cron_gate.is_gated()
+    assert gated is True and doc["reason"] == "short_anomaly"
+
+
+def test_short_dry_run_gates_nothing(dirs):
+    """dry_run with a broker SHORT: surfaced as short_anomaly, NO gate, NO order."""
+    _seed("NFLX", "closed", shares=465, stop=77.0)
+    client = _client(open_=[])
+    res = reconcile.reconcile_stuck_closing(
+        client=client, holdings={"NFLX": -29760}, dry_run=True)
+    assert [r.action for r in res] == ["short_anomaly_dry_run"]
+    assert cron_gate.is_gated()[0] is False
+    assert _stp_sell_calls(client) == []

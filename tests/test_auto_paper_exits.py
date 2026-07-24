@@ -623,3 +623,67 @@ def test_duplicate_sell_skipped_when_open_sell_already_pending(paper_dirs, monke
     history = doc["sell_eval_history"]
     assert len(history) == 1
     assert history[0]["action"] == "sell_50"
+
+
+# ---- Point-of-sale long-only guard (2026-07-24, second layer under the fix) ----
+# exits.py sized SELLs from ledger `shares`, guarded only by shares <= 0, so a
+# corrupt positive count (NFLX starter 29,760 while broker flat/short) would sell
+# 29,760 from a flat/short book. Guard: refuse a SELL the broker can't back long.
+
+_SELL_100 = {"action": "sell_100", "confidence": "HIGH",
+             "contributing_triggers": ["violations_3plus"],
+             "in_doubt_default_applied": False, "v1_preliminary_flag": True}
+_SELL_50 = {"action": "sell_50", "confidence": "MEDIUM",
+            "contributing_triggers": ["climax_top_2 (count=2)"],
+            "in_doubt_default_applied": False, "v1_preliminary_flag": True}
+
+
+def test_sell_refused_when_broker_short(paper_dirs, monkeypatch):
+    """Composer wants sell_100 but broker is SHORT the name → refused, NO order."""
+    _seed_starter(paper_dirs, ticker="NFLX", shares=29760, fill_price=81.59,
+                  stop_price=77.23, stop_order_id=55_556)
+    client = _client()
+    monkeypatch.setattr(exits, "sell_decision_compute",
+                        lambda **kw: SimpleNamespace(output=_SELL_100))
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+        holdings={"NFLX": -29760},          # broker SHORT (the incident)
+    )
+    r = results[0]
+    assert r.action == "refused_short_guard"
+    assert r.placed is False
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+    # ledger NOT flipped to pending_close
+    assert yaml.safe_load(open(state.ledger_path("NFLX")))["meta"]["state"] == "starter"
+
+
+def test_sell_refused_when_broker_flat(paper_dirs, monkeypatch):
+    """Broker flat (ticker absent from holdings) + positive ledger shares →
+    refused — selling would open a naked short."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+                  stop_price=820.00, stop_order_id=55_557)
+    client = _client()
+    monkeypatch.setattr(exits, "sell_decision_compute",
+                        lambda **kw: SimpleNamespace(output=_SELL_50))
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+        holdings={"OTHER": 100},            # NVDA absent from broker = flat
+    )
+    assert results[0].action == "refused_short_guard"
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+
+
+def test_sell_proceeds_when_broker_long_backs_it(paper_dirs, monkeypatch):
+    """Guard does NOT over-block: broker holds the full long → sell places."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+                  stop_price=820.00, stop_order_id=55_558)
+    client = _client()
+    monkeypatch.setattr(exits, "sell_decision_compute",
+                        lambda **kw: SimpleNamespace(output=_SELL_50))
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+        holdings={"NVDA": 10},              # broker fully backs the long
+    )
+    r = results[0]
+    assert r.action == "sell_50" and r.placed is True
+    assert len([c for c in client._tc.calls if c[0] == "place_order"]) == 1

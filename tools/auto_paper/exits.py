@@ -47,7 +47,7 @@ from ..pe_expansion_check import compute_from_ticker as pe_expansion_from_ticker
 from ..sell_decision import compute as sell_decision_compute
 from ..sell_into_strength import compute as sis_compute
 from ..violations_detect import compute_from_ohlcv as violations_compute
-from . import state
+from . import holdings_guard, state
 
 # Actions that the sell-decision composer can return that should trigger an
 # auto-exit at the paper broker. ``tighten_stop`` is non-trivial in v1 —
@@ -483,6 +483,7 @@ def evaluate_exits(
     dry_run: bool = False,
     fetch_ohlcv_fn=fetch_ohlcv,
     pe_expansion_fn=None,
+    holdings: dict[str, float] | None = None,
 ) -> list[ExitResult]:
     """Evaluate per-bar sell-decision for every starter-state paper-auto position.
 
@@ -527,6 +528,18 @@ def evaluate_exits(
     open_sell_tickers: set[str] = set()
     if not dry_run and c is not None:
         open_sell_tickers = _open_sell_tickers(c)
+
+    # Point-of-sale long-only guard (2026-07-24): fetch the SIGNED broker
+    # holdings once so we never place a SELL the broker can't back with a long.
+    # A corrupt/stale positive `shares` (the NFLX 29,760 incident) would
+    # otherwise open/deepen a short — the loop the sign-aware reconciler kills
+    # one layer up. `holdings` is a test seam; fail-open on a broker read error.
+    signed_holdings: dict[str, float] | None = holdings
+    if signed_holdings is None and not dry_run and c is not None:
+        try:
+            signed_holdings = holdings_guard.fetch_signed_holdings(c)
+        except Exception:  # noqa: BLE001 — read failed; guard stands down (logged per-refusal)
+            signed_holdings = None
 
     results: list[ExitResult] = []
     for pos in starters:
@@ -611,6 +624,22 @@ def evaluate_exits(
             results.append(ExitResult(
                 ticker=ticker, action="error",
                 reason=f"position has non-positive shares={shares}; refusing to sell",
+            ))
+            continue
+
+        # Point-of-sale long-only guard: refuse a SELL the broker can't back
+        # with a LONG >= shares (flat / short / under-held). Only when a
+        # holdings snapshot is available; a failed/absent read stands the guard
+        # down rather than hard-blocking exits.
+        if signed_holdings is not None and not holdings_guard.long_backs_sell(
+                signed_holdings, ticker, shares):
+            broker_qty = signed_holdings.get(ticker.upper(), 0.0)
+            results.append(ExitResult(
+                ticker=ticker, action="refused_short_guard", placed=False,
+                sell_shares=shares,
+                reason=(f"broker holds {broker_qty:g} {ticker}; composer wanted to SELL "
+                        f"{shares} ({action}) — refusing, would open/deepen a short "
+                        "(long-only invariant; ledger/broker desync)."),
             ))
             continue
 

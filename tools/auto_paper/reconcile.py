@@ -1856,7 +1856,10 @@ def reconcile_today(
     held_symbols = {
         str(p.get("symbol", "")).upper()
         for p in positions_entry.output.get("positions", [])
-        if p.get("quantity") and abs(float(p.get("quantity") or 0)) >= 1
+        # LONGS only (signed >= 1). A SHORT must not read as "held" — else a
+        # submitted order on a short symbol parks in `held_no_expire` limbo
+        # forever (long-only invariant; consistent with the sign-aware fix).
+        if p.get("quantity") and float(p.get("quantity") or 0) >= 1
     }
 
     results: list[ReconcileResult] = []

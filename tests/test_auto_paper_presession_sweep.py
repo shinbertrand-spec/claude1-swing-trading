@@ -124,6 +124,29 @@ def test_dry_run_detects_without_side_effects(dirs):
     assert _discovery_files() == []
 
 
+# ---- short anomaly (long-only breach) gates; surfaced in short_anomaly ----
+
+def test_short_anomaly_sets_gate_and_surfaces(dirs):
+    _seed("GO", "starter", shares=100, stop=8.0)
+    sweep = reconcile.presession_sweep(holdings={"GO": 100, "NFLX": -29760})
+    assert sweep.short_anomaly == ["NFLX"]
+    assert sweep.healthy == ["GO"]            # the genuine long is unaffected
+    assert sweep.gated_now is True
+    gated, doc = cron_gate.is_gated()
+    assert gated is True
+    assert "NFLX" in doc["payload"]["short_anomaly"]
+    disc = yaml.safe_load(_discovery_files()[0].read_text())
+    assert "NFLX" in disc["short_anomaly"]
+
+
+def test_short_anomaly_dry_run_detects_without_gating(dirs):
+    sweep = reconcile.presession_sweep(holdings={"NFLX": -29760}, dry_run=True)
+    assert sweep.short_anomaly == ["NFLX"]
+    assert sweep.gated_now is False
+    assert cron_gate.is_gated()[0] is False
+    assert _discovery_files() == []
+
+
 # ---- broker fetch failure is non-fatal (skipped) ----
 
 def test_broker_fetch_failure_is_skipped(dirs):

@@ -252,6 +252,7 @@ def phase_init(
             _emit(
                 f"PHASE_INIT_GATED reason=presession_orphan_sweep "
                 f"orphans={sweep.orphans} corrupt_held={sweep.corrupt_held} "
+                f"short_anomaly={sweep.short_anomaly} "
                 f"gate={cron_gate.GATE_PATH} -- entry halted; operator must "
                 f"reconcile + clear the gate"
             )
