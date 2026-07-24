@@ -101,6 +101,9 @@ def trades_from_ledgers(ledger_dir: Optional[Path] = None) -> tuple[list[SleeveT
             continue
         ticker = meta.get("ticker") or p.stem
         ps = doc.get("position_state") or {}
+        if ps.get("unfilled"):
+            notes.append(f"{ticker}: entry expired unfilled — no trade to reconstruct")
+            continue
         starter = ps.get("starter") or {}
         entry_date = _parse_date(starter.get("fill_date"))
         try:

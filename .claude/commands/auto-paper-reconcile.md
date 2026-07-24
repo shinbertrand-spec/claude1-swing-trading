@@ -57,6 +57,19 @@ It also performs **orphan discovery** (Mode B): any broker holding with NO ledge
 
 If `stuck` is empty AND no orphans, this is a clean no-op (the steady-state expectation).
 
+## Step 1c — Execution-drag update (B2, added 2026-07-24)
+
+After the reconciler(s), refresh the signal-vs-fill attribution series — new
+fills recorded today get their slippage decomposition appended (idempotent,
+keyed dedup; suspect rows surface separately):
+
+```bash
+uv run python -m tools.auto_paper.execution_attribution update
+```
+
+If the command prints a `FLAG:` line (monthly notional-weighted drag over the
+25 bps threshold), include it in the Step 2 report verbatim.
+
 ## Step 2 — Summary report
 
 Output (and reply via Telegram if invoked from a Telegram session):

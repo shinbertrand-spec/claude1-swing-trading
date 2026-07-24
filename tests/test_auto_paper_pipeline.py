@@ -115,6 +115,13 @@ def paper_dirs(tmp_path, monkeypatch):
     # Hermetic: redirect the cluster-cap calibration sink to tmp so live
     # placements in these tests don't write into the real repo ledger.
     monkeypatch.setenv("CLUSTER_CALIB_DIR", str(tmp_path / "cluster-calib"))
+    # B1 gate chain (2026-07-24): stub to pass-through so the legacy pipeline
+    # tests stay hermetic (the real chain reads the data cache for ADV /
+    # correlation and would fail-conservative on synthetic tickers). Chain
+    # wiring behaviour is covered by test_auto_paper_pipeline_gate_chain.py,
+    # which re-monkeypatches this seam.
+    monkeypatch.setattr(_pipeline, "_run_gate_chain",
+                        lambda cand, **kw: (None, None))
     return ledger_dir, positions_json
 
 

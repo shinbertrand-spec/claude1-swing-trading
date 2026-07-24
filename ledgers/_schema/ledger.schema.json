@@ -396,6 +396,23 @@
           "type": "boolean",
           "description": "When true, tools.auto_paper.exits refuses to cancel stop_order_id and refuses to place new limit-sells against this position — only records the sell_eval_history entry. Set manually when an operator restores a stop or wants to override the automated monitor for a specific position. Paper-auto track only."
         },
+        "exit_price": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Realized exit fill price. Written by tools.auto_paper.reconcile._apply_realized_close on every realized close (2026-07-24 close-writer fix); read by performance/_build_realized_trade and live_vs_backtest. A closed ledger WITHOUT this field is excluded from realized stats (by design — e.g. the NFLX bug artifact)."
+        },
+        "exit_date": {
+          "$ref": "#/$defs/iso_date",
+          "description": "Date the realized exit filled (reconcile processing date). Written alongside exit_price."
+        },
+        "exit_reason": {
+          "type": "string",
+          "description": "Why the position closed (stop fill / sell decision / manual). Written alongside exit_price."
+        },
+        "unfilled": {
+          "type": "boolean",
+          "description": "True when the entry DAY order expired unfilled — no trade ever happened. The starter block's fill_price is the SEEDED limit, not a real fill; attribution/performance readers exclude on this flag (2026-07-24: AMD/CAT/GOOGL phantom-fill class)."
+        },
         "trail_ma": {
           "enum": ["lows_of_day", "5_day_MA", "10_day_MA", "20_day_MA", "50_day_MA", "combined_breakeven"],
           "description": "Trailing mechanism currently in force. Tightens over time per swing-momentum-execution stop-migration table; never widens."

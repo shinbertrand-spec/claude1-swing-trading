@@ -145,7 +145,12 @@ def compute_row(
     if state in _EXCLUDED_STATES:
         return None
     ticker = meta.get("ticker")
-    starter = (doc.get("position_state") or {}).get("starter") or {}
+    ps = doc.get("position_state") or {}
+    if ps.get("unfilled"):
+        # Entry DAY order expired unfilled — the starter fill_price is the
+        # SEEDED limit, not a real fill (2026-07-24 phantom-fill class).
+        return None
+    starter = ps.get("starter") or {}
     fill_price = _safe_float(starter.get("fill_price"))
     fill_date = starter.get("fill_date")
     if not ticker or fill_price is None or not fill_date:

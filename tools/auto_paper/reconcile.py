@@ -134,6 +134,12 @@ def _update_ledger_expired(ticker: str, reason: str) -> str:
     doc["meta"]["updated_by"] = "auto_paper/reconcile"
     doc["meta"]["updated_at"] = _now_iso()
 
+    # Structured no-trade marker (2026-07-24): the starter block's seeded
+    # fill_price (= the limit) must never read as a real fill downstream —
+    # performance / attribution / live-vs-backtest readers exclude on this
+    # flag instead of parsing the notes string.
+    doc.setdefault("position_state", {})["unfilled"] = True
+
     existing_notes = doc.get("notes", "")
     new_note = f"Order expired unfilled on {_today_iso()}: {reason}"
     doc["notes"] = f"{existing_notes}\n{new_note}".strip() if existing_notes else new_note
@@ -325,6 +331,14 @@ def _apply_realized_close(
     ps.pop("pending_sell_order_id", None)
     ps.pop("stop_order_id", None)  # any resting order is resolved at close
     ps.pop("stop_place_error", None)  # FIX #5 — a closed position is not naked
+
+    # Structured exit fields (2026-07-24, Phase-1 close-writer fix): the
+    # performance / live-vs-backtest readers build realized trades from
+    # position_state.exit_* — a close recorded only in the notes string is
+    # invisible to every report (the June gap: 4 real closes hidden).
+    ps["exit_price"] = float(exit_price)
+    ps["exit_date"] = _today_iso()
+    ps["exit_reason"] = exit_reason
 
     existing = doc.get("notes", "")
     new_note = (
@@ -691,6 +705,8 @@ def _flip_to_starter_from_closed(ticker: str, *, reason: str) -> None:
     ps = doc.setdefault("position_state", {})
     ps.pop("exit_price", None)          # the close was never filled
     ps.pop("exit_reason", None)
+    ps.pop("exit_date", None)
+    ps.pop("unfilled", None)  # broker holds it — it is emphatically filled
     ps.pop("pending_sell_order_id", None)
     # FIX #5 — drop any stale naked flag from a prior failed close; refresh_starter_stops
     # re-arms the stop (and re-sets the flag if that placement fails again).

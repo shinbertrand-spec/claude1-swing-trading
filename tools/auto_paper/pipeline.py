@@ -27,7 +27,7 @@ from ..broker.tiger import BrokerConfigError, BrokerOrderError, TigerClient
 from ..contract import TraceEntry
 from ..regime_check import classify_broad
 from ..trend_template import compute_from_ticker as tt_from_ticker
-from . import config, intent_log, screener, state
+from . import config, gate_chain, intent_log, screener, state
 
 # Hard rules per CLAUDE.md, applied to the paper-auto track in isolation.
 # EXCEPTION: the theme/cluster cap is CROSS-TRACK (a correlated gap hits both
@@ -268,6 +268,87 @@ def _resolve_regime_multiplier() -> tuple[str, float]:
         REGIME_BROAD_TICKER, include_rs=False,
     ).output["trend_template_passes"]
     return classify_broad(passes_7)
+
+
+def _setup_priors(setup_type: str) -> tuple[float, float]:
+    """(win_rate_prior, payoff_ratio_prior) for the B1 Kelly gate, from the
+    deployable_setups.yml row when recorded (backtest-evidenced), else neutral
+    defaults (p=0.55, b=2.0 — documented in gate_chain.GateConfig). Own
+    function so tests monkeypatch it without a roster file."""
+    try:
+        for row in config.load().get("deployable", []) or []:
+            if isinstance(row, dict) and row.get("setup") == setup_type:
+                return (
+                    float(row.get("win_rate_prior") or 0.55),
+                    float(row.get("payoff_ratio_prior") or 2.0),
+                )
+    except Exception:
+        pass
+    return 0.55, 2.0
+
+
+def _run_gate_chain(
+    cand: CandidateInput,
+    *,
+    net_liq: float,
+    cash: float,
+    open_positions: list[dict[str, Any]],
+    discretionary_positions: list[dict[str, Any]],
+    regime_class: Optional[str],
+    dry_run: bool,
+) -> tuple[Optional[str], Optional[int]]:
+    """B1 deterministic gate chain (2026-07-24, Phase 1 wiring).
+
+    Returns (reject_reason | None, adjusted_shares | None). Raises on internal
+    failure — the CALLER converts that to a fail-closed rejection (on the
+    entry path a missed entry is cheap; a mis-gated placement is the 2026-07
+    incident class). The per-gate decision log always appends (dry-run rows
+    are tagged, not skipped); breaker-state mutations persist only on real
+    placements so dry runs cannot trip or re-base the sleeve breaker.
+    """
+    p_win, payoff = _setup_priors(cand.setup_type)
+    gc_cand = gate_chain.GateCandidate(
+        ticker=cand.ticker,
+        direction="long",
+        stated_probability=p_win,
+        proposed_shares=int(cand.shares),
+        price=float(cand.limit_price),
+        stop_price=float(cand.stop_price) if cand.stop_price else None,
+        target_price=float(cand.target_price) if cand.target_price else None,
+        sector_etf=cand.sector_etf,
+    )
+    snap = gate_chain.build_snapshot(
+        gc_cand,
+        account_net_liq=net_liq,
+        cash=cash,
+        open_positions=open_positions,
+        discretionary_positions=discretionary_positions,
+        regime_class=regime_class,
+    )
+    cfg = gate_chain.GateConfig(
+        assumed_payoff_ratio=payoff,
+        band_max_pct=MAX_PCT_PER_POSITION,
+        max_positions=MAX_POSITIONS,
+        max_pct_per_position=MAX_PCT_PER_POSITION,
+        max_pct_per_sector=MAX_PCT_PER_SECTOR,
+        max_pct_per_cluster=MAX_PCT_PER_CLUSTER,
+    )
+    breaker = gate_chain.load_breaker_state()
+    chain, new_breaker = gate_chain.run_chain(gc_cand, snap, cfg, breaker)
+    if not dry_run:
+        gate_chain.save_breaker_state(new_breaker)
+    try:
+        gate_chain.append_gate_log(
+            chain, source="paper-auto-pipeline", dry_run=dry_run,
+        )
+    except Exception:  # noqa: BLE001 — instrumentation never breaks the money path
+        pass
+    if not chain.passed:
+        first_fail = next(r for r in chain.results if not r.passed)
+        return (f"gate_chain:{first_fail.gate} — {first_fail.reason}", None)
+    if chain.final_shares < cand.shares:
+        return (None, int(chain.final_shares))
+    return (None, None)
 
 
 def place_candidate(
@@ -518,6 +599,31 @@ def place_candidate(
         pass
     if reject is not None:
         return _reject(cand.ticker, reject)
+
+    # 4c-ter. B1 deterministic gate chain (2026-07-24, Phase 1 wiring) — the
+    # FINAL sizing/veto word before the ledger-validate + broker call: 0.5x-
+    # Kelly bound, ADV liquidity, correlation/theme overlap, concentration,
+    # sleeve circuit breaker. Every verdict logs to ledgers/paper-auto/_gates/.
+    # FAIL-CLOSED on internal error: on the entry path a missed entry is
+    # cheap; a mis-gated placement is the 2026-07 incident class.
+    try:
+        gc_reject, gc_shares = _run_gate_chain(
+            cand,
+            net_liq=net_liq,
+            cash=cash,
+            open_positions=existing_positions,
+            discretionary_positions=_load_discretionary_open_positions(),
+            regime_class=regime_class,
+            dry_run=dry_run,
+        )
+    except Exception as exc:  # noqa: BLE001 — deliberate fail-closed boundary
+        return _reject(
+            cand.ticker, f"gate_chain error — refusing entry (fail-closed): {exc}",
+        )
+    if gc_reject is not None:
+        return _reject(cand.ticker, gc_reject)
+    if gc_shares is not None and gc_shares < cand.shares:
+        cand = replace(cand, shares=gc_shares)
 
     # 4d. Pre-place ledger validation gate (2026-06-05). Build + schema-validate
     # the submitted ledger BEFORE any broker call, so a schema failure aborts
