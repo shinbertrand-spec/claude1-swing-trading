@@ -319,8 +319,12 @@ def run() -> int:
     unresolved = intent_log.unresolved_intents()
     all_intents = intent_log.iter_intents()
 
-    # Broker truth.
-    held = {s for s, q in broker.holdings.items() if abs(q) >= 1}
+    # Broker truth — SIGNED model (2026-07-24 naked-short incident): "held"
+    # means broker holds LONG >= 1. A short is never "held"; it is an anomaly
+    # asserted empty below so the acceptance harness exercises the new
+    # invariant instead of green-lighting the old abs() semantics.
+    held = {s for s, q in broker.holdings.items() if q >= 1}
+    short_set = {s for s, q in broker.holdings.items() if q <= -1}
     open_buy = {broker.orders[o]["symbol"] for o in broker.open_buy_ids()}
 
     n_intended = total_intended
@@ -332,6 +336,11 @@ def run() -> int:
         print(f"  [{status}] {label}")
         if not cond:
             failures.append(label)
+
+    # 0. Long-only invariant (signed model): the acceptance scenarios must
+    #    never leave the fake broker SHORT — a short here means a harness or
+    #    reconciler regression toward the 2026-07 incident class.
+    check(not short_set, f"no broker shorts (short_set = {sorted(short_set) or '{}'})")
 
     # 1. N intended -> N placed at broker.
     placed_buy_orders = sum(1 for o in broker.orders.values() if o["action"] == "BUY")

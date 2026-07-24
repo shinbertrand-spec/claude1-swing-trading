@@ -21,6 +21,8 @@ import datetime as dt
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import yaml
 
 from tools.auto_paper import orphan_check as oc
@@ -43,6 +45,7 @@ def main() -> int:
         "open_ledgers": rep.starter_tickers,        # starter == the active-held state
         "protect_set": rep.protect_set,             # dynamic PROTECT = starter set
         "orphan_set": rep.orphan_set,
+        "short_set": rep.short_set,                 # signed model (2026-07-24)
         "corrupt_ledgers": [list(c) for c in rep.corrupt_ledgers],
         "declaration": "Pre-fix orphan inventory complete as of 2026-06-07",
     }
@@ -54,6 +57,7 @@ def main() -> int:
     print(f"starter ledgers : {rep.starter_tickers}")
     print(f"protect_set     : {rep.protect_set}")
     print(f"orphan_set      : {rep.orphan_set}")
+    print(f"short_set       : {rep.short_set}")
     print(f"corrupt_ledgers : {rep.corrupt_ledgers}")
     print(f"persisted -> {OUT}")
 
@@ -61,11 +65,13 @@ def main() -> int:
         print("\nSTOP: baseline is NOT clean. Surface survivors before Step 3:")
         if rep.orphan_set:
             print(f"  ORPHANS (broker holds, no starter ledger): {rep.orphan_set}")
+        if rep.short_set:
+            print(f"  SHORTS (long-only track breach — 2026-07 incident class): {rep.short_set}")
         if rep.corrupt_ledgers:
             print(f"  CORRUPT LEDGERS: {rep.corrupt_ledgers}")
         return 2
 
-    print("\nORPHAN-ZERO CONFIRMED: orphan_set empty, no corrupt ledgers. OK for Step 3.")
+    print("\nORPHAN-ZERO CONFIRMED: orphan_set empty, no shorts, no corrupt ledgers. OK for Step 3.")
     return 0
 
 
