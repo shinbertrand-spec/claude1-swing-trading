@@ -60,10 +60,15 @@ def test_no_orphan_when_all_held_are_starter(tmp_path):
     assert rep.is_clean is True
 
 
-def test_short_position_without_ledger_is_orphan(tmp_path):
+def test_short_position_is_short_anomaly_not_orphan(tmp_path):
+    # Long-only invariant: a broker SHORT is NEVER an orphan-long (that was the
+    # 2026-07 NFLX naked-short doubling bug — a short read as abs() long shares).
+    # It is surfaced in short_set and makes is_clean False.
     _write(tmp_path, "GO", "starter")
     rep = oc.compute_orphans({"GO": 100, "COIN": -213}, scan=oc.scan_ledgers(str(tmp_path)))
-    assert rep.orphan_set == ["COIN"]
+    assert rep.orphan_set == []
+    assert rep.short_set == ["COIN"]
+    assert rep.is_clean is False
 
 
 def test_closed_ledger_not_protecting_its_broker_position(tmp_path):
@@ -84,9 +89,9 @@ def test_stuck_closing_candidates(tmp_path):
     _write(tmp_path, "MXL", "closed")
     _write(tmp_path, "COIN", "pending_close")
     _write(tmp_path, "WMT", "closed")
-    holdings = {"GO": 100, "MXL": 503, "COIN": -213}  # WMT closed AND flat -> not stuck
+    holdings = {"GO": 100, "MXL": 503, "COIN": -213}  # WMT closed+flat; COIN SHORT
     stuck = oc.stuck_closing_candidates(holdings, scan=oc.scan_ledgers(str(tmp_path)))
-    assert stuck == ["COIN", "MXL"]
+    assert stuck == ["MXL"]   # COIN (short) is a short_anomaly, never a stuck LONG to flip
 
 
 def test_corrupt_ledger_blocks_is_clean(tmp_path):
@@ -101,16 +106,17 @@ def test_corrupt_ledger_blocks_is_clean(tmp_path):
 def test_classify_holdings_buckets_every_category(tmp_path):
     _write(tmp_path, "GO", "starter")          # healthy
     _write(tmp_path, "MXL", "closed")          # stuck (Mode A)
-    _write(tmp_path, "COIN", "pending_close")  # stuck (Mode A)
+    _write(tmp_path, "COIN", "pending_close")  # SHORT held -> short_anomaly (NOT stuck)
     _write(tmp_path, "SUB", "submitted")       # submitted-held (reconcile_today's job)
     _write(tmp_path, "BAD", raw="meta:\n  state: starter\nx:\n- a\n: b\n")  # corrupt
     holdings = {"GO": 100, "MXL": 503, "COIN": -213, "SUB": 10, "BAD": 5, "GKOS": 338}
     cls = oc.classify_holdings(holdings, scan=oc.scan_ledgers(str(tmp_path)))
     assert cls.healthy == ["GO"]
-    assert cls.stuck_closing == ["COIN", "MXL"]
+    assert cls.stuck_closing == ["MXL"]         # COIN is SHORT -> short_anomaly, not stuck
+    assert cls.short_anomaly == ["COIN"]        # long-only breach: gated, never flipped
     assert cls.submitted_held == ["SUB"]
     assert cls.corrupt_held == ["BAD"]
-    assert cls.orphans == ["GKOS"]             # no ledger file at all (Mode B)
+    assert cls.orphans == ["GKOS"]             # no ledger file at all (Mode B); a LONG
 
 
 def test_classify_stuck_distinct_from_orphan(tmp_path):

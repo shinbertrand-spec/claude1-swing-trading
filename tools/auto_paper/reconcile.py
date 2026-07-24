@@ -38,7 +38,7 @@ import datetime as _dt
 import glob
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
 
 import yaml
@@ -549,13 +549,23 @@ def refresh_starter_stops(
         ticker = entry["ticker"]
 
         # Naked-short guard: refuse to place a SELL stop the broker can't back.
-        held = int(abs(holdings.get(ticker.upper(), 0)))
+        # SIGNED, not abs() — a short (qty < 0) must read as not_held. With abs()
+        # a −N short reads as +N held and gets armed with a STP SELL that DEEPENS
+        # the short (the 2026-07 NFLX naked-short doubling bug).
+        held = int(float(holdings.get(ticker.upper(), 0)))
         if held < 1:
+            is_short = held <= -1
             results.append(ReconcileResult(
                 ticker=ticker, action="not_held",
-                reason=("ledger=starter but broker holds <1 share; STP SELL NOT "
-                        "placed (would be naked short). Journal/broker desync — "
-                        "stuck-closing / pre-session sweep reconciler's domain."),
+                reason=(
+                    (f"ledger=starter but broker is SHORT {held} — STP SELL NOT placed "
+                     "(would DEEPEN the short; long-only invariant). short_anomaly — "
+                     "reconciler gates + operator flattens.")
+                    if is_short else
+                    ("ledger=starter but broker holds <1 share; STP SELL NOT placed "
+                     "(would be naked short). Journal/broker desync — stuck-closing / "
+                     "pre-session sweep reconciler's domain.")
+                ),
             ))
             continue
 
@@ -805,6 +815,7 @@ def _persist_orphan_discovery(
     *,
     source: str = "post_rth_reconciler",
     corrupt: Optional[list[str]] = None,
+    shorts: Optional[list[str]] = None,
 ) -> str:
     """Write journal/paper-auto/orphan_discovery_<date>.yml. Returns the path.
 
@@ -828,6 +839,13 @@ def _persist_orphan_discovery(
             "clear the cron gate (tools.auto_paper.cron_gate.clear_gate)."
         ),
     }
+    if shorts:
+        doc["short_anomaly"] = {t: holdings.get(t) for t in shorts}
+        doc["short_note"] = (
+            "Broker is SHORT these on a LONG-ONLY system (naked-short anomaly). "
+            "NOT auto-closed and NEVER given a SELL stop (a SELL deepens a short). "
+            "Operator must flatten (BUY to close), then clear the cron gate."
+        )
     if corrupt:
         doc["corrupt_held"] = {t: holdings.get(t) for t in corrupt}
         doc["corrupt_note"] = (
@@ -894,9 +912,46 @@ def reconcile_stuck_closing(
         except BrokerOrderError:
             open_by_id = {}
 
+    # --- Short anomaly: long-only invariant broken (broker is SHORT). Gate +
+    # surface, NEVER flip to starter, NEVER place a SELL stop — a SELL on a short
+    # DEEPENS it (the 2026-07 NFLX doubling bug). Mirrors Mode B (alert + gate,
+    # never auto-act); the operator flattens by BUYing to close. ---
+    if cls.short_anomaly:
+        if not dry_run:
+            disc = _persist_orphan_discovery(
+                [], holdings, source="short_anomaly_reconciler",
+                shorts=cls.short_anomaly,
+            )
+            cron_gate.set_gate(
+                reason="short_anomaly",
+                payload={
+                    "short_anomaly": cls.short_anomaly,
+                    "quantities": {t: holdings.get(t) for t in cls.short_anomaly},
+                    "discovery_file": disc,
+                },
+            )
+        for ticker in cls.short_anomaly:
+            results.append(ReconcileResult(
+                ticker=ticker,
+                action=("short_anomaly_dry_run" if dry_run else "short_anomaly"),
+                filled_qty=int(float(holdings.get(ticker.upper(), 0))),  # signed
+                reason=("broker is SHORT on a long-only system; NO flip / NO stop. "
+                        "Logged + cron GATED; operator must flatten (BUY to close)."),
+            ))
+
     # --- Mode A: stuck-closing flip-back ---
     for ticker in cls.stuck_closing:
-        qty = int(abs(holdings[ticker]))
+        signed = float(holdings.get(ticker.upper(), 0))
+        if signed < 1:
+            # Defense-in-depth: classify_holdings already keeps shorts out of
+            # stuck_closing, but never flip / size a stop off a non-long qty.
+            results.append(ReconcileResult(
+                ticker=ticker,
+                action=("short_anomaly" if signed <= -1 else "not_held"),
+                reason="stuck_closing candidate is not a long position; refusing flip-back",
+            ))
+            continue
+        qty = int(signed)
         if dry_run:
             results.append(ReconcileResult(
                 ticker=ticker, action="stuck_dry_run", filled_qty=qty,
@@ -933,7 +988,7 @@ def reconcile_stuck_closing(
             results.append(ReconcileResult(
                 ticker=ticker,
                 action=("orphan_dry_run" if dry_run else "orphan_discovered"),
-                filled_qty=int(abs(holdings[ticker])),
+                filled_qty=int(float(holdings[ticker])),  # signed (orphans are longs; cosmetic)
                 reason=("broker holds; NO ledger (Mode B). Logged + cron GATED; "
                         "operator must reconcile."),
             ))
@@ -967,6 +1022,7 @@ class PresessionSweep:
     skipped: bool = False         # could not fetch broker holdings
     skip_reason: Optional[str] = None
     dry_run: bool = False
+    short_anomaly: list[str] = field(default_factory=list)  # broker SHORT (gate-worthy)
 
     @property
     def gate_tickers(self) -> list[str]:
@@ -1028,16 +1084,18 @@ def presession_sweep(
 
     gated_now = False
     discovery_path: Optional[str] = None
-    if (cls.orphans or cls.corrupt_held) and not dry_run:
+    if (cls.orphans or cls.corrupt_held or cls.short_anomaly) and not dry_run:
         discovery_path = _persist_orphan_discovery(
             cls.orphans, holdings,
             source="presession_sweep", corrupt=cls.corrupt_held,
+            shorts=cls.short_anomaly,
         )
         cron_gate.set_gate(
             reason="presession_orphan_sweep",
             payload={
                 "orphans": cls.orphans,
                 "corrupt_held": cls.corrupt_held,
+                "short_anomaly": cls.short_anomaly,
                 "discovery_file": discovery_path,
             },
         )
@@ -1053,6 +1111,7 @@ def presession_sweep(
         gated_now=gated_now,
         discovery_path=discovery_path,
         dry_run=dry_run,
+        short_anomaly=cls.short_anomaly,
     )
 
 
@@ -1465,7 +1524,7 @@ def reconcile_intents(
     holdings = holdings or {}
     open_by_id = {o.get("order_id"): o for o in open_orders if o.get("order_id") is not None}
     filled_by_id = {o.get("order_id"): o for o in filled_orders if o.get("order_id") is not None}
-    held = {t.upper() for t, q in holdings.items() if q and abs(float(q)) >= 1}
+    held = {t.upper() for t, q in holdings.items() if q and float(q) >= 1}  # LONGS only
     claimed = _claimed_order_ids()
     human_ids = _human_track_order_ids()      # origin deny-set (FIX 2)
 
@@ -1577,8 +1636,27 @@ def reconcile_intents(
         # refresh_starter_stops / _starter_positions / classify_holdings) AND
         # place a protective STP inline so the held shares are never left
         # unstopped + invisible.
+        # Long-only invariant: if the broker is SHORT this intent's symbol, do NOT
+        # reconstruct into starter + STP — that arms a SELL that deepens the short.
+        # Gate + surface; the operator flattens. (`held` is longs-only, so a short
+        # is not in it and would otherwise fall through to the abandon logic.)
+        signed_q = float(holdings.get(rec.ticker.upper(), 0) or 0)
+        if signed_q <= -1:
+            if not dry_run:
+                cron_gate.set_gate(
+                    reason="short_anomaly",
+                    payload={"short_anomaly": [rec.ticker.upper()],
+                             "quantities": {rec.ticker.upper(): signed_q},
+                             "source": "intent_recovery"},
+                )
+            results.append(IntentReconcileResult(
+                cloid, rec.ticker, "short_anomaly", broker_order_id=rec.broker_order_id,
+                reason=("broker is SHORT this symbol (long-only invariant breach); NOT "
+                        "reconstructed. Gated; operator must flatten (BUY to close)."),
+            ))
+            continue
         if rec.ticker.upper() in held:
-            held_qty = int(abs(float(holdings.get(rec.ticker.upper(), 0) or 0))) or int(rec.shares)
+            held_qty = int(float(holdings.get(rec.ticker.upper(), 0) or 0)) or int(rec.shares)
             # FOLD-IN #7 — book the broker's ACTUAL average cost as the entry, not
             # the limit-price placeholder (a gap-through recovery otherwise writes a
             # wrong R-multiple / realized P&L into the calibration log that gates

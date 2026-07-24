@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import glob
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import yaml
@@ -114,11 +114,14 @@ class OrphanReport:
     protect_set: list[str]
     orphan_set: list[str]
     corrupt_ledgers: list[tuple[str, str]]
+    # Long-only breach: broker is SHORT these (qty <= -1). NEVER an orphan-long;
+    # surfaced separately so the baseline inventory can't silently drop a short.
+    short_set: list[str] = field(default_factory=list)
 
     @property
     def is_clean(self) -> bool:
-        """True iff no orphans AND no corrupt ledgers (safe to proceed)."""
-        return not self.orphan_set and not self.corrupt_ledgers
+        """True iff no orphans AND no corrupt ledgers AND no shorts (safe to proceed)."""
+        return not self.orphan_set and not self.corrupt_ledgers and not self.short_set
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -127,12 +130,30 @@ class OrphanReport:
             "protect_set": self.protect_set,
             "orphan_set": self.orphan_set,
             "corrupt_ledgers": [list(c) for c in self.corrupt_ledgers],
+            "short_set": self.short_set,
         }
 
 
 def _held_tickers(broker_holdings: dict[str, float]) -> set[str]:
-    """Tickers with a non-trivial broker position (|qty| >= 1, longs OR shorts)."""
-    return {t.upper() for t, q in broker_holdings.items() if q and abs(float(q)) >= 1}
+    """Tickers with a LONG broker position (signed qty >= 1).
+
+    Long-only invariant: a NEGATIVE broker quantity is a short *anomaly*
+    (see :func:`_short_tickers`) and MUST NOT be treated as held. Reading a
+    short as ``abs(qty)`` long shares is the 2026-07 NFLX naked-short doubling
+    bug — a −29,760 short was classified stuck-closing, flipped to a 29,760
+    starter, and armed with a STP SELL that deepened the short on every pass.
+    """
+    return {t.upper() for t, q in broker_holdings.items() if q and float(q) >= 1}
+
+
+def _short_tickers(broker_holdings: dict[str, float]) -> set[str]:
+    """Tickers the broker is SHORT (signed qty <= -1).
+
+    A long-only system should never hold a short; when one appears it is
+    surfaced as ``short_anomaly`` (see :func:`classify_holdings`) and gated by
+    the reconciler — never flipped to ``starter``, never given a SELL stop.
+    """
+    return {t.upper() for t, q in broker_holdings.items() if q and float(q) <= -1}
 
 
 def compute_orphans(
@@ -148,7 +169,8 @@ def compute_orphans(
     scan = scan or scan_ledgers()
     starter = scan.starter
     protect = set(starter)                      # dynamic PROTECT
-    held = _held_tickers(broker_holdings)
+    held = _held_tickers(broker_holdings)       # LONGS only (qty >= 1)
+    shorts = _short_tickers(broker_holdings)    # qty <= -1 (long-only breach)
     orphans = sorted(held - starter - protect)
     return OrphanReport(
         broker_holdings={k.upper(): v for k, v in broker_holdings.items()},
@@ -156,6 +178,7 @@ def compute_orphans(
         protect_set=sorted(protect),
         orphan_set=orphans,
         corrupt_ledgers=list(scan.corrupt),
+        short_set=sorted(shorts),
     )
 
 
@@ -177,18 +200,24 @@ def stuck_closing_candidates(
 class HoldingClassification:
     """Precise per-broker-holding classification (Step 3 reconciler input).
 
-    Every ticker the broker holds lands in exactly one bucket:
+    Every LONG broker holding lands in exactly one of the first five buckets:
       * healthy        -- has a ``starter`` ledger (normal; no action)
       * stuck_closing  -- has a {closed, pending_close} ledger (Mode A -> flip)
       * submitted_held -- has a ``submitted`` ledger (a fill reconcile_today owns)
       * corrupt_held   -- ledger file present but unparseable (manual fix)
       * orphans        -- NO ledger file at all (Mode B -> alert + gate)
+
+    A SHORT broker holding (signed qty < 0) is a long-only-invariant breach and
+    lands in ``short_anomaly`` regardless of its ledger state — it is NEVER
+    flipped to starter and NEVER given a SELL stop; the reconciler gates on it
+    and the operator flattens manually.
     """
     healthy: list[str]
     stuck_closing: list[str]
     submitted_held: list[str]
     corrupt_held: list[str]
     orphans: list[str]
+    short_anomaly: list[str] = field(default_factory=list)
 
 
 def classify_holdings(
@@ -203,7 +232,8 @@ def classify_holdings(
     orphan has no ledger file whatsoever.
     """
     scan = scan or scan_ledgers()
-    held = _held_tickers(broker_holdings)
+    held = _held_tickers(broker_holdings)       # LONGS only (qty >= 1)
+    shorts = _short_tickers(broker_holdings)    # qty <= -1 (long-only breach)
     corrupt = scan.corrupt_tickers
     known = scan.all_tickers | corrupt   # any ledger file present at all
     return HoldingClassification(
@@ -212,4 +242,5 @@ def classify_holdings(
         submitted_held=sorted(held & scan.by_state.get(SUBMITTED, set())),
         corrupt_held=sorted(held & corrupt),
         orphans=sorted(held - known),
+        short_anomaly=sorted(shorts),
     )

@@ -159,6 +159,14 @@ def _isolated_run_root(tmp_path, monkeypatch):
     pos_json.write_text('{"positions": []}', encoding="utf-8")
     monkeypatch.setattr(state, "PAPER_AUTO_POSITIONS_JSON", str(pos_json))
 
+    # Hermeticity: isolate the cron-gate file too. run_entry's PHASE_INIT check
+    # calls cron_gate.is_gated(), which reads the RELATIVE GATE_PATH — i.e. the
+    # REAL journal/paper-auto/cron_gate.json — so these tests fail whenever the
+    # live gate is active (e.g. the 2026-07 NFLX naked-short freeze). Redirect to
+    # tmp (absent file => not gated) so the pipeline logic is what's under test.
+    from tools.auto_paper import cron_gate
+    monkeypatch.setattr(cron_gate, "GATE_PATH", str(pos_json.parent / "cron_gate.json"))
+
     return tmp_path
 
 

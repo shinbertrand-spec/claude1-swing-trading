@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from tools.auto_paper import critic_panel, reconcile, state
+from tools.auto_paper import critic_panel, cron_gate, orphan_check, reconcile, state
 from tools.auto_paper.reconcile import (
     ReconcileResult,
     reconcile_stop_outs,
@@ -752,3 +752,72 @@ def test_reconcile_today_detects_stop_out_with_no_submitted(paper_dirs):
     results = reconcile_today(client=client, dry_run=False)
     assert any(r.action == "stopped_out" and r.ticker == "NVDA" for r in results)
     assert yaml.safe_load(open(state.ledger_path("NVDA")))["meta"]["state"] == "closed"
+
+
+# ---- Long-only invariant / naked-short guard (2026-07-24, NFLX doubling bug) ----
+# Regression suite for the reconciler treating a NEGATIVE broker qty as abs()
+# long shares. A short must be routed to `short_anomaly` (gate + surface), never
+# flipped to starter and never given a SELL stop (a SELL deepens a short).
+
+def _seed_closed_ledger(paper_dirs, *, ticker):
+    """Write a minimal paper-auto ledger in `closed` state (Mode-A candidate)."""
+    ledger_dir, _ = paper_dirs
+    ledger_dir.mkdir(parents=True, exist_ok=True)
+    (ledger_dir / f"{ticker.upper()}.yml").write_text(
+        "meta:\n  state: closed\n  account_track: paper-auto\n", encoding="utf-8")
+
+
+def test_classify_holdings_routes_short_to_short_anomaly_not_stuck_closing(paper_dirs):
+    """A broker SHORT with a closed ledger -> short_anomaly, NOT stuck_closing.
+    A genuine long with a closed ledger still -> stuck_closing (positive control)."""
+    _seed_closed_ledger(paper_dirs, ticker="NFLX")   # the short
+    _seed_closed_ledger(paper_dirs, ticker="GO")     # a real long (control)
+    cls = orphan_check.classify_holdings({"NFLX": -29760.0, "GO": 3113.0})
+    assert "NFLX" in cls.short_anomaly
+    assert "NFLX" not in cls.stuck_closing
+    assert "NFLX" not in cls.healthy and "NFLX" not in cls.orphans
+    # the long is unaffected — still a stuck-closing flip candidate
+    assert "GO" in cls.stuck_closing
+    assert "GO" not in cls.short_anomaly
+
+
+def test_refresh_starter_stops_short_is_not_held_and_places_nothing(paper_dirs):
+    """refresh_starter_stops with a broker SHORT -> not_held, ZERO STP SELLs
+    (the exact NFLX hazard: a -29,760 short must not arm a 29,760 STP SELL)."""
+    _seed_starter(paper_dirs, ticker="NFLX", shares=465, stop_price=77.23,
+                  stop_order_id=44100)
+    client = _client(open_=[])
+    results = reconcile.refresh_starter_stops(
+        client=client, holdings={"NFLX": -29760})
+    assert [r.action for r in results] == ["not_held"]
+    assert "SHORT" in (results[0].reason or "")
+    assert _stp_sell_calls(client) == []                 # critically: nothing placed
+    # ledger stop_order_id untouched (no cancel/replace churn on the short)
+    doc = yaml.safe_load(open(state.ledger_path("NFLX")))
+    assert doc["position_state"]["stop_order_id"] == 44100
+
+
+def test_reconcile_stuck_closing_short_gates_and_places_nothing(paper_dirs, monkeypatch):
+    """reconcile_stuck_closing with a broker SHORT -> surfaces short_anomaly,
+    sets the cron gate, and places NO broker order (no flip, no stop)."""
+    # Isolate the cron-gate file to tmp — GATE_PATH is a relative constant the
+    # paper_dirs fixture does not patch; without this the test would clobber the
+    # real live journal/paper-auto/cron_gate.json.
+    ledger_dir, _ = paper_dirs
+    gate_path = str(ledger_dir.parent.parent / "journal" / "paper-auto" / "cron_gate.json")
+    monkeypatch.setattr(cron_gate, "GATE_PATH", gate_path)
+
+    _seed_closed_ledger(paper_dirs, ticker="NFLX")
+    client = _client()
+    results = reconcile.reconcile_stuck_closing(
+        client=client, holdings={"NFLX": -29760})
+
+    # surfaced as short_anomaly, not reverted_to_starter
+    assert any(r.action == "short_anomaly" and r.ticker == "NFLX" for r in results)
+    assert not any(r.action == "reverted_to_starter" for r in results)
+    # NOTHING placed at the broker
+    assert not any(c[0] == "place_order" for c in client._tc.calls)
+    # the entry pipeline is now gated
+    gated, payload = cron_gate.is_gated()
+    assert gated is True
+    assert payload and payload.get("reason") == "short_anomaly"

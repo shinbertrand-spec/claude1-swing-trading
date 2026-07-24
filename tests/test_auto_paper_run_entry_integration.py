@@ -141,6 +141,12 @@ def _harness(tmp_path, monkeypatch):
     pos_json.write_text('{"positions": []}', encoding="utf-8")
     monkeypatch.setattr(state, "PAPER_AUTO_POSITIONS_JSON", str(pos_json))
 
+    # Hermeticity: isolate the cron-gate file (run_entry's PHASE_INIT check reads
+    # the RELATIVE GATE_PATH = real cron_gate.json, so these fail while the live
+    # NFLX freeze gate is active). Redirect to tmp (absent => not gated).
+    from tools.auto_paper import cron_gate
+    monkeypatch.setattr(cron_gate, "GATE_PATH", str(pos_json.parent / "cron_gate.json"))
+
     return SimpleNamespace(tmp_path=tmp_path, run_root=run_root,
                            cand_dir=cand_dir, panel_dir=panel_dir)
 
