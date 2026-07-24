@@ -431,6 +431,116 @@ this project should be aware of:
 
 Run the test suite before any tool change: `uv run pytest` (957 tests, ~15 s — count grows as new phases ship).
 
+## Evaluation-honesty policies (adopted 2026-07-24, cherry-pick Batch A)
+
+Four standing rules governing how ANY performance number in this project is
+produced and reported. Provenance: the 2026-07-24 GitHub cherry-pick trawl
+(DeepFund / stockbench / TradingAgents / INVESTOR-BENCH patterns); operator-
+carried spec in the vault (`Output/2026-07-24-claude1-cherrypick-implementation-spec.md`).
+
+**A1 — Post-knowledge-cutoff evaluation of LLM judgment.** Any evaluation of
+*LLM-generated* signal or judgment (critic-panel verdicts, debate outcomes,
+thematic picks, news-agent calls) is scored ONLY on market windows dated
+after the underlying model's knowledge cutoff — pre-cutoff windows may
+validate *deterministic rules* only, because the model may simply remember
+the period. Per-model rule: evals of model M are valid only on data after
+M's TRAINING-DATA cutoff (the conservative gate); record the cutoff in the
+eval artifact. Registry + contamination check: `tools/model_cutoffs.py`
+(sourced from the vendor model docs — re-verify, never guess, when adding
+models). Eval artifacts carry `model` + `model_cutoff` (panel schema,
+calibration log). An existing eval that violates the rule is FLAGGED
+(`contaminated: true` + one line of why), not deleted. Audit of pre-policy
+artifacts (2026-07-24): all existing LLM-judgment evals are live-window
+(2026-05/06+) — post-cutoff for every model in use; no contaminated
+artifacts. The 2017-2025 backtests score deterministic rules only — exempt.
+
+**A2 — Baseline honesty.** No LLM-facet or sleeve performance number is ever
+reported alone. Every paper/eval report shows, on the IDENTICAL window:
+buy-and-hold (SPY + equal-weight traded names), a dumb momentum baseline
+(12-1 TS momentum on SPY), Sortino, and max drawdown. Computed in code
+(`tools/auto_paper/benchmarks.py`, wired into
+`tools.auto_paper.performance.compute_performance(include_baselines=True)`),
+never composed in prompts.
+
+**A3 — As-of filtering is a data-layer contract.** Look-ahead exclusion is
+enforced in code at the adapter layer, never in prompts. Backtest and eval
+paths pass the simulation date (`as_of`), not "now". Shared helper:
+`tools/asof.py` (`filter_as_of`, `parse_as_of`, `latest_knowable`). Adapters
+that structurally cannot replay the past are registered in
+`tools.asof.LIVE_ONLY_ADAPTERS` (finviz screener, live X search, market
+temperature, edgar_eps latest-TTM) and MUST NOT feed a backtest or dated
+eval — pipelines gate with `tools.asof.assert_backtest_safe(<module>)`.
+PIT-capable paths: `data_cache` (date-bounded incl. `load(end=)`),
+`pit_fundamentals` (filed<=asof), insider FILING_DATE loaders,
+`security_master`, `earnings_calendar(as_of=)`.
+
+**A4 — Warmup/test split for LLM-judgment evals.** LLM-facet paper evals get
+an unscored warmup window (context/memory building) before the scored
+window; both recorded in the eval artifact (`warmup_start` / `scored_start`
+in `tools.auto_paper.calibration_analysis` — records before `scored_start`
+are counted but excluded from discrimination stats). Cold-start noise is not
+evidence about steady-state judgment, in either direction.
+
+## Live-validation & statistical gates (adopted 2026-07-24, cherry-pick Batches B/C)
+
+Implementation record: `ledgers/improvements/2026-07-24-live-validation-batch-b.md`
+and `...-statistical-gates-batch-c.md`.
+
+**B1 — Gate chain between conviction and order.** Conviction never reaches
+the broker directly: `tools.auto_paper.gate_chain` runs five deterministic
+gates (0.5x-Kelly sizing bound, 5%-of-20d-ADV liquidity, correlation/theme
+overlap, concentration caps, sleeve drawdown circuit-breaker at -20% from
+high-water) and appends EVERY verdict to `ledgers/paper-auto/_gates/`. A
+tripped breaker stays tripped until an operator reset
+(`python -m tools.auto_paper.gate_chain reset` — itself a logged action).
+The chain is long-only by construction (2026-07-24 NFLX lesson). WIRING
+NOTE: the `pipeline.place_candidate` call-site edit is deferred until the
+NFLX incident's Step-5 remediation completes; until then the chain runs
+standalone/demo only.
+
+**B2 — Signal-vs-execution attribution.** Every real entry fill decomposes
+vs its signal pivot into delay cost (signal -> fill-day open) + execution
+residual (open -> fill), per trade and cumulative
+(`tools.auto_paper.execution_attribution`; series in
+`journal/paper-auto/execution_drag.jsonl`, idempotent `update`). Monthly
+notional-weighted drag > 25 bps flags to the operator. Suspect rows
+(|slippage| > 500 bps = data corruption) are reported separately, never
+averaged in.
+
+**B3 — Live-vs-backtest tracking.** Live/paper performance is never
+discussed without `tools.auto_paper.live_vs_backtest`: reconstructed daily
+sleeve curve, per-setup Probabilistic Sharpe Ratio against the roster row's
+`live_benchmark_sharpe` (net-of-cost; NEVER the zero-cost
+`rolling_agg_sharpe`), pre/post-live split stats, and an expectation cone
+(backtest Sharpe shape x live realized vol). Small-T PSR is weak evidence
+by design — the report says so on its face.
+
+**B4 — Volume-share slippage stress.** `portfolio_simulator.simulate(...,
+volume_share_slippage=True)` caps entry fills at 10% of bar volume
+(remainder cancels — DAY orders) and charges zipline-ported quadratic
+impact on liquidity-demanding transactions; impact is deliberately
+double-counted vs the sqrt-law cost model (stress gate, not best-estimate).
+A setup whose edge collapses under this mode was a liquidity mirage —
+surfaced via `scripts/volume_share_slippage_rerun.py`, operator retires.
+
+**C1 — Deflated Sharpe 7th gate.** Roster promotion requires DSR > 0.95
+(Bailey & Lopez de Prado 2014; math in `tools.backtest.sharpe_stats`,
+pinned to the paper's published worked example) IN ADDITION to the
+two-clause gate. `ledgers/trials.yml` is the append-only trial registry
+(the paper's N): **every setup x variant evaluation — every new sweep —
+must be appended** (`python -m tools.backtest.dsr_gate derive --write`
+re-derives from spec grids + recorded sweep artifacts). The registry is a
+floor; a stale floor under-deflates. `run_spec` reports DSR on every grid
+run; specs opt into hard enforcement via `gate.dsr_min`. Failures are
+surfaced, never auto-retired.
+
+**C2 — CPCV path distribution.** `tools.backtest.cpcv` recombines
+C(N,k) combinatorial purged CV splits into C(N-1,k-1) full OOS paths per
+setup — a DISTRIBUTION where the 6-window gate has a point estimate.
+Proposed (operator decision pending): 5th-percentile path Sharpe > 0.0 as
+an additional promotion clause. With daily non-overlapping labels the value
+is the path distribution, not the purging — embargo stays small.
+
 ## Subagent Workflow
 
 Six specialized subagents handle the heavy lifting. All use the fact-ledger

@@ -84,3 +84,28 @@ def test_parse_all_past_returns_none():
     parsed, source = _parse_next_earnings_date(fake)
     assert parsed is None
     assert "no future" in source
+
+
+# ------------------------------------------------- A3 as-of anchoring
+
+
+def test_parse_as_of_anchors_next_to_simulation_date():
+    """With as_of, 'next' means next relative to the simulation date — a
+    date that is in the past relative to the wall clock still resolves."""
+    d1 = date(2024, 2, 13)
+    d2 = date(2024, 8, 13)
+    fake = SimpleNamespace(calendar={"Earnings Date": [d1, d2]},
+                           earnings_dates=None)
+    parsed, _ = _parse_next_earnings_date(fake, as_of=date(2024, 5, 1))
+    assert parsed == d2
+    parsed_earlier, _ = _parse_next_earnings_date(fake, as_of=date(2024, 1, 1))
+    assert parsed_earlier == d1
+
+
+def test_parse_as_of_after_all_dates_returns_none():
+    fake = SimpleNamespace(
+        calendar={"Earnings Date": [date(2024, 2, 13)]},
+        earnings_dates=None,
+    )
+    parsed, _ = _parse_next_earnings_date(fake, as_of=date(2024, 12, 1))
+    assert parsed is None

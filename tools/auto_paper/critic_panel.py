@@ -140,6 +140,11 @@ class PanelVerdict:
     shadow_mode: bool
     computed_at: str
     panel_call_id: str
+    # Evaluation-honesty policy A1: which model produced the critic judgments
+    # and its training-data cutoff (from tools.model_cutoffs). Optional so
+    # pre-policy artifacts remain valid; None = unknown/not recorded.
+    model: Optional[str] = None
+    model_cutoff: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -156,6 +161,7 @@ def aggregate_panel(
     ticker: str,
     panel_call_id: str,
     shadow_mode: bool = True,
+    model: Optional[str] = None,
 ) -> PanelVerdict:
     """Apply the priority rules; return :class:`PanelVerdict`.
 
@@ -167,6 +173,11 @@ def aggregate_panel(
         shadow_mode: when True, the verdict still computes ``sizing_multiplier``
             but downstream consumers (``pipeline.place_candidate``) ignore it.
             Logged so the operator can see the toggle's state.
+        model: model id that produced the critic votes (e.g.
+            ``"claude-haiku-4-5-20251001"``). When given, the verdict records
+            it plus its training-data cutoff from :mod:`tools.model_cutoffs`
+            (evaluation-honesty policy A1). Unknown models record
+            ``model_cutoff: None`` — surfaced, never guessed.
 
     Returns:
         :class:`PanelVerdict`.
@@ -202,9 +213,16 @@ def aggregate_panel(
             holds.append(v.critic)
         total_cost += v.estimated_cost_usd
 
+    model_cutoff: Optional[str] = None
+    if model is not None:
+        from tools.model_cutoffs import cutoff_for
+        model_cutoff = cutoff_for(model)
+
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     base = dict(
         ticker=ticker,
+        model=model,
+        model_cutoff=model_cutoff,
         n_critics_total=len(votes),
         n_critics_hold=len(holds),
         n_critics_minus_20=len(minus_20),
@@ -510,6 +528,8 @@ def append_calibration_log(
         "panel_call_id": verdict.panel_call_id,
         "placement_status": placement_status,
         "placement_shares": placement_shares,
+        "model": verdict.model,
+        "model_cutoff": verdict.model_cutoff,
     }
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry) + "\n")
@@ -636,6 +656,11 @@ def main() -> None:
              "pipeline). Default is shadow mode.",
     )
     p.add_argument(
+        "--model", default=None,
+        help="Model id that produced the critic votes; records model + "
+             "training-data cutoff on the verdict (policy A1).",
+    )
+    p.add_argument(
         "--write", action="store_true",
         help="Persist the verdict to ledgers/swing-critics/...",
     )
@@ -651,7 +676,7 @@ def main() -> None:
     )
     verdict = aggregate_panel(
         votes, ticker=args.ticker, panel_call_id=panel_call_id,
-        shadow_mode=not args.live,
+        shadow_mode=not args.live, model=args.model,
     )
 
     if args.write:

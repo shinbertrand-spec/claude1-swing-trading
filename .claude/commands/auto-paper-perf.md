@@ -18,11 +18,14 @@ This command answers the question that justifies the paper-auto track existing a
 
 ```python
 from tools.auto_paper.performance import compute_performance, compute_open_pnl
+from tools.auto_paper.benchmarks import render_baselines_markdown
 from tools.auto_paper.calibration_analysis import compute as compute_calibration
 report = compute_performance(setup_filter=<args.setup or None>,
-                              risk_per_trade=<args.risk_per_trade or 0.01>)
+                              risk_per_trade=<args.risk_per_trade or 0.01>,
+                              include_baselines=True)  # A2 baseline-honesty
 open_pnl = compute_open_pnl()   # constructs TigerClient() internally
 calib = compute_calibration()   # Phase-3 swing-critic-panel calibration (flip gate)
+baselines_md = render_baselines_markdown(report.baselines)
 ```
 
 `compute_performance` reads `journal/paper-auto/positions.json` + each per-ticker ledger. Closed ledgers contribute to realized stats only if they have `position_state.exit_price` set (Session 3's close-out writer). Closed ledgers without `exit_price` (DAY-expired unfilled, or pre-Session-3 closes) are flagged in `report.notes`, not counted toward realized.
@@ -44,6 +47,7 @@ Compose this Markdown:
 - Submitted: <report.n_submitted> (pending fill)
 - Realized cumulative R: <sum of report.realized_trades r_multiple>
 - Realized P&L $ (at <risk_per_trade*100>% risk per trade): <synthetic from cumulative_return_pct>
+- Realized Sharpe / Sortino / Max DD: <report.overall_return_stats.sharpe_annualised> / <…sortino_annualised> / <…max_drawdown_pct> (A2: Sortino + DD always shown, never Sharpe alone)
 
 ### 2. Realized vs backtest expectation
 
@@ -61,6 +65,10 @@ Tolerance bands defined in `tools.auto_paper.performance` constants:
 - ✅ realized within 25% of backtest Sharpe AND n ≥ 30
 - ⚠ realized within 50% of backtest OR n < 30
 - ❌ realized < 50% of backtest AND n ≥ 30 — meaningful edge erosion
+
+### 2b. Baselines — same window (evaluation-honesty policy A2)
+
+Inline `baselines_md` VERBATIM (it is pre-rendered by `tools.auto_paper.benchmarks.render_baselines_markdown` — do not recompute or restyle the numbers). If it is empty (no realized trades / baselines unavailable), render the reason from `report.notes` instead. The rule: no sleeve performance number is ever reported without same-window buy-and-hold + dumb-momentum baselines beside it.
 
 ### 3. Per-trade detail (closed)
 

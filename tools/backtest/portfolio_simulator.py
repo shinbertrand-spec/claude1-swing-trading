@@ -113,6 +113,10 @@ class PortfolioResult:
     notes: list[str] = field(default_factory=list)
     fill_model: str = "marketable_limit"
     momentum_buffer: Optional[float] = None
+    # B4 volume-share slippage mode diagnostics (0/False when mode is off)
+    volume_share_slippage: bool = False
+    n_volume_capped: int = 0     # entries reduced by the volume_limit cap
+    n_volume_blocked: int = 0    # entries missed because the cap left < 1 share
 
 
 def _to_date_index(df: pd.DataFrame) -> pd.DataFrame:
@@ -226,6 +230,9 @@ def simulate(
     full_spread_marketable: bool = True,
     entry_slippage_bps: float = 0.0,
     fill_probability: float = 1.0,
+    volume_share_slippage: bool = False,
+    volume_limit: float = 0.10,
+    price_impact: float = 0.1,
 ) -> PortfolioResult:
     """Simulate the net-of-cost portfolio.
 
@@ -242,6 +249,25 @@ def simulate(
         misses on a DAY marketable limit. Default 1.0 (all fill). A thinned
         fill is recorded as a MISS (not a win). Deterministic per (ticker,date)
         so re-runs are reproducible.
+
+    Volume-share slippage mode (cherry-pick B4, 2026-07-24 — semantics ported
+    from zipline-reloaded ``finance/slippage.py`` ``VolumeShareSlippage``,
+    Apache-2.0; verified against source the same day):
+      volume_share_slippage: when True, (a) an entry fills at most
+        ``volume_limit`` x the fill bar's Volume — a sub-1-share cap records a
+        MISS (n_volume_blocked); a reduced fill records n_volume_capped; the
+        unfilled remainder CANCELS (live orders are DAY, nothing rolls); and
+        (b) liquidity-DEMANDING transactions pay a quadratic price impact
+        ``price_impact x (shares / bar_volume)^2`` — adverse on entry and on
+        marketable exits (stop / gap / max-hold). A passive target limit-sell
+        demands no liquidity and pays none. Exits always complete in one bar
+        (stop discipline is never deferred) but pay the full-size quadratic
+        impact — the model surfaces the cost of exiting big, not a fantasy of
+        exiting slowly. NOTE the cost model's sqrt-law impact stays ON, so
+        impact is deliberately double-counted under this mode: it is a stress
+        gate for liquidity mirages, not a best-estimate model. zipline's own
+        defaults are volume_limit=0.025 (minute bars) / price_impact=0.1;
+        0.10 volume_limit is the daily-bar translation per the B4 spec.
     """
     if fill_model not in _VALID_FILL_MODELS:
         raise ValueError(
@@ -249,6 +275,11 @@ def simulate(
         )
     if not 0.0 <= fill_probability <= 1.0:
         raise ValueError(f"fill_probability must be in [0,1], got {fill_probability}")
+    if volume_share_slippage:
+        if not 0.0 < volume_limit <= 1.0:
+            raise ValueError(f"volume_limit must be in (0,1], got {volume_limit}")
+        if price_impact < 0.0:
+            raise ValueError(f"price_impact must be >= 0, got {price_impact}")
     cfg = config or PortfolioConfig()
     dfs = {t: _to_date_index(df) for t, df in universe_dfs.items()}
 
@@ -280,6 +311,8 @@ def simulate(
     trades: list[NetTradeOutcome] = []
     equity_points: list[tuple[pd.Timestamp, float]] = []
     n_filled = 0
+    n_volume_capped = 0
+    n_volume_blocked = 0
     filled_fwd: list[float] = []
     missed_fwd: list[float] = []
 
@@ -312,6 +345,16 @@ def simulate(
             if exit_price is None:
                 still_open.append(pos)
                 continue
+            # B4: a liquidity-demanding exit (stop/gap/max-hold cross) pays the
+            # quadratic volume-share impact on the FULL position size — the
+            # exit always completes this bar (stop discipline is never
+            # deferred), it just pays for its size. Passive target limit-sells
+            # demand no liquidity and pay none.
+            if volume_share_slippage and reason in _MARKETABLE_EXITS:
+                bar_vol = float(bar["Volume"]) if "Volume" in bar else 0.0
+                if bar_vol > 0:
+                    vshare = pos.shares / bar_vol
+                    exit_price = exit_price * (1.0 - price_impact * vshare * vshare)
             # Apply sell cost. Market-type exits (stop/gap/max-hold) CROSS the
             # book → full spread; a passive target limit-sell stays at half.
             adv = security_master.dollar_adv(df, d, window=cfg.adv_window)
@@ -382,6 +425,24 @@ def simulate(
             )
             net_buy = cost_model.apply_buy_cost(fill_price, buy_cost_bps)
             shares = int(target_dollars // net_buy)
+            # B4 volume-share slippage: cap the fill at volume_limit x bar
+            # volume; the remainder CANCELS (DAY order). The filled share pays
+            # a quadratic price impact, then re-fits the dollar budget.
+            if volume_share_slippage and shares > 0:
+                bar_vol = float(fill_bar["Volume"]) if "Volume" in fill_bar else 0.0
+                max_fill = int(volume_limit * bar_vol)
+                if max_fill < 1:
+                    n_volume_blocked += 1
+                    if fwd is not None:
+                        missed_fwd.append(fwd)
+                    continue
+                if shares > max_fill:
+                    n_volume_capped += 1
+                    shares = max_fill
+                vshare = shares / bar_vol
+                fill_price = fill_price * (1.0 + price_impact * vshare * vshare)
+                net_buy = cost_model.apply_buy_cost(fill_price, buy_cost_bps)
+                shares = min(shares, int(target_dollars // net_buy))
             if shares <= 0:
                 continue
             cash -= shares * net_buy
@@ -425,6 +486,9 @@ def simulate(
         deployment_gate_passed=gate,
         fill_model=fill_model,
         momentum_buffer=momentum_buffer,
+        volume_share_slippage=volume_share_slippage,
+        n_volume_capped=n_volume_capped,
+        n_volume_blocked=n_volume_blocked,
     )
 
 

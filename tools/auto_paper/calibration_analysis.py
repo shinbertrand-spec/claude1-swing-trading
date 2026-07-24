@@ -64,6 +64,14 @@ class CalibrationReport:
     discrimination: str                 # human-readable verdict
     ready_to_flip: bool
     notes: list[str] = field(default_factory=list)
+    # Evaluation-honesty policy A4: warmup/test split. Verdicts computed
+    # before `scored_start` (and their outcomes) build context but are NOT
+    # scored. Both dates recorded in the artifact; None = no split applied
+    # (pre-policy behaviour: everything scored).
+    warmup_start: Optional[str] = None
+    scored_start: Optional[str] = None
+    n_warmup_verdicts: int = 0
+    n_warmup_outcomes: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -94,16 +102,50 @@ def _load_records(cal_dir: Path) -> tuple[list[dict], list[dict]]:
     return verdicts, outcomes
 
 
-def compute(cal_dir: Path | None = None) -> CalibrationReport:
-    """Join verdicts<->outcomes on panel_call_id and group realized stats by action."""
+def compute(
+    cal_dir: Path | None = None,
+    *,
+    warmup_start: str | None = None,
+    scored_start: str | None = None,
+) -> CalibrationReport:
+    """Join verdicts<->outcomes on panel_call_id and group realized stats by action.
+
+    Args:
+        cal_dir: calibration log directory (default: the live ledger dir).
+        warmup_start: informational label for when the warmup window began
+            (recorded in the artifact; does not affect the split).
+        scored_start: evaluation-honesty policy A4 — verdicts whose
+            ``computed_at`` is before this ISO date are WARMUP: the panel was
+            still building context, so they (and their outcomes) are counted
+            but excluded from the scored discrimination stats. None = no
+            split (all records scored).
+    """
     if cal_dir is None:
         cal_dir = _CALIBRATION_DIR
     verdicts, outcomes = _load_records(cal_dir)
 
+    # A4 split: partition verdicts by computed_at vs scored_start.
+    warmup_call_ids: set[str] = set()
+    n_warmup_verdicts = 0
+    if scored_start:
+        scored_from = scored_start[:10]
+        kept: list[dict] = []
+        for v in verdicts:
+            if str(v.get("computed_at") or "")[:10] < scored_from:
+                n_warmup_verdicts += 1
+                cid = v.get("panel_call_id")
+                if cid:
+                    warmup_call_ids.add(cid)
+            else:
+                kept.append(v)
+        verdicts_scored = kept
+    else:
+        verdicts_scored = verdicts
+
     # Verdict action by panel_call_id (last write wins - verdicts are unique
     # per call_id, but be defensive).
     action_by_call: dict[str, str] = {}
-    for v in verdicts:
+    for v in verdicts_scored:
         cid = v.get("panel_call_id")
         if cid:
             action_by_call[cid] = v.get("action")
@@ -112,13 +154,28 @@ def compute(cal_dir: Path | None = None) -> CalibrationReport:
     buckets: dict[str, list[dict]] = {}
     n_joined = 0
     n_unmatched = 0
+    n_warmup_outcomes = 0
     for o in outcomes:
         cid = o.get("panel_call_id")
+        # Outcome of a warmup verdict → warmup (the judgment being scored
+        # was made during context-building), regardless of close date.
+        if cid and cid in warmup_call_ids:
+            n_warmup_outcomes += 1
+            continue
         action = action_by_call.get(cid) if cid else None
         # Fall back to the action the outcome record copied at close time.
         action = action or o.get("verdict_action")
         if action is None:
             n_unmatched += 1
+            continue
+        # Fallback-joined outcomes (no verdict record) split on entry_date.
+        if (
+            scored_start
+            and (not cid or cid not in action_by_call)
+            and str(o.get("entry_date") or "")[:10]
+            and str(o.get("entry_date") or "")[:10] < scored_start[:10]
+        ):
+            n_warmup_outcomes += 1
             continue
         n_joined += 1
         buckets.setdefault(action, []).append(o)
@@ -149,6 +206,10 @@ def compute(cal_dir: Path | None = None) -> CalibrationReport:
         discrimination=discrimination,
         ready_to_flip=ready,
         notes=notes,
+        warmup_start=warmup_start,
+        scored_start=scored_start,
+        n_warmup_verdicts=n_warmup_verdicts,
+        n_warmup_outcomes=n_warmup_outcomes,
     )
 
 
@@ -204,6 +265,15 @@ def render(report: CalibrationReport) -> str:
         f"- Outcome records: {report.n_outcome_records}",
         f"- Joined (verdict<->outcome): {report.n_joined}",
         f"- Unmatched closes (no panel verdict): {report.n_unmatched_outcomes}",
+    ]
+    if report.scored_start:
+        lines.append(
+            f"- Warmup/test split (A4): warmup {report.warmup_start or 'log start'}"
+            f" -> {report.scored_start} (excluded: {report.n_warmup_verdicts}"
+            f" verdicts, {report.n_warmup_outcomes} outcomes); scored from"
+            f" {report.scored_start}"
+        )
+    lines += [
         "",
         "| Verdict action | n | win% | avg R | total P&L | avg P&L |",
         "|---|---|---|---|---|---|",
@@ -236,8 +306,16 @@ def main(argv: list[str] | None = None) -> int:
         description="Join panel verdicts with realized outcomes; assess the flip gate.",
     )
     p.add_argument("--json", action="store_true", help="Emit JSON instead of Markdown.")
+    p.add_argument(
+        "--scored-start", default=None,
+        help="ISO date; verdicts computed before this are unscored warmup (A4).",
+    )
+    p.add_argument(
+        "--warmup-start", default=None,
+        help="ISO date the warmup window began (recorded in the artifact).",
+    )
     args = p.parse_args(argv)
-    report = compute()
+    report = compute(warmup_start=args.warmup_start, scored_start=args.scored_start)
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:

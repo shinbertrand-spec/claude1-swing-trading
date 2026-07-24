@@ -156,6 +156,10 @@ class PerformanceReport:
     comparisons: list[SetupComparison] = field(default_factory=list)
     risk_per_trade: float = DEFAULT_RISK_PER_TRADE
     notes: list[str] = field(default_factory=list)
+    # Baseline-honesty (A2): same-window buy-and-hold + dumb-momentum
+    # baselines from tools.auto_paper.benchmarks. None when not requested
+    # or no realized trades to define a window.
+    baselines: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -173,6 +177,7 @@ class PerformanceReport:
             "by_setup_return_stats": {k: asdict(v) for k, v in self.by_setup_return_stats.items()},
             "comparisons": [c.to_dict() for c in self.comparisons],
             "notes": self.notes,
+            "baselines": self.baselines,
         }
 
 
@@ -454,6 +459,8 @@ def compute_performance(
     *,
     risk_per_trade: float = DEFAULT_RISK_PER_TRADE,
     deployable_path: Optional[str] = None,
+    include_baselines: bool = False,
+    baseline_price_loader: Any = None,
 ) -> PerformanceReport:
     """Build the paper-auto performance report.
 
@@ -464,6 +471,12 @@ def compute_performance(
         risk_per_trade: equity-curve construction fraction (default 1%).
         deployable_path: override path to ``tools/deployable_setups.yml``;
             primarily for tests.
+        include_baselines: baseline-honesty policy A2 — compute same-window
+            buy-and-hold + dumb-momentum baselines (needs price data; the
+            report path passes True, hermetic tests default False).
+        baseline_price_loader: injection seam for baseline price data
+            (``tools.auto_paper.benchmarks.PriceLoader``); None = live
+            OHLCV cache.
 
     Returns:
         :class:`PerformanceReport`. Empty (n_realized=0, n_open=0,
@@ -569,6 +582,24 @@ def compute_performance(
             "n>=30, noisier below."
         )
 
+    # Baseline-honesty (A2): same-window baselines next to the sleeve's
+    # numbers. Window = first fill to last exit of the filtered trades.
+    baselines: Optional[dict[str, Any]] = None
+    if include_baselines and filtered:
+        from . import benchmarks
+
+        try:
+            baselines = benchmarks.compute_baselines(
+                window_start=min(t.fill_date for t in filtered),
+                window_end=max(t.exit_date for t in filtered),
+                traded_tickers=[t.ticker for t in filtered],
+                price_loader=baseline_price_loader,
+            )
+        except Exception as exc:  # noqa: BLE001 — report must still render
+            notes.append(f"baselines unavailable: {exc}")
+    elif include_baselines:
+        notes.append("baselines skipped: no realized trades to define a window")
+
     return PerformanceReport(
         asof=asof,
         setup_filter=setup_filter,
@@ -584,6 +615,7 @@ def compute_performance(
         comparisons=comparisons,
         risk_per_trade=risk_per_trade,
         notes=notes,
+        baselines=baselines,
     )
 
 

@@ -64,6 +64,15 @@
       "type": "string",
       "format": "date-time"
     },
-    "panel_call_id": { "type": "string" }
+    "panel_call_id": { "type": "string" },
+    "model": {
+      "type": ["string", "null"],
+      "description": "Model id that produced the critic judgments (evaluation-honesty policy A1). Optional; absent/null on pre-policy artifacts."
+    },
+    "model_cutoff": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Training-data cutoff of `model` per tools/model_cutoffs.py. LLM-judgment evals are scored only on windows after this date. null = unknown model (surface, don't guess)."
+    }
   }
 }

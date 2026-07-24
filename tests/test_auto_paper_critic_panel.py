@@ -399,3 +399,56 @@ def test_scenario_mxl_pt_inversion_quant_insight():
     v = cp.aggregate_panel(votes, ticker="MXL", panel_call_id="mxl-scenario")
     assert v.action == "half_size_review"
     assert v.sizing_multiplier == 0.5
+
+
+# ---------------------------------------------------------------------------
+# A1: model + model_cutoff on the verdict + calibration log
+# ---------------------------------------------------------------------------
+
+
+def test_model_and_cutoff_recorded(validator):
+    votes = [_vote("risk_manager", "hold")]
+    v = cp.aggregate_panel(
+        votes, ticker="VRT", panel_call_id="a1-1",
+        model="claude-haiku-4-5-20251001",
+    )
+    assert v.model == "claude-haiku-4-5-20251001"
+    assert v.model_cutoff == "2025-07-31"  # training-data cutoff via registry
+    validator.validate(v.to_dict())
+
+
+def test_model_defaults_to_none_backward_compatible(validator):
+    votes = [_vote("risk_manager", "hold")]
+    v = cp.aggregate_panel(votes, ticker="VRT", panel_call_id="a1-2")
+    assert v.model is None
+    assert v.model_cutoff is None
+    validator.validate(v.to_dict())
+
+
+def test_unknown_model_cutoff_none_not_guessed(validator):
+    votes = [_vote("risk_manager", "hold")]
+    v = cp.aggregate_panel(
+        votes, ticker="VRT", panel_call_id="a1-3", model="mystery-model-1",
+    )
+    assert v.model == "mystery-model-1"
+    assert v.model_cutoff is None
+    validator.validate(v.to_dict())
+
+
+def test_calibration_log_carries_model_fields(tmp_path):
+    import json as _json
+    from datetime import date as _date
+
+    votes = [_vote("risk_manager", "hold")]
+    v = cp.aggregate_panel(
+        votes, ticker="VRT", panel_call_id="a1-4",
+        model="claude-haiku-4-5-20251001",
+    )
+    cp.append_calibration_log(
+        v, placement_status="placed", placement_shares=10,
+        ledger_date=_date(2026, 7, 24), panel_dir=tmp_path,
+    )
+    line = (tmp_path / "_calibration" / "2026-07-24.jsonl").read_text().strip()
+    entry = _json.loads(line)
+    assert entry["model"] == "claude-haiku-4-5-20251001"
+    assert entry["model_cutoff"] == "2025-07-31"

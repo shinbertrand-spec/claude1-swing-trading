@@ -162,3 +162,56 @@ def test_analysis_fallback_to_outcome_verdict_action(tmp_path):
     rep = ca.compute(cal)
     assert rep.n_joined == 1
     assert "preserve" in rep.by_action
+
+
+# ----------------------------------------------------- A4 warmup/test split
+
+
+def test_warmup_split_excludes_pre_scored_start(tmp_path):
+    cal = tmp_path / "_calibration"
+    verdicts = [
+        {"panel_call_id": "w1", "action": "preserve",
+         "computed_at": "2026-05-28T22:00:00+00:00"},
+        {"panel_call_id": "s1", "action": "preserve",
+         "computed_at": "2026-06-10T22:00:00+00:00"},
+    ]
+    outcomes = [
+        # Outcome of the WARMUP verdict — excluded even though it closed
+        # inside the scored window (the judgment was made during warmup).
+        {"panel_call_id": "w1", "realized_r": 5.0, "realized_pnl": 500,
+         "entry_date": "2026-05-28", "closed_at": "2026-06-15T00:00:00+00:00"},
+        {"panel_call_id": "s1", "realized_r": 1.0, "realized_pnl": 100,
+         "entry_date": "2026-06-10", "closed_at": "2026-06-20T00:00:00+00:00"},
+    ]
+    _seed(cal, verdicts=verdicts, outcomes=outcomes)
+    rep = ca.compute(cal, warmup_start="2026-05-28", scored_start="2026-06-01")
+    assert rep.n_warmup_verdicts == 1
+    assert rep.n_warmup_outcomes == 1
+    assert rep.n_joined == 1
+    # The warmup winner's +5R must NOT leak into the scored stats.
+    assert rep.by_action["preserve"].avg_realized_r == 1.0
+    assert rep.warmup_start == "2026-05-28"
+    assert rep.scored_start == "2026-06-01"
+
+
+def test_no_split_scores_everything_backward_compatible(tmp_path):
+    cal = tmp_path / "_calibration"
+    _seed(cal,
+          verdicts=[{"panel_call_id": "c1", "action": "preserve",
+                     "computed_at": "2026-05-28T22:00:00+00:00"}],
+          outcomes=[{"panel_call_id": "c1", "realized_r": 1.0, "realized_pnl": 100}])
+    rep = ca.compute(cal)
+    assert rep.n_joined == 1
+    assert rep.n_warmup_verdicts == 0
+    assert rep.scored_start is None
+
+
+def test_warmup_split_renders_in_markdown(tmp_path):
+    cal = tmp_path / "_calibration"
+    _seed(cal,
+          verdicts=[{"panel_call_id": "c1", "action": "preserve",
+                     "computed_at": "2026-06-10T22:00:00+00:00"}],
+          outcomes=[])
+    rep = ca.compute(cal, scored_start="2026-06-01")
+    md = ca.render(rep)
+    assert "Warmup/test split (A4)" in md
