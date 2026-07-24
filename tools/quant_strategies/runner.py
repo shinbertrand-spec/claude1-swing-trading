@@ -33,7 +33,7 @@ from typing import Any
 
 import yaml
 
-from ..backtest import data_cache, metrics, simulator, walk_forward
+from ..backtest import data_cache, dsr_gate, metrics, simulator, walk_forward
 from ..backtest.runner import _format_report
 from ..backtest.trailing_stop import TrailConfig
 from ._kinds import KIND_REGISTRY
@@ -274,16 +274,32 @@ def run_spec(
 
     ranked = sorted(combo_results, key=_rank_key)
 
+    # C1 (2026-07-24) — 7th gate: Deflated Sharpe of the SELECTED combo
+    # across the grid's trials. Report-only unless the spec opts in via
+    # gate.dsr_min (so historical spec re-runs are not silently re-gated);
+    # an enforced failure vetoes the top combo's gate verdict but is
+    # SURFACED, never auto-retired.
+    dsr_spec_min = gate.get("dsr_min")
+    dsr_block = dsr_gate.evaluate_grid(
+        ranked,
+        dsr_min=float(dsr_spec_min) if dsr_spec_min is not None else None,
+    )
+    if dsr_block and dsr_block["enforced"] and dsr_block["passed"] is False:
+        ranked[0]["gate_passed_under_spec"] = False
+        ranked[0]["dsr_veto"] = True
+
     md = _format_report_text(
         spec, ranked, sharpe_min, max_dd_pct_abs, n_min,
         min_window_sharpe=min_window_sharpe,
         min_window_pass_rate=min_window_pass_rate,
     )
+    md += "\n".join(dsr_gate.format_block(dsr_block)) + "\n"
     return {
         "markdown": md,
         "combos": ranked,
         "spec_path": str(spec_path),
         "kind": kind_name,
+        "dsr": dsr_block,
     }
 
 

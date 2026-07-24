@@ -1,0 +1,70 @@
+as_of: '2026-07-24'
+note: Append-only trial registry for the C1 Deflated-Sharpe gate. Every setup x variant
+  evaluation counts as a trial. Re-derive with `python -m tools.backtest.dsr_gate
+  derive --write` after new sweeps, or append a manual component. The total is a FLOOR
+  (unrecorded ad-hoc runs are invisible) — a floor UNDER-deflates, so keep it current.
+n_trials_total: 83
+components:
+- source: spec-grid:clenow_momentum.yml
+  n_trials: 6
+  detail: param-grid product of clenow_momentum.yml
+- source: spec-grid:clenow_momentum_ai_broad.yml
+  n_trials: 3
+  detail: param-grid product of clenow_momentum_ai_broad.yml
+- source: spec-grid:clenow_momentum_liquid_us.yml
+  n_trials: 6
+  detail: param-grid product of clenow_momentum_liquid_us.yml
+- source: spec-grid:connors_rsi2.yml
+  n_trials: 6
+  detail: param-grid product of connors_rsi2.yml
+- source: spec-grid:connors_rsi2_ai_broad.yml
+  n_trials: 6
+  detail: param-grid product of connors_rsi2_ai_broad.yml
+- source: spec-grid:connors_rsi2_ai_pure.yml
+  n_trials: 6
+  detail: param-grid product of connors_rsi2_ai_pure.yml
+- source: spec-grid:connors_rsi2_trendfilt.yml
+  n_trials: 12
+  detail: param-grid product of connors_rsi2_trendfilt.yml
+- source: spec-grid:dual_ma_trend_following.yml
+  n_trials: 4
+  detail: param-grid product of dual_ma_trend_following.yml
+- source: spec-grid:event_insider_buying.yml
+  n_trials: 1
+  detail: param-grid product of event_insider_buying.yml
+- source: spec-grid:residual_momentum_liquid_us.yml
+  n_trials: 6
+  detail: param-grid product of residual_momentum_liquid_us.yml
+- source: spec-grid:ts_momentum.yml
+  n_trials: 2
+  detail: param-grid product of ts_momentum.yml
+- source: spec-grid:ts_momentum_liquid_us.yml
+  n_trials: 2
+  detail: param-grid product of ts_momentum_liquid_us.yml
+- source: spec-grid:value_momentum_integrated.yml
+  n_trials: 1
+  detail: param-grid product of value_momentum_integrated.yml
+- source: spec-grid:xs_low_volatility.yml
+  n_trials: 3
+  detail: param-grid product of xs_low_volatility.yml
+- source: spec-grid:xs_short_term_reversal.yml
+  n_trials: 3
+  detail: param-grid product of xs_short_term_reversal.yml
+- source: spec-grid:xs_short_term_reversal_ai_broad.yml
+  n_trials: 1
+  detail: param-grid product of xs_short_term_reversal_ai_broad.yml
+- source: spec-grid:xs_short_term_reversal_ai_pure.yml
+  n_trials: 1
+  detail: param-grid product of xs_short_term_reversal_ai_pure.yml
+- source: spec-grid:xs_short_term_reversal_liquid_us.yml
+  n_trials: 3
+  detail: param-grid product of xs_short_term_reversal_liquid_us.yml
+- source: spec-grid:xs_short_term_reversal_trendfilt.yml
+  n_trials: 6
+  detail: param-grid product of xs_short_term_reversal_trendfilt.yml
+- source: sweep:2026-07-01-xs_short_term_reversal-bottom_n-sweep.json
+  n_trials: 3
+  detail: recorded sweep artifact (one trial per element)
+- source: sweep:2026-07-02-ts_momentum-lookback-sweep.json
+  n_trials: 2
+  detail: recorded sweep artifact (one trial per element)
