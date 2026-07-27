@@ -59,30 +59,62 @@ SELL_LIMIT_OFFSET_PCT = 0.001
 
 
 def _open_sell_tickers(client: TigerClient) -> set[str]:
-    """Return the set of symbols (upper-case) that have an OPEN SELL order at the broker.
+    """Return symbols (upper-case) with an open NON-STOP SELL order at the broker.
 
     Used by the idempotency guard so a multi-bar SELL signal does not stack
     multiple pending limit-sells against the same ticker. Bug-class fix
     (Bug 2 of 2026-06-02 exits.py diagnostic): COIN went net short -639 sh
     because four 213-sh SELL limits fired on the same 213-sh long.
 
-    Counts BOTH ``LMT SELL`` (the exits.py exit leg) and ``STP SELL`` (the
-    protective stop is not a competing sell — the BOTH-pending case is fine;
-    we count it anyway because if there's ANY active SELL, placing another
-    creates an over-sell race once one of them fills).
+    STP SELLs are EXCLUDED (2026-07-27 post-mortem review fix): the pending_close
+    redesign leaves the protective stop resting while the composer places its
+    exit, so counting the stop here suppressed every composer exit on every
+    stop-protected position ("sell_pending_duplicate" forever) — sell-discipline
+    was silently disabled for the whole track. The stop is not a competing
+    composer sell; the reconciler cancels it after confirming the exit fill.
+    The residual both-resting fill race is bounded by the point-of-sale
+    holdings guard and the same-evening reconcile.
+
+    On a failed open-orders read, returns an empty set — placement then
+    proceeds; the point-of-sale long-only holdings guard is the backstop
+    against over-selling in that window.
     """
     try:
         oo = client.open_orders()
     except BrokerOrderError:
-        # If we can't read open orders, refuse to place any new sell — safer
-        # to skip an exit cycle than to risk a duplicate-sell.
         return set()
     return {
         (o.get("symbol") or "").upper()
         for o in oo.output.get("orders", [])
         if (o.get("action") or "").upper() == "SELL"
         and (o.get("symbol") or "")
+        and "STP" not in (str(o.get("order_type") or "")).upper()
     }
+
+
+def _open_stop_order_ids(client: TigerClient) -> set[int]:
+    """Return order IDs of open STP SELL orders at the broker.
+
+    Feeds the stop-breach watchdog (2026-07-27, post-mortem Finding B): a
+    resting stop whose trigger sits ABOVE the last close has demonstrably
+    failed to fire (COIN gapped through its $182.20 ratchet on 2026-06-01 and
+    sat unprotected for three sessions). Empty set on read failure — the
+    watchdog then stands down for the pass (fail-quiet, never fail-active).
+    """
+    try:
+        oo = client.open_orders()
+    except BrokerOrderError:
+        return set()
+    ids: set[int] = set()
+    for o in oo.output.get("orders", []):
+        if (o.get("action") or "").upper() != "SELL":
+            continue
+        if "STP" not in (str(o.get("order_type") or "")).upper():
+            continue
+        oid = o.get("order_id")
+        if oid is not None:
+            ids.add(int(oid))
+    return ids
 
 # Default OHLCV window. base_stage_detect requires PRIOR_HIGH_LOOKBACK +
 # SWING_WINDOW = 262 bars; 1y of daily bars (~252) is the minimum sensible.
@@ -542,8 +574,10 @@ def evaluate_exits(
     # across consecutive monitor invocations. Cheap upfront fetch beats one
     # broker round-trip per ticker in the loop.
     open_sell_tickers: set[str] = set()
+    open_stop_ids: set[int] = set()
     if not dry_run and c is not None:
         open_sell_tickers = _open_sell_tickers(c)
+        open_stop_ids = _open_stop_order_ids(c)
 
     # Point-of-sale long-only guard (2026-07-24): fetch the SIGNED broker
     # holdings once so we never place a SELL the broker can't back with a long.
@@ -594,6 +628,38 @@ def evaluate_exits(
         pe_warning = ctx.get("pe_warning", False)
         confidence = decision_out.get("confidence", "MEDIUM")
         contributing = list(decision_out.get("contributing_triggers", []))
+
+        # --- Stop-breach watchdog (2026-07-27, post-mortem Finding B) ----
+        # A resting STP whose trigger sits ABOVE the last close has failed to
+        # fire (COIN: gapped through the $182.20 ratchet 2026-06-01, traded
+        # sub-stop for three sessions, stop never executed). When that state
+        # is broker-confirmed — the stop order id is still OPEN — force a
+        # full exit through the working limit-sell path and cancel the zombie
+        # stop after placement. Live passes only: the check needs the open-
+        # orders read, so dry_run and read-failure passes stand it down.
+        watchdog_stop_id: Optional[int] = None
+        if not dry_run and action != "sell_100":
+            ps_wd = doc.get("position_state") or {}
+            try:
+                wd_stop = float(ps_wd.get("current_stop") or 0.0)
+            except (TypeError, ValueError):
+                wd_stop = 0.0
+            wd_sid = ps_wd.get("stop_order_id")
+            wd_close = float(df["Close"].iloc[-1]) if len(df) else 0.0
+            if (
+                wd_stop > 0.0
+                and 0.0 < wd_close < wd_stop
+                and wd_sid is not None
+                and int(wd_sid) in open_stop_ids
+            ):
+                watchdog_stop_id = int(wd_sid)
+                action = "sell_100"
+                contributing.insert(
+                    0,
+                    f"stop_breach_watchdog: close {wd_close:.2f} < resting stop "
+                    f"{wd_stop:.2f} (order #{watchdog_stop_id} still open — "
+                    f"stop failed to fire)",
+                )
 
         if action not in SELL_ACTIONS:
             # Hold / tighten_stop / sell_1_3 — record but don't transact.
@@ -808,13 +874,27 @@ def evaluate_exits(
             ticker, pending_sell_order_id=sell_order_id,
         )
 
+        # Watchdog case ONLY: cancel the proven-zombie stop now that the
+        # working exit is resting. The normal pending_close contract (stop
+        # stays until reconcile confirms the fill) assumes the stop WORKS as
+        # protection — a stop that sat below the market without firing is not
+        # protection, and leaving it invites a late double-fill. Cancel
+        # failure is non-fatal (reconcile clears it on close).
+        cancelled_stop: Optional[int] = None
+        if watchdog_stop_id is not None:
+            try:
+                c.cancel(watchdog_stop_id)
+                cancelled_stop = watchdog_stop_id
+            except BrokerOrderError:
+                pass
+
         results.append(ExitResult(
             ticker=ticker, action=action,
             placed=True,
             sell_order_id=sell_order_id,
             sell_limit_price=sell_limit,
             sell_shares=shares,
-            cancelled_stop_order_id=None,  # stop NOT cancelled until reconciler confirms fill
+            cancelled_stop_order_id=cancelled_stop,  # non-None ONLY on watchdog zombie-stop cancel
             climax_patterns_firing=climax_count,
             violations_firing=violations_count,
             base_stage=base_stage_val,
@@ -822,7 +902,13 @@ def evaluate_exits(
             pe_doubled_late_stage=pe_warning,
             confidence=confidence,
             contributing_triggers=contributing,
-            reason="transitioned to pending_close; awaiting reconcile fill confirmation",
+            reason=(
+                "stop_breach_watchdog forced exit; zombie stop "
+                f"{'cancelled' if cancelled_stop is not None else 'CANCEL FAILED (reconcile clears)'}; "
+                "pending_close awaiting reconcile fill confirmation"
+                if watchdog_stop_id is not None
+                else "transitioned to pending_close; awaiting reconcile fill confirmation"
+            ),
         ))
 
     return results

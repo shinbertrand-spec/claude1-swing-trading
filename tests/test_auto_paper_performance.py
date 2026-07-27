@@ -86,6 +86,7 @@ def _synthetic_ledger_doc(
     exit_date: str | None = None,
     exit_reason: str | None = None,
     notes: str | None = None,
+    unfilled: bool = False,
 ) -> dict:
     """Build a ledger dict in the requested state.
 
@@ -146,6 +147,8 @@ def _synthetic_ledger_doc(
         doc["position_state"]["exit_reason"] = exit_reason or "closed"
         doc["meta"]["updated_by"] = "auto_paper/exits"
         doc["meta"]["updated_at"] = f"{exit_date}T16:30:00+00:00"
+    if unfilled:
+        doc["position_state"]["unfilled"] = True
     if notes is not None:
         doc["notes"] = notes
     return doc
@@ -184,6 +187,7 @@ def _seed_position(
     fill_date="2026-05-01", sector="XLK",
     broker_order_id=99000,
     exit_price=None, exit_date=None, exit_reason=None, notes=None,
+    unfilled=False,
 ):
     """Helper: write a synthetic paper-auto ledger + positions.json entry."""
     ledger_dir, positions_json = paper_dirs
@@ -195,7 +199,7 @@ def _seed_position(
         shares=shares, fill_date=fill_date, sector_etf=sector,
         broker_order_id=broker_order_id,
         exit_price=exit_price, exit_date=exit_date, exit_reason=exit_reason,
-        notes=notes,
+        notes=notes, unfilled=unfilled,
     )
     _append_positions_entry(positions_json, {
         "ticker": ticker.upper(),
@@ -401,7 +405,9 @@ def test_submitted_position_counted(paper_dirs):
 
 
 def test_closed_without_exit_price_is_flagged_not_realized(paper_dirs):
-    """An expired-unfilled ledger (closed + no exit_price) is flagged, not counted."""
+    """A closed ledger with no exit fields AND no unfilled flag is flagged for
+    investigation (it's either a data gap or a bug artifact like NFLX), never
+    silently counted."""
     _seed_position(
         paper_dirs, ticker="ORCL",
         meta_state="closed", positions_stage="closed_unfilled",
@@ -409,17 +415,66 @@ def test_closed_without_exit_price_is_flagged_not_realized(paper_dirs):
         fill_price=120.5, initial_stop=115.0, shares=8,
         fill_date=_dt.date.today().isoformat(),
         sector="XLK", broker_order_id=66001,
-        # No exit_price — mimics DAY-expired order or pre-Session-3 close.
+        # No exit_price and no unfilled flag — ambiguous record.
         notes="Order expired unfilled on 2026-05-24",
     )
     report = performance.compute_performance()
     assert report.n_realized == 0
     assert report.n_open == 0
-    # The closed_unfilled stage isn't a recognized state — the dashboard
-    # silently ignores it (positions.json stage doesn't match submitted /
-    # starter etc.) but the ledger meta.state=closed + no exit_price
-    # falls through to the flag path.
-    assert any("no exit_price" in n for n in report.notes)
+    assert report.n_unfilled == 0
+    assert any("no usable exit fields" in n for n in report.notes)
+
+
+def test_closed_unfilled_flag_excluded_cleanly(paper_dirs):
+    """closed + unfilled:true = entry never filled — excluded as 'no trade',
+    counted in n_unfilled, and NOT flagged as an investigation item
+    (2026-07-24 Phase-1a flag, honored per the 2026-07-27 review)."""
+    _seed_position(
+        paper_dirs, ticker="AMD",
+        meta_state="closed", positions_stage="closed_unfilled",
+        setup_type="EP", setup_grade="A",
+        fill_price=512.08, initial_stop=411.46, shares=73,
+        fill_date="2026-06-15", sector="XLK", broker_order_id=66002,
+        unfilled=True,
+    )
+    report = performance.compute_performance()
+    assert report.n_realized == 0
+    assert report.n_unfilled == 1
+    assert not any("AMD" in n for n in report.notes)
+
+
+def test_closed_ledger_missing_from_index_still_realized(paper_dirs):
+    """THE enumeration regression (2026-07-26 post-mortem Finding C, corrected
+    cause): closed trades pruned from positions.json must still enter realized
+    stats — the ledger directory, not the index, is the enumeration source."""
+    ledger_dir, _positions_json = paper_dirs
+    _write_synthetic_ledger(
+        ledger_dir, ticker="MXL",
+        meta_state="closed", setup_type="EP", setup_grade="B",
+        fill_price=98.36, initial_stop=65.77, shares=503,
+        fill_date="2026-05-26",
+        exit_price=86.91, exit_date="2026-06-05", exit_reason="zombie_flatten",
+    )
+    # Deliberately NO positions.json entry (index prunes closed rows).
+    report = performance.compute_performance()
+    assert report.n_realized == 1
+    assert report.realized_trades[0].ticker == "MXL"
+    assert report.realized_trades[0].pnl_usd == pytest.approx((86.91 - 98.36) * 503)
+
+
+def test_pending_close_counted_as_open(paper_dirs):
+    """pending_close = exit placed, broker unconfirmed — still an open
+    exposure, never realized and never dropped."""
+    _seed_position(
+        paper_dirs, ticker="GO",
+        meta_state="pending_close", positions_stage="starter",
+        setup_type="EP", setup_grade="B",
+        fill_price=8.03, initial_stop=8.43, shares=3113,
+        fill_date="2026-05-26", sector="XLK", broker_order_id=66003,
+    )
+    report = performance.compute_performance()
+    assert report.n_open == 1
+    assert report.n_realized == 0
 
 
 # ---------------------------------------------------------- open P&L

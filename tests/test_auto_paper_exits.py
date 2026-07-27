@@ -629,6 +629,105 @@ def test_duplicate_sell_skipped_when_open_sell_already_pending(paper_dirs, monke
     assert history[0]["action"] == "sell_50"
 
 
+# ---- STP-filter + stop-breach watchdog (2026-07-27 post-mortem review) ----
+
+
+class _FakeOpenOrdersClient:
+    """Duck-typed client exposing only open_orders(), for helper unit tests."""
+
+    def __init__(self, orders):
+        self._orders = orders
+
+    def open_orders(self):
+        return SimpleNamespace(output={"orders": self._orders, "n_orders": len(self._orders)})
+
+
+def test_open_sell_helpers_filter_stp():
+    """_open_sell_tickers must EXCLUDE resting protective stops (else every
+    stop-protected position's composer exit is suppressed forever — the
+    regression the 2026-07-27 review found); _open_stop_order_ids collects
+    exactly those stops for the watchdog."""
+    fake = _FakeOpenOrdersClient([
+        {"order_id": 111, "symbol": "NVDA", "action": "SELL", "order_type": "STP"},
+        {"order_id": 222, "symbol": "COIN", "action": "SELL", "order_type": "LMT"},
+        {"order_id": 333, "symbol": "AAPL", "action": "BUY", "order_type": "LMT"},
+        {"order_id": 444, "symbol": "MSFT", "action": "SELL", "order_type": "STP_LMT"},
+    ])
+    assert exits._open_sell_tickers(fake) == {"COIN"}
+    assert exits._open_stop_order_ids(fake) == {111, 444}
+
+
+def test_stop_breach_watchdog_forces_exit_and_cancels_zombie_stop(paper_dirs, monkeypatch):
+    """COIN class (2026-06-01): last close BELOW a broker-confirmed resting
+    stop = the stop failed to fire. Watchdog escalates to sell_100 through
+    the working limit-sell path and cancels the zombie stop."""
+    _seed_starter(
+        paper_dirs, ticker="COIN", shares=10, fill_price=850.00,
+        stop_price=820.00, stop_order_id=55_555,   # stop far above the ~$135 close
+    )
+    client = _client()
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    monkeypatch.setattr(
+        exits, "sell_decision_compute",
+        lambda **kw: SimpleNamespace(output={
+            "action": "hold", "confidence": "MEDIUM", "contributing_triggers": [],
+            "in_doubt_default_applied": False, "v1_preliminary_flag": True,
+        }),
+    )
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv()),   # composer pinned to hold
+        holdings={"COIN": 10.0},
+    )
+    r = results[0]
+    assert r.action == "sell_100"
+    assert r.placed is True
+    assert r.cancelled_stop_order_id == 55_555
+    assert r.contributing_triggers and "stop_breach_watchdog" in r.contributing_triggers[0]
+    assert "stop_breach_watchdog" in (r.reason or "")
+
+    place_calls = [c for c in client._tc.calls if c[0] == "place_order"]
+    assert len(place_calls) == 1 and place_calls[0][1] == "SELL" and place_calls[0][2] == 10
+    cancel_calls = [c for c in client._tc.calls if c[0] == "cancel_order"]
+    assert len(cancel_calls) == 1 and cancel_calls[0][2] == 55_555
+
+    doc = yaml.safe_load(open(state.ledger_path("COIN")))
+    assert doc["meta"]["state"] == "pending_close"
+
+
+def test_watchdog_stands_down_when_stop_not_resting(paper_dirs, monkeypatch):
+    """Close below the recorded stop but NO matching open STP at the broker →
+    the stop was likely consumed (filled) and reconcile owns the lifecycle;
+    the watchdog must NOT fire a second sell."""
+    _seed_starter(
+        paper_dirs, ticker="COIN", shares=10, fill_price=850.00,
+        stop_price=820.00, stop_order_id=55_555,
+    )
+    client = _client()
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: set())
+    monkeypatch.setattr(
+        exits, "sell_decision_compute",
+        lambda **kw: SimpleNamespace(output={
+            "action": "hold", "confidence": "MEDIUM", "contributing_triggers": [],
+            "in_doubt_default_applied": False, "v1_preliminary_flag": True,
+        }),
+    )
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv()),
+        holdings={"COIN": 10.0},
+    )
+    r = results[0]
+    assert r.action == "hold"
+    assert r.placed is False
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+    assert [c for c in client._tc.calls if c[0] == "cancel_order"] == []
+
+
 # ---- Point-of-sale long-only guard (2026-07-24, second layer under the fix) ----
 # exits.py sized SELLs from ledger `shares`, guarded only by shares <= 0, so a
 # corrupt positive count (NFLX starter 29,760 while broker flat/short) would sell

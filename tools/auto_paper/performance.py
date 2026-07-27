@@ -147,6 +147,7 @@ class PerformanceReport:
     n_realized: int
     n_open: int
     n_submitted: int
+    n_unfilled: int = 0
     realized_trades: list[RealizedTrade] = field(default_factory=list)
     open_positions: list[OpenPosition] = field(default_factory=list)
     overall_trade_stats: Optional[TradeStats] = None
@@ -168,6 +169,7 @@ class PerformanceReport:
             "n_realized": self.n_realized,
             "n_open": self.n_open,
             "n_submitted": self.n_submitted,
+            "n_unfilled": self.n_unfilled,
             "risk_per_trade": self.risk_per_trade,
             "realized_trades": [t.to_dict() for t in self.realized_trades],
             "open_positions": [p.to_dict() for p in self.open_positions],
@@ -485,55 +487,75 @@ def compute_performance(
     notes: list[str] = []
     asof = _now_iso()
 
+    # Enumerate the ledger DIRECTORY, not positions.json. The index prunes
+    # closed rows, which silently dropped every historical trade from the
+    # realized stats (2026-07-26 post-mortem Finding C, cause corrected by
+    # the 2026-07-27 external review: it was enumeration, not exit_price).
+    # positions.json remains a metadata sidecar for per-ticker fallbacks.
     positions_data = state.load_positions_json()
-    entries: list[dict[str, Any]] = positions_data.get("positions", []) or []
+    index: dict[str, dict[str, Any]] = {
+        str(e.get("ticker")): e
+        for e in (positions_data.get("positions", []) or [])
+        if e.get("ticker")
+    }
+    ledger_dir = state.PAPER_AUTO_LEDGER_DIR
+    tickers = sorted(
+        os.path.splitext(fn)[0]
+        for fn in (os.listdir(ledger_dir) if os.path.isdir(ledger_dir) else [])
+        if fn.endswith(".yml") and not fn.startswith("_")
+    )
 
     realized: list[RealizedTrade] = []
     open_positions: list[OpenPosition] = []
     n_submitted = 0
     n_open_total = 0
+    n_unfilled = 0
 
-    for entry in entries:
-        ticker = entry.get("ticker")
-        if not ticker:
-            continue
-        stage = (entry.get("stage") or "").lower()
-
-        if stage == "submitted":
-            n_submitted += 1
-            continue
-
+    for ticker in tickers:
+        entry = index.get(ticker, {})
         ledger = _load_paper_ledger(state.ledger_path(ticker))
         if ledger is None:
             notes.append(f"{ticker}: paper-auto ledger missing or unreadable; skipped")
             continue
 
         meta_state = ((ledger.get("meta") or {}).get("state") or "").lower()
+        ps = ledger.get("position_state", {}) or {}
 
         if meta_state == "closed":
+            if ps.get("unfilled"):
+                # Entry DAY order expired unfilled — no trade ever happened.
+                # Distinct from "filled but exit unrecorded" (which is noted).
+                n_unfilled += 1
+                continue
             t = _build_realized_trade(
                 ticker=ticker, ledger=ledger, positions_entry=entry,
             )
             if t is None:
-                # Closed-unfilled (DAY-expired) OR Session 3's exit_price
-                # writer hasn't merged yet — flag, don't crash.
                 notes.append(
-                    f"{ticker}: closed ledger has no exit_price (closed-unfilled "
-                    f"or Session 3 close-out path not yet merged); excluded from "
-                    f"realized stats"
+                    f"{ticker}: closed ledger has no usable exit fields and no "
+                    f"unfilled flag; excluded from realized stats — investigate"
                 )
                 continue
             realized.append(t)
-        elif meta_state in {"starter", "stage-2", "stage-3", "trailing"}:
+        elif meta_state in {"starter", "stage-2", "stage-3", "trailing", "pending_close"}:
+            # pending_close = exit placed but broker hasn't confirmed the
+            # fill — still an open exposure until reconcile resolves it.
             n_open_total += 1
             open_positions.append(_build_open_position(
                 ticker=ticker, ledger=ledger, positions_entry=entry,
             ))
         elif meta_state == "submitted":
-            # Some lifecycles may not have refreshed positions.json stage.
             n_submitted += 1
+        elif meta_state in {"candidate", "rejected"}:
+            continue  # pre-trade lifecycle; not part of the track's book
         else:
             notes.append(f"{ticker}: unexpected meta.state={meta_state!r}; skipped")
+
+    if n_unfilled:
+        notes.append(
+            f"{n_unfilled} closed-unfilled ledger(s) excluded (entry DAY order "
+            f"expired; no trade occurred)"
+        )
 
     # Setup filter applied AFTER classification — open/submitted counts are
     # track-wide; realized stats narrow to the filter.
@@ -606,6 +628,7 @@ def compute_performance(
         n_realized=len(filtered),
         n_open=n_open_total,
         n_submitted=n_submitted,
+        n_unfilled=n_unfilled,
         realized_trades=filtered,
         open_positions=open_positions,
         overall_trade_stats=overall_trade,
