@@ -45,7 +45,19 @@ meta:
     positive. Fixed hold (the hold IS the exit) + 3x-ATR catastrophe stop
     (paper-auto ATR carve-out, NOT the 8% rule). Overlap-suppressed per ticker.
   horizon_days: 21
-  status: candidate
+  status: retired
+  # RETIRED 2026-08-06 by the Stage A validation chain (spec SS4 kill rule).
+  # Step 1 (run_spec two-clause + DSR 0.997 enforced vs 91 trials): 2/8 PASSED —
+  # rank1 ear20/off/21 OOS Sharpe 1.21, rank2 ear10/on/10 1.10. Steps 2-6
+  # (retirement-grade net-of-cost + LIVE marketable fills): BOTH FAIL —
+  # rank1 net wf 0.60, per-window 0/5, DSR 0.027, fill 11%, filled fwd +1.57%
+  # vs MISSED +10.03% -> EXECUTION-MODEL MISMATCH (the SS2 pre-registered guard).
+  # The SS2 "insider-autopsy inversion" thesis is FALSIFIED: EAR drift is itself
+  # front-loaded into the overnight gap after the reaction session; next-open
+  # marketable entry (+3% cap) buys only the laggards. Anomaly real, not
+  # capturable by this execution model. Redesign = same-session/at-open entry —
+  # the standing doctrine-review item (now motivated by TWO event KINDs).
+  # Full verdict: ledgers/improvements/2026-08-06-earnings-drift-stageA-verdict.md
 
 kind: event_earnings_drift
 
