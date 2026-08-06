@@ -108,12 +108,26 @@ limit retains a chase cap (limit = pivot × (1+cap)); what changes is WHERE the 
 happens (the auction print, i.e., exactly the "open" reference Task 0 measured) rather
 than the 9:35 continuous book.
 
-**2. Broker capability: SDK-verified, account-unverified.** The installed `tigeropen`
-SDK exposes `auction_limit_order` (`common/util/order_utils.py:104`) and
-`auction_market_order` (`:119`). `TigerClient` does not wrap them (today: LMT + STP
-only). Remaining verification = ONE operator-authorized paper test order on the paper
-account — an order, so NOT placed in this session (§5). SDK presence is necessary, not
-sufficient; the doctrine is conditional on that test until run.
+**2. Broker capability: SDK-verified; account test RUN (operator-authorized, post-review)
+— near-confirmed, session-window gated.** The installed `tigeropen` SDK exposes
+`auction_limit_order` (`common/util/order_utils.py:104`) and `auction_market_order`
+(`:119`). `TigerClient` does not wrap them (today: LMT + STP only).
+
+Capability test 2026-08-06 (`2026-08-06-auction-order-capability-test.py`; paper account,
+1 share F, limit 20% below market = unfillable-by-design, cancel-after-accept):
+- Order constructed as **type AL, TIF DAY** — the SDK produces a well-formed auction order.
+- API response (verbatim): `ApiException(1200, 'standard account response error
+  (bad_request:Only limit orders can be placed during pre market or post market)')` —
+  a **session-window rejection, not an unsupported-order-type rejection**. The account
+  plumbing recognized the AL order and objected to WHEN, not WHAT.
+- Side note discovered: the device currently lacks the US **quote** entitlement
+  (`get_briefs` → code=4 permission denied) — a separate permission domain from trading;
+  the probe uses cached daily data for its reference price.
+
+**Remaining verification: re-run the identical probe during US regular trading hours**
+(21:30–04:00 SGT). ACCEPTED → capability confirmed, cancel fires; a type-level rejection
+then → not supported, doctrine falls back to a plain wide-limit DAY order placed at
+09:30:00 (inferior — misses the auction print — but closes most of the R1 gap).
 
 **3. Cost model (specification only, per §5):** for auction entries, replace the
 marketable full-spread cross with an opening-auction slippage parameter on the open
