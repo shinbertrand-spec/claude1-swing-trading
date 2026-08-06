@@ -169,3 +169,45 @@ the new entry model is a new priced trial (§4). Operator-gated next steps, in o
 Scope confirmation: no KIND re-tested, no trials registered, no order code changed,
 nothing un-retired. Measurement script: `2026-08-06-same-session-entry-task0.py`.
 
+## ADDENDUM — challenge work-through (same day; script `2026-08-06-doctrine-challenge-workthrough.py`)
+
+The verdict's three self-declared points of challenge, worked through with data.
+**Net effect: GO-NARROW narrows further — the LOO capability spec stands, but the
+ts_momentum switch recommendation is WITHDRAWN on new evidence.**
+
+**Challenge 1 — threshold/comparator robustness: PASSES on the registered basis, with a
+named fragility.** The pre-registered comparator was the filled cohort's **mean**; on
+means the result is robust to slippage (earnings 2.62× even at the 50 bps stress;
+insider 2.70×) and statistically real (Welch t = **2.65** earnings; 1.97 insider,
+borderline at n=129/sd 117%). But on **medians** earnings-drift is **1.71× — under the
+2× bar** (insider: 3.08×, robust). The reachable excess in the earnings cohort is
+tail-driven: a handful of big winners carry the mean. The PROCEED stands procedurally
+(means were the registered basis, written before numbers), but the event-side evidence
+is fragile — which compounds the capacity reframe rather than contradicting it.
+
+**Challenge 2 — the ts_momentum redirection: PARTIALLY OVERTURNED by measurement.**
+Applying the identical cohort split to `ts_momentum_liquid_us` (deployed params, H=21):
+price-miss rate **8.3%** (67/808 — the cap binds more than assumed), but the skipped
+names went **+3.10% mean / −2.11% median / 48% win** from the achievable open vs
+**+6.61% / +4.03% / 59%** for the filled — **ratio 0.47×, sign OPPOSITE the event
+cohorts** (Welch t = −1.08, not significant, but decision-relevant direction). Reading:
+for a monthly momentum rebalance, a name gapping >3% past its pivot tends to
+mean-revert over the hold — **the +3% chase cap is currently functioning as adverse-
+selection PROTECTION, not a fidelity bug.** The R2 half of the fill-path diagnostic is
+therefore evidence-against-switching; only the R1 half (9:30 auction print vs 9:35
+book — unmeasurable on daily bars) remains open, and it is the smaller effect.
+**Revised recommendation: do NOT switch ts_momentum to LOO on current evidence.** The
+LOO spec remains a valid capability with — as of today — **no demonstrated
+beneficiary**. The ~08-13 at-bat + fill instrumentation may reopen the question; the
+prior now leans keep-the-cap.
+
+**Challenge 3 — the resurrection guard is procedural, not mechanical: leak named, norm
+recorded.** `trials.yml`'s `derive` counts spec grids + recorded sweep artifacts; a
+one-off script re-running a retired KIND under auction fills would compute a Sharpe
+without touching either. Task 0 legitimately dodged registration (cohort forward
+returns only — no gate arithmetic, no equity curve). **The bright line, recorded as a
+standing norm: the moment any script computes a performance statistic for a retired
+KIND under a new fill model, it is a trial and MUST append a manual component to
+`ledgers/trials.yml` before its result is read.** This artifact is the reference for
+that norm.
+
