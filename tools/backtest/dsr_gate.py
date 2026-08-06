@@ -130,7 +130,16 @@ def write_registry(
             "with `python -m tools.backtest.dsr_gate derive --write` after "
             "new sweeps, or append a manual component. The total is a FLOOR "
             "(unrecorded ad-hoc runs are invisible) — a floor UNDER-deflates, "
-            "so keep it current."
+            "so keep it current. Repair-vs-search rule (2026-08-06, "
+            "ledgers/improvements/2026-08-06-dsr-trials-denominator.md): a "
+            "harness/framework change counts as ZERO new trials iff it is "
+            "(a) applied uniformly to every strategy passed and failed alike, "
+            "(b) the full re-evaluated roster is published, and (c) it was "
+            "committed on its own correctness justification BEFORE any "
+            "re-evaluated result was seen and cannot be rolled back in "
+            "response to results. Anything failing a clause is a search and "
+            "is priced as one; any NEW param/universe/signal variant is "
+            "always a trial."
         ),
         "n_trials_total": sum(c["n_trials"] for c in components),
         "components": components,
