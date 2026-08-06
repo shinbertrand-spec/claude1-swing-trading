@@ -1,0 +1,12 @@
+{
+  "8": {
+    "max_single_name_weight": 0.10718693739061434,
+    "max_sector_share_of_equity": 0.31577501586838524,
+    "min_cash_fraction": 0.543978892520401
+  },
+  "20": {
+    "max_single_name_weight": 0.060571085530938706,
+    "max_sector_share_of_equity": 0.25184823472002704,
+    "min_cash_fraction": 0.5409863170376208
+  }
+}
