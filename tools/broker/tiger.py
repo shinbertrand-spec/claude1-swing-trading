@@ -452,15 +452,19 @@ class TigerClient:
         doctrine's LOO mechanism (2026-08-06 review, GO-NARROW) — a LIMIT
         order, so the CLAUDE.md "never place a market order" hard rule holds.
 
-        CAPABILITY STATUS: the SDK builds type AL and the paper API recognized
-        it (2026-08-06 probe; rejected on session-window only, outside RTH).
-        Definitive acceptance requires a during-RTH probe. NO production call
-        sites use this method yet — adopting it for any setup's entry path is
-        a separate, operator-gated decision (see the doctrine review artifact;
-        per its challenge work-through, ts_momentum currently should NOT
-        switch — the +3% chase cap measured as adverse-selection protection).
-        Any evaluation of a retired KIND under this fill model is a NEW trial
-        (manual ledgers/trials.yml component) per the same artifact's norm.
+        CAPABILITY STATUS: DENIED on Tiger paper for US equities (2026-08-06,
+        both probes). Pre-market placement AND during-RTH placement each
+        rejected with ApiException 1200 "Only limit orders ..." — the venue
+        does not accept AL in either window the doctrine could use, so this
+        method is expected to raise BrokerOrderError if ever called. Kept as
+        capability documentation with its tests; NO production call sites.
+        Doctrine fallback: plain wide-limit DAY order placed at 09:30:00
+        (spec only). Per the challenge work-through, ts_momentum should NOT
+        switch — the +3% chase cap measured as adverse-selection protection
+        (reinforced by the 2026-08-06 cap audit: widening its selection at
+        constant gross degrades it). Any evaluation of a retired KIND under
+        an auction fill model is a NEW trial (ledgers/trials.yml) per the
+        doctrine artifact's norm.
         """
         if quantity <= 0:
             raise BrokerOrderError(f"quantity must be positive; got {quantity}")

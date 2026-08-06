@@ -108,26 +108,43 @@ limit retains a chase cap (limit = pivot × (1+cap)); what changes is WHERE the 
 happens (the auction print, i.e., exactly the "open" reference Task 0 measured) rather
 than the 9:35 continuous book.
 
-**2. Broker capability: SDK-verified; account test RUN (operator-authorized, post-review)
-— near-confirmed, session-window gated.** The installed `tigeropen` SDK exposes
-`auction_limit_order` (`common/util/order_utils.py:104`) and `auction_market_order`
-(`:119`). `TigerClient` does not wrap them (today: LMT + STP only).
+**2. Broker capability: SDK-verified; account probes RUN in BOTH sessions —
+VERDICT: DENIED for the doctrine's purpose (2026-08-06 RTH probe).** The installed
+`tigeropen` SDK exposes `auction_limit_order` (`common/util/order_utils.py:104`) and
+`auction_market_order` (`:119`). `TigerClient` carries an INERT wrap
+(`place_auction_limit_buy`, commit c3d270e, no call sites).
 
-Capability test 2026-08-06 (`2026-08-06-auction-order-capability-test.py`; paper account,
-1 share F, limit 20% below market = unfillable-by-design, cancel-after-accept):
-- Order constructed as **type AL, TIF DAY** — the SDK produces a well-formed auction order.
-- API response (verbatim): `ApiException(1200, 'standard account response error
-  (bad_request:Only limit orders can be placed during pre market or post market)')` —
-  a **session-window rejection, not an unsupported-order-type rejection**. The account
-  plumbing recognized the AL order and objected to WHEN, not WHAT.
-- Side note discovered: the device currently lacks the US **quote** entitlement
-  (`get_briefs` → code=4 permission denied) — a separate permission domain from trading;
-  the probe uses cached daily data for its reference price.
+Capability probes 2026-08-06 (`2026-08-06-auction-order-capability-test.py`; paper
+account, 1 share F, limit 20% below market = unfillable-by-design,
+cancel-after-accept). Order constructed as **type AL, TIF DAY** in both runs — the
+SDK produces a well-formed auction order. Both placement windows REJECTED:
 
-**Remaining verification: re-run the identical probe during US regular trading hours**
-(21:30–04:00 SGT). ACCEPTED → capability confirmed, cancel fires; a type-level rejection
-then → not supported, doctrine falls back to a plain wide-limit DAY order placed at
-09:30:00 (inferior — misses the auction print — but closes most of the R1 gap).
+| Probe window | API response (verbatim) |
+|---|---|
+| Pre-market (~04:38 ET) | `ApiException(1200, 'standard account response error (bad_request:Only limit orders can be placed during pre market or post market)')` |
+| RTH, ~09:33 ET (operator-scheduled re-run) | `ApiException(1200, 'standard account response error (bad_request:Only limit orders are supported for trades executed outside of regular trading hours.)')` |
+
+Reading: the pre-market rejection was initially read as "session-window, not type" —
+the RTH re-run falsifies that hope. Pre-open placement is exactly when an
+opening-auction order MUST be placeable (that is the doctrine's use case), and it is
+refused; placement after the open is refused with the same only-limit-orders wording.
+**Tiger paper does not accept AL orders for US equities in either window this doctrine
+could use.** No order_id was ever returned, so there was nothing to cancel — the
+zero-risk design held (rejection at the validation layer, no resting order).
+
+- Side note (stands): the device lacks the US **quote** entitlement
+  (`get_briefs` → code=4 permission denied) — a separate permission domain from
+  trading; the probes used cached daily data for the reference price.
+
+**Fallback ADOPTED per the pre-declared branch: a plain wide-limit DAY order placed
+at 09:30:00** (limit well above expected open so it fills at/near the opening range;
+inferior — misses the exact auction print — but closes most of the R1 gap). This
+remains a SPEC ONLY: no order-placement code change, and per the challenge
+work-through there is still NO demonstrated beneficiary today (the ts_momentum
+switch stays WITHDRAWN; the +3% chase cap is measured adverse-selection protection —
+reinforced by the 2026-08-06 cap audit, where widening ts_momentum's selection at
+constant gross degraded it monotonically). The inert `place_auction_limit_buy` wrap
+stays as capability documentation with its docstring corrected to DENIED.
 
 **3. Cost model (specification only, per §5):** for auction entries, replace the
 marketable full-spread cross with an opening-auction slippage parameter on the open
