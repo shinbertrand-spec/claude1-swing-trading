@@ -234,6 +234,32 @@ def _valid_for_window(sub: Optional[dict]) -> bool:
     return earliest is not None and earliest <= WINDOW_END.isoformat()
 
 
+def _browse_edgar_cik(ticker: str) -> Optional[int]:
+    """Resolve a ticker via EDGAR's classic browse endpoint, whose own ticker
+    table retains many DELISTED mappings today's ``company_tickers.json`` drops
+    (verified: AEP->4904, XOM->34088, VSCO, IAC, GTLS). Deterministic — no
+    name fuzz, no wrong-company adoption risk."""
+    import re
+    import requests
+
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    key = CACHE_DIR / f"browse_{ticker.upper().replace('.', '-')}.txt"
+    if key.exists():
+        txt = key.read_text(encoding="utf-8")
+        return int(txt) if txt.strip().isdigit() else None
+    url = ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+           f"&CIK={ticker.upper()}&type=8-K&dateb=&owner=include&count=1&output=atom")
+    try:
+        r = requests.get(url, headers={"User-Agent": _identity()}, timeout=30)
+        time.sleep(SLEEP_S)
+        m = re.search(r"CIK=(\d{10})", r.text) if r.status_code == 200 else None
+        cik = int(m.group(1)) if m else None
+    except Exception:  # noqa: BLE001
+        cik = None
+    key.write_text("" if cik is None else str(cik), encoding="utf-8")
+    return cik
+
+
 def _fts_candidates(query: str) -> list[int]:
     """EDGAR full-text-search entity autocomplete → candidate CIKs (delisted included)."""
     import requests
@@ -276,7 +302,15 @@ def build_cik_map(tickers: list[str], *, progress: Callable[[str], None] = lambd
             if _valid_for_window(sub):
                 entry = {"ticker": t, "cik": cand, "method": "today_map"}
         if entry is None:
-            # predecessor chase: FTS autocomplete on the ticker itself
+            # chase 1 (deterministic): EDGAR browse endpoint's own ticker table
+            # retains delisted mappings today's company_tickers.json drops.
+            bcik = _browse_edgar_cik(t)
+            if bcik is not None and bcik != cand:
+                sub = fetch_submissions(bcik)
+                if _valid_for_window(sub):
+                    entry = {"ticker": t, "cik": bcik, "method": "browse_edgar"}
+        if entry is None:
+            # chase 2 (fallback): FTS autocomplete on the ticker itself
             for cik in _fts_candidates(t):
                 if cand is not None and cik == cand:
                     continue
