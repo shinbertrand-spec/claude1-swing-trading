@@ -127,3 +127,92 @@ class TestSeriesAndSummary:
         md = ea.render_markdown(rows)
         assert "Suspect rows" in md
         assert "BAD" in md
+
+
+# ---------------------------------------------------------------------------
+# Skip rows (fill-fidelity Task 0, 2026-08-06)
+# ---------------------------------------------------------------------------
+
+def _unfilled_ledger(ticker="XYZ", pivot=100.0, limit=103.0, attempt="2026-08-13",
+                     order_id=222):
+    doc = _ledger(ticker=ticker, state="closed", pivot=pivot, limit=limit,
+                  fill_date=attempt, order_id=order_id)
+    doc["position_state"]["unfilled"] = True
+    doc["position_state"]["starter"]["fill_price"] = limit  # seeded, not real
+    return doc
+
+
+def _ohlc_loader(o=104.0, h=106.0, low=103.5, c=105.0, day="2026-08-13"):
+    idx = pd.DatetimeIndex([pd.Timestamp(day)])
+    df = pd.DataFrame({"Open": [o], "High": [h], "Low": [low], "Close": [c]},
+                      index=idx)
+    return lambda ticker: df
+
+
+_NO_INTRADAY = lambda t, d: None
+
+
+class TestComputeSkipRow:
+    def test_filled_ledger_returns_none(self):
+        assert ea.compute_skip_row(_ledger(), intraday_loader=_NO_INTRADAY) is None
+
+    def test_explained_when_day_low_above_limit(self):
+        row = ea.compute_skip_row(
+            _unfilled_ledger(), price_loader=_ohlc_loader(low=103.5),
+            intraday_loader=_NO_INTRADAY)
+        assert row.skip_explained is True
+        assert row.explain_basis == "day_low_above_limit"
+        assert row.attempt_day_low == 103.5
+        assert row.key.endswith("|skip")
+        assert row.to_dict()["row_type"] == "skip"
+
+    def test_unexplained_when_day_low_within_limit(self):
+        row = ea.compute_skip_row(
+            _unfilled_ledger(), price_loader=_ohlc_loader(low=102.0),
+            intraday_loader=_NO_INTRADAY)
+        assert row.skip_explained is False
+        assert row.explain_basis == "UNEXPLAINED_day_low_within_limit"
+
+    def test_no_price_data_degrades_honestly(self):
+        row = ea.compute_skip_row(
+            _unfilled_ledger(), price_loader=lambda t: None,
+            intraday_loader=_NO_INTRADAY)
+        assert row.skip_explained is None
+        assert row.explain_basis == "no_price_data"
+
+    def test_closed_unfilled_state_also_emits(self):
+        doc = _ledger(state="closed_unfilled")
+        row = ea.compute_skip_row(doc, price_loader=_ohlc_loader(low=104.0, day="2026-06-02"),
+                                  intraday_loader=_NO_INTRADAY)
+        assert row is not None
+        assert row.skip_explained is True  # low 104 > limit 100.6
+
+    def test_intraday_evidence_recorded_when_available(self):
+        row = ea.compute_skip_row(
+            _unfilled_ledger(), price_loader=_ohlc_loader(low=103.5),
+            intraday_loader=lambda t, d: 104.25)
+        assert row.price_0935 == 104.25
+
+
+class TestSkipSeriesAndRender:
+    def test_append_series_mixed_rows_dedup(self, tmp_path):
+        p = tmp_path / "drag.jsonl"
+        fill = ea.compute_row(_ledger(), price_loader=_price_loader_factory())
+        skip = ea.compute_skip_row(_unfilled_ledger(),
+                                   price_loader=_ohlc_loader(low=103.5),
+                                   intraday_loader=_NO_INTRADAY)
+        _, n1 = ea.append_series([fill, skip], path=p)
+        _, n2 = ea.append_series([fill, skip], path=p)
+        assert (n1, n2) == (2, 0)
+        rows = [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines()]
+        assert [r.get("row_type", "fill") for r in rows] == ["fill", "skip"]
+
+    def test_render_marks_unexplained_as_fault(self):
+        skip = ea.compute_skip_row(_unfilled_ledger(),
+                                   price_loader=_ohlc_loader(low=102.0),
+                                   intraday_loader=_NO_INTRADAY)
+        md = ea.render_skips_markdown([skip])
+        assert "**NO — FAULT**" in md
+
+    def test_render_empty(self):
+        assert "none recorded" in ea.render_skips_markdown([])

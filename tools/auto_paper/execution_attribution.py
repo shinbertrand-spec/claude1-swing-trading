@@ -37,6 +37,17 @@ Honesty caveats, enforced in code:
 Series file: ``journal/paper-auto/execution_drag.jsonl`` — append-only with
 (ticker, fill_date, broker_order_id) dedup keys, so re-running backfill is
 idempotent.
+
+Skip rows (fill-fidelity Task 0, 2026-08-06): an entry DAY order that expired
+UNFILLED previously left no row at all — a skip could not explain itself, so
+the R2 chase-cap mechanism was retroactively unverifiable. ``compute_skip_rows``
+now emits one ``row_type: "skip"`` row per unfilled entry ledger, carrying the
+placed limit, the attempt day's cached OHLC, a best-effort ~09:35 intraday
+price (yfinance 5m, None when unavailable), and the deterministic explanation
+test for a resting DAY buy limit: ``skip_explained = day_low > limit`` (the
+whole session traded above the limit). Keys end in ``|skip`` so the same
+append-only dedup applies. Scan-based: recomputable after the fact from the
+EOD cache — only the 09:35 evidence decays (yfinance intraday ~60d window).
 """
 from __future__ import annotations
 
@@ -194,6 +205,142 @@ def compute_row(
     )
 
 
+# ---------------------------------------------------------------------------
+# Skip rows — unfilled entry orders must explain themselves (Task 0, 2026-08-06)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SkipRow:
+    ticker: str
+    setup_type: Optional[str]
+    state: Optional[str]
+    decision_at: Optional[str]
+    attempt_date: Optional[str]        # placement day (starter.fill_date seed)
+    pivot_price: Optional[float]
+    limit_price_placed: Optional[float]
+    attempt_day_open: Optional[float]
+    attempt_day_high: Optional[float]
+    attempt_day_low: Optional[float]
+    attempt_day_close: Optional[float]
+    price_0935: Optional[float]        # best-effort 5m bar; None when unavailable
+    skip_explained: Optional[bool]     # day_low > limit (None: no price data)
+    explain_basis: str
+    key: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"v": SCHEMA_VERSION, "row_type": "skip", **asdict(self)}
+
+
+def _attempt_day_ohlc(
+    ticker: str, day: str, price_loader: Callable[[str], Any],
+) -> Optional[dict[str, Optional[float]]]:
+    df = price_loader(ticker)
+    if df is None or getattr(df, "empty", True):
+        return None
+    import pandas as pd
+    dates = pd.to_datetime(df.index).strftime("%Y-%m-%d")
+    hits = df.loc[dates == day]
+    if hits.empty:
+        return None
+    bar = hits.iloc[0]
+    return {c.lower(): _safe_float(bar[c]) for c in ("Open", "High", "Low", "Close")
+            if c in hits.columns}
+
+
+def _intraday_0935(ticker: str, day: str) -> Optional[float]:
+    """Best-effort ~09:35 ET price from yfinance 5m bars (last ~60 days only).
+    Never raises — evidence when available, None otherwise."""
+    try:
+        import pandas as pd
+        import yfinance as yf
+        start = pd.Timestamp(day)
+        df = yf.download(ticker, start=start, end=start + pd.Timedelta(days=1),
+                         interval="5m", progress=False, auto_adjust=False)
+        if df is None or df.empty:
+            return None
+        idx = df.index.tz_convert("US/Eastern") if df.index.tz is not None else df.index
+        hits = df[(idx.hour == 9) & (idx.minute == 35)]
+        if hits.empty:
+            return None
+        v = hits.iloc[0]["Open"]
+        return _safe_float(v.iloc[0] if hasattr(v, "iloc") else v)
+    except Exception:
+        return None
+
+
+def compute_skip_row(
+    doc: dict[str, Any],
+    *,
+    price_loader: Optional[Callable[[str], Any]] = None,
+    intraday_loader: Optional[Callable[[str, str], Optional[float]]] = None,
+) -> Optional[SkipRow]:
+    """One UNFILLED entry ledger -> one skip row, or None for filled/other."""
+    price_loader = price_loader or _default_price_loader
+    intraday_loader = intraday_loader or _intraday_0935
+    meta = doc.get("meta") or {}
+    ps = doc.get("position_state") or {}
+    state = (meta.get("state") or "").strip().lower()
+    unfilled = bool(ps.get("unfilled")) or state == "closed_unfilled"
+    ticker = meta.get("ticker")
+    if not unfilled or not ticker:
+        return None
+    starter = ps.get("starter") or {}
+    attempt_date = starter.get("fill_date")
+    attempt_date = str(attempt_date)[:10] if attempt_date else None
+    limit = _safe_float(starter.get("limit_price_placed"))
+    pivot = _safe_float((doc.get("setup_classification") or {}).get("pivot_price"))
+
+    ohlc = (_attempt_day_ohlc(ticker, attempt_date, price_loader)
+            if attempt_date else None)
+    low = (ohlc or {}).get("low")
+    if low is not None and limit is not None:
+        explained = low > limit
+        basis = ("day_low_above_limit" if explained
+                 else "UNEXPLAINED_day_low_within_limit")
+    else:
+        explained = None
+        basis = "no_price_data"
+    p0935 = (intraday_loader(ticker, attempt_date)
+             if attempt_date and limit is not None else None)
+    return SkipRow(
+        ticker=ticker,
+        setup_type=(doc.get("setup_classification") or {}).get("type"),
+        state=state or None,
+        decision_at=meta.get("created_at"),
+        attempt_date=attempt_date,
+        pivot_price=pivot,
+        limit_price_placed=limit,
+        attempt_day_open=(ohlc or {}).get("open"),
+        attempt_day_high=(ohlc or {}).get("high"),
+        attempt_day_low=low,
+        attempt_day_close=(ohlc or {}).get("close"),
+        price_0935=p0935,
+        skip_explained=explained,
+        explain_basis=basis,
+        key=f"{ticker}|{attempt_date or 'na'}|{starter.get('broker_order_id') or 'na'}|skip",
+    )
+
+
+def compute_skip_rows(
+    ledger_dir: Optional[Path] = None,
+    *,
+    price_loader: Optional[Callable[[str], Any]] = None,
+    intraday_loader: Optional[Callable[[str, str], Optional[float]]] = None,
+) -> list[SkipRow]:
+    d = Path(ledger_dir) if ledger_dir else LEDGER_DIR
+    rows: list[SkipRow] = []
+    for p in sorted(d.glob("*.yml")):
+        try:
+            doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        except Exception:
+            continue
+        row = compute_skip_row(doc, price_loader=price_loader,
+                               intraday_loader=intraday_loader)
+        if row is not None:
+            rows.append(row)
+    return rows
+
+
 def compute_rows(
     ledger_dir: Optional[Path] = None,
     *,
@@ -226,7 +373,7 @@ def _series_path(path: Optional[Path]) -> Path:
 
 
 def append_series(
-    rows: list[AttributionRow], *, path: Optional[Path] = None,
+    rows: list[AttributionRow | SkipRow], *, path: Optional[Path] = None,
 ) -> tuple[Path, int]:
     """Append rows whose key is not already present. Returns (path, n_new)."""
     p = _series_path(path)
@@ -338,6 +485,27 @@ def render_markdown(rows: list[AttributionRow]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_skips_markdown(skips: list[SkipRow]) -> str:
+    """Every unfilled entry order with its explanation status (Task 0)."""
+    def _f(v, fmt="{:.2f}"):
+        return fmt.format(v) if v is not None else "—"
+    lines = ["### Skips — unfilled entry orders (each must explain itself)", ""]
+    if not skips:
+        return "\n".join(lines + ["- none recorded", ""])
+    lines += [
+        "| ticker | setup | attempt | pivot | limit | day low | ~09:35 | explained? | basis |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for r in sorted(skips, key=lambda r: (r.attempt_date or "", r.ticker)):
+        mark = {True: "YES", False: "**NO — FAULT**", None: "no data"}[r.skip_explained]
+        lines.append(
+            f"| {r.ticker} | {r.setup_type or '—'} | {r.attempt_date or '—'} "
+            f"| {_f(r.pivot_price)} | {_f(r.limit_price_placed)} "
+            f"| {_f(r.attempt_day_low)} | {_f(r.price_0935)} | {mark} | {r.explain_basis} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Signal-vs-execution attribution (B2)")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -351,20 +519,28 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     ledger_dir = Path(args.ledger_dir) if getattr(args, "ledger_dir", None) else None
     rows = compute_rows(ledger_dir)
+    skips = compute_skip_rows(ledger_dir)
     if args.cmd == "backfill":
         if not args.no_append:
-            path, n_new = append_series(rows)
+            path, n_new = append_series(rows + skips)
             print(f"series: {path} (+{n_new} new rows)")
         print(render_markdown(rows))
+        print(render_skips_markdown(skips))
     elif args.cmd == "update":
-        path, n_new = append_series(rows)
+        path, n_new = append_series(rows + skips)
         print(f"series: {path} (+{n_new} new rows)")
         for m in monthly_summary(rows):
             if m["flag"]:
                 print(f"FLAG: {m['month']} drag {m['weighted_total_bps']} bps "
                       f"> {DRAG_FLAG_BPS_PER_MONTH} bps threshold")
+        for s in skips:
+            if s.skip_explained is False:
+                print(f"FAULT: {s.ticker} {s.attempt_date} unfilled but day low "
+                      f"{s.attempt_day_low} <= limit {s.limit_price_placed} — "
+                      "unexplained non-fill (C2)")
     else:
         print(render_markdown(rows))
+        print(render_skips_markdown(skips))
     return 0
 
 
