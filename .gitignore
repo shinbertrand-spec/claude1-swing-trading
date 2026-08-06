@@ -44,6 +44,11 @@ ledgers/observability/
 # classifier + conviction; large, regenerable from tools.fundamentals.insider_events).
 ledgers/insider/
 
+# Earnings-drift derived event files + EDGAR submissions cache (regenerable from
+# tools.fundamentals.earnings_events; the frozen PIT-CIK sidecar is TRACKED under
+# tools/quant_strategies/_universes/ — only the derived data is ignored).
+ledgers/earnings/
+
 # Scratch directory for one-off scripts. Operational state only.
 tmp/
 

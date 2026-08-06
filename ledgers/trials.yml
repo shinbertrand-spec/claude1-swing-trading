@@ -1,9 +1,9 @@
-as_of: '2026-07-24'
+as_of: '2026-08-06'
 note: Append-only trial registry for the C1 Deflated-Sharpe gate. Every setup x variant
   evaluation counts as a trial. Re-derive with `python -m tools.backtest.dsr_gate
   derive --write` after new sweeps, or append a manual component. The total is a FLOOR
   (unrecorded ad-hoc runs are invisible) — a floor UNDER-deflates, so keep it current.
-n_trials_total: 83
+n_trials_total: 91
 components:
 - source: spec-grid:clenow_momentum.yml
   n_trials: 6
@@ -29,6 +29,9 @@ components:
 - source: spec-grid:dual_ma_trend_following.yml
   n_trials: 4
   detail: param-grid product of dual_ma_trend_following.yml
+- source: spec-grid:event_earnings_drift.yml
+  n_trials: 8
+  detail: param-grid product of event_earnings_drift.yml
 - source: spec-grid:event_insider_buying.yml
   n_trials: 1
   detail: param-grid product of event_insider_buying.yml

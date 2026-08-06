@@ -1,0 +1,88 @@
+# Event-driven earnings announcement-return (EAR) drift strategy.
+#
+# Long-only post-earnings drift on the REACTION, not the surprise: buy liquid
+# names whose earnings-reaction session put them in the top tail of the trailing
+# cross-sectional announcement-window excess return, optionally conditioned on
+# surprise history (FRL 2025 stand-in), enter next open, hold 10-21 trading days.
+#
+# Authority spec: plans/2026-07-25-event-earnings-drift-candidate-spec.md
+# Build delta:   Obsidian/Output/2026-08-06-claude1-earnings-drift-build-handoff.md
+# FROZEN filter: ledgers/improvements/2026-08-06-earnings-drift-frozen-filter.md
+#   (strict 8-K item 2.02; committed BEFORE any event extraction or grid run)
+# PIT CIK map:   tools/quant_strategies/_universes/liquid_us_2026q2_cik.yml (frozen sidecar)
+#
+# Pipeline that produces the events file this spec consumes:
+#   tools.fundamentals.earnings_events  (EDGAR-only ingest -> ear -> rank -> history)
+#   -> ledgers/earnings/events/liquid_us_2026q2.yml  (gitignored derived data)
+#
+# PRE-REGISTERED HONEST EXPECTATION (spec SS0): raw unconditioned EAR in liquid
+# large caps may net ~0 — classic SUE-PEAD is dead in this universe. Stage A
+# surviving alone would be a positive surprise; the venture-grade claim is
+# Stage A + forward-validated Stage B (LLM overlay, forward-only, separate
+# decision). 0/8 failing is a legitimate, expected-possible outcome.
+#
+# STATUS: candidate. This has NOT cleared the deployment gate. Must clear the
+# two-clause gate v2 AND DSR >= 0.95 against the post-registration trials count
+# (91) — dsr_min is ENFORCED here, not report-only, per build-handoff SS4.
+# Any deployable_setups.yml row added for it ships hold: true (operator-only
+# promotion). Fails the gates -> retire it. Do NOT tune params to force a pass.
+# Any grid change = new priced trials + re-derive ledgers/trials.yml.
+
+meta:
+  name: event_earnings_drift
+  version: "0.1"
+  source: >-
+    Brandt-Kishore-Santa-Clara-Venkatachalam SSRN 909563 (EAR beats SUE);
+    FRL 2025 S1544612325020057 (surprise-history conditioning revives large-cap
+    drift); Berkman-Truong JAR 2009 (after-hours alignment); Martineau CFR 2022
+    (honest prior: large-cap PEAD death)
+  description: |
+    Long a top-tail earnings-reaction event on the first bar after its reaction
+    session (BMO day T -> reaction T, enter open T+1; AMC day T -> reaction T+1,
+    enter open T+2; unknown treated as AMC). ear = reaction-session close-to-close
+    excess return vs SPY; qualification = ear > 0 AND trailing cross-sectional
+    percentile >= 100 - ear_top_pct, optionally AND >= 2 of last 4 prior events
+    positive. Fixed hold (the hold IS the exit) + 3x-ATR catastrophe stop
+    (paper-auto ATR carve-out, NOT the 8% rule). Overlap-suppressed per ticker.
+  horizon_days: 21
+  status: candidate
+
+kind: event_earnings_drift
+
+universe:
+  name: liquid_us_2026q2
+  benchmark: SPY
+
+period:
+  start: "2017-01-01"        # 2016 lives in the events file as history warm-up only
+  end: "2025-12-31"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  # Path to the precomputed events file (built offline; gitignored derived data).
+  events_path: "ledgers/earnings/events/liquid_us_2026q2.yml"
+  # THE pre-registered grid (spec SS3c) — 8 combos, registered in ledgers/trials.yml
+  # (83 -> 91) BEFORE the first run. Post-hoc changes = new priced trials.
+  ear_top_pct: [10, 20]
+  history_condition: [true, false]
+  max_hold_days: [10, 21]
+  # Fixed (not gridded):
+  atr_period: 20
+  atr_stop_multiple: 3.0     # catastrophe-only, insider convention
+  # no target_r_multiple — the hold IS the exit
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5
+  dsr_min: 0.95              # ENFORCED (build-handoff SS4), not report-only

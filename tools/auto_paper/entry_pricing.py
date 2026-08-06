@@ -43,6 +43,9 @@ MOMENTUM_KINDS = {
     # Event-driven insider buying enters at the next-bar open (the event drift
     # is realized over months, not intraday) — marketable, momentum-class fill.
     "event_insider_buying",
+    # Earnings-drift enters at the next open after the reaction session — the
+    # jump is the FILTER, not the thing chased; same momentum-class fill.
+    "event_earnings_drift",
 }
 REVERSION_KINDS = {
     "xs_short_term_reversal",
