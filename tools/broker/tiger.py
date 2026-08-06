@@ -441,6 +441,84 @@ class TigerClient:
             },
         )
 
+    def place_auction_limit_buy(
+        self, symbol: str, quantity: float, limit_price: float,
+        *, user_mark: str | None = None,
+    ) -> TraceEntry:
+        """Place a paper LIMIT-ON-OPEN (auction limit, order type AL) BUY.
+
+        Participates in the opening auction: fills at the opening print when
+        open <= limit, else does not execute. This is the same-session-entry
+        doctrine's LOO mechanism (2026-08-06 review, GO-NARROW) — a LIMIT
+        order, so the CLAUDE.md "never place a market order" hard rule holds.
+
+        CAPABILITY STATUS: the SDK builds type AL and the paper API recognized
+        it (2026-08-06 probe; rejected on session-window only, outside RTH).
+        Definitive acceptance requires a during-RTH probe. NO production call
+        sites use this method yet — adopting it for any setup's entry path is
+        a separate, operator-gated decision (see the doctrine review artifact;
+        per its challenge work-through, ts_momentum currently should NOT
+        switch — the +3% chase cap measured as adverse-selection protection).
+        Any evaluation of a retired KIND under this fill model is a NEW trial
+        (manual ledgers/trials.yml component) per the same artifact's norm.
+        """
+        if quantity <= 0:
+            raise BrokerOrderError(f"quantity must be positive; got {quantity}")
+        if limit_price <= 0:
+            raise BrokerOrderError(f"limit_price must be positive; got {limit_price}")
+
+        try:
+            from tigeropen.common.util.order_utils import auction_limit_order
+        except ImportError as exc:
+            raise BrokerOrderError("tigeropen SDK not installed") from exc
+
+        try:
+            contract = self._tc.get_contract(symbol=symbol)
+        except Exception as exc:
+            raise BrokerOrderError(f"get_contract({symbol}) failed: {exc}") from exc
+        if contract is None:
+            raise BrokerOrderError(f"no contract found for symbol {symbol}")
+
+        order = auction_limit_order(
+            account=self._account,
+            contract=contract,
+            action="BUY",
+            quantity=quantity,
+            limit_price=limit_price,
+        )
+        if user_mark is not None:
+            try:
+                order.user_mark = str(user_mark)[:32]
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            order_id = self._tc.place_order(order)
+        except Exception as exc:
+            raise BrokerOrderError(
+                f"place_order(AL BUY {quantity} {symbol} @ {limit_price}) failed: {exc}"
+            ) from exc
+
+        return TraceEntry(
+            tool=TOOL,
+            inputs={
+                "call": "place_auction_limit",
+                "symbol": symbol,
+                "action": "BUY",
+                "quantity": quantity,
+                "limit_price": limit_price,
+                "account_masked": self._config_info["account_masked"],
+            },
+            output={
+                "order_id": int(order_id) if order_id is not None else None,
+                "symbol": symbol,
+                "action": "BUY",
+                "quantity": quantity,
+                "limit_price": limit_price,
+                "order_type": "AL",
+                "is_paper": self._config_info["is_paper"],
+            },
+        )
+
     def place_stop_loss(
         self, symbol: str, quantity: float, stop_price: float,
     ) -> TraceEntry:

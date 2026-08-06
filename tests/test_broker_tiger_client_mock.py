@@ -568,3 +568,45 @@ def test_get_quote_raises_when_quote_client_none():
     client = TigerClient(_trade_client=fake, _quote_client=None)
     with pytest.raises(BrokerOrderError, match="QuoteClient not initialised"):
         client.get_quote("NVDA")
+
+
+# ---------------------------------------------------------------- auction limit (LOO)
+
+
+def test_place_auction_limit_buy_records_correct_fields(paper_client):
+    """LOO wrap (same-session-entry doctrine): type AL, BUY, correct fields, masked PII."""
+    entry = paper_client.place_auction_limit_buy("NVDA", quantity=7, limit_price=820.25)
+    out = entry.output
+    assert out["order_id"] == 10_000
+    assert out["symbol"] == "NVDA"
+    assert out["action"] == "BUY"
+    assert out["quantity"] == 7
+    assert out["limit_price"] == 820.25
+    assert out["order_type"] == "AL"
+    assert out["is_paper"] is True
+    assert entry.inputs["call"] == "place_auction_limit"
+    assert entry.inputs["account_masked"] == "...4321"
+    assert "PAPER87654321" not in str(entry.inputs)
+
+
+def test_place_auction_limit_buy_order_object_is_AL(paper_client):
+    """The SDK order object handed to place_order must be auction-limit (AL)."""
+    captured = {}
+    orig = paper_client._tc.place_order
+
+    def _capture(order):
+        captured["order"] = order
+        return orig(order)
+
+    paper_client._tc.place_order = _capture
+    paper_client.place_auction_limit_buy("F", quantity=1, limit_price=11.30, user_mark="loo-test")
+    order = captured["order"]
+    assert getattr(order, "order_type", None) == "AL"
+    assert getattr(order, "user_mark", None) == "loo-test"
+
+
+def test_place_auction_limit_buy_validates_inputs(paper_client):
+    with pytest.raises(BrokerOrderError):
+        paper_client.place_auction_limit_buy("F", quantity=0, limit_price=10.0)
+    with pytest.raises(BrokerOrderError):
+        paper_client.place_auction_limit_buy("F", quantity=1, limit_price=0.0)
