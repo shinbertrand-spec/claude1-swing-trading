@@ -233,5 +233,43 @@ must be published — including every retired strategy that stays retired.
 
 ## 5. Disclosure — break-even N for ts_momentum
 
-*Computed only after §§1–4 were committed (prereg C3). See the addendum commit;
-this section is intentionally absent from the §4 commit.*
+*Computed only after §§1–4 were committed (`dd8b2b5`, prereg C3). This section
+was intentionally absent from the §4 commit.*
+
+Method: identical inputs to the recorded 2026-07-24 roster evaluation
+(`2026-07-24-statistical-gates-batch-c.md` — net OOS Sharpe 1.23 ann, T=2359,
+skew +0.41, raw kurtosis 10.74; V[{SR̂}] rebuilt from the two per-combo
+per-period Sharpes in `2026-07-02-ts_momentum-lookback-sweep.json`, sample
+variance 8.18e-4), then N varied. Reconstruction check: N=83 → DSR 0.6338 /
+SR₀ 1.119 ann vs the recorded 0.629 / 1.12 (drift = rounding of the recorded
+moments).
+
+| N | DSR | verdict |
+|---|---|---|
+| 9 | 0.9520 | pass |
+| **10** | **0.9439** | **fail — break-even is between 9 and 10** |
+| 83 (recorded) | 0.6338 | fail |
+| 91 (current floor) | 0.6163 | fail |
+
+**Reading, stated against interest:** `ts_momentum_liquid_us` clears DSR > 0.95
+only if the project had run **nine or fewer trials in its entire history**. No
+defensible count gets there — EXCEPT one: scoping N to the ts_momentum family
+alone (2 + 2 spec-grid combos + 2 sweep combos = 6) would have produced a PASS.
+That is precisely the scoping §3 rejected on the sources, and it is why the
+prereg ordering mattered: the one denominator that flips the verdict is the one
+the derivation does not permit. The gap between 10 and 91 is not closable by
+any honest refinement — Eq. 9's correlation shrink would need the 91 trials'
+average pairwise ρ̂ ≈ 0.9, implausible across ~10 unrelated strategy families,
+and the paired same-set family-V correction (§2) pushes the other way.
+
+Caveat inherited from the recorded evaluation: V comes from only 2 same-setup
+trials (per-period 0.0368 vs 0.0772) — a very noisy variance estimate. The
+break-even N moves with V; recording per-trial Sharpes going forward (§2)
+firms this up. It does not plausibly move the conclusion across the 10-vs-91
+gap.
+
+**Standing consequence:** the sole live deployable remains, on the recorded
+evidence, not yet statistically distinguishable from selection luck at the 95%
+bar. That is what the 2026-07-24 artifact already said; this review confirms
+the denominator behind it is the correct one. The path to a passing DSR is
+live/paper evidence accumulating T on the deployed combo — not a smaller N.
