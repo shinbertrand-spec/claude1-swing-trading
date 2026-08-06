@@ -10,7 +10,7 @@ note: Append-only trial registry for the C1 Deflated-Sharpe gate. Every setup x 
   result was seen and cannot be rolled back in response to results. Anything failing
   a clause is a search and is priced as one; any NEW param/universe/signal variant
   is always a trial.
-n_trials_total: 91
+n_trials_total: 103
 components:
 - source: spec-grid:clenow_momentum.yml
   n_trials: 6
@@ -78,3 +78,10 @@ components:
 - source: sweep:2026-07-02-ts_momentum-lookback-sweep.json
   n_trials: 2
   detail: recorded sweep artifact (one trial per element)
+- source: manual:2026-08-06-position-cap-audit-prereg
+  n_trials: 12
+  detail: 'PRE-REGISTERED before first run (Handoff B cap audit): 3 strategies
+    (connors_rsi2, dual_ma_trend_following, ts_momentum_liquid_us) x 4 constant-gross
+    arms N in {8,12,16,20}. TEMPORARY manual component - replaced by the recorded
+    sweep JSON (12 sharpe-bearing elements) when the run completes, keeping the
+    total at 103 under derive --write. See 2026-08-06-position-cap-audit-prereg.md.'
