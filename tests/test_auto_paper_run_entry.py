@@ -593,3 +593,94 @@ def test_build_skeptic_prompt_contains_ledger_and_bull_path():
     assert "ledgers/candidates/2026-05-29/GKOS.yml" in p
     assert "ledgers/candidates/2026-05-29/GKOS.md" in p
     assert "Skeptic pass" in p
+
+
+# =============================================================== 00_signals.yml (C1)
+
+
+import dataclasses as _dc
+
+
+@_dc.dataclass
+class _FakeScanReportFull:
+    """ScannerReport-shaped fake carrying the emission fields C1 records."""
+    candidates: list
+    setup: str = "ts_momentum_liquid_us"
+    spec_path: str = "tools/quant_strategies/ts_momentum_liquid_us.yml"
+    eligible_tickers: list = _dc.field(default_factory=list)
+    signal_date: object = None
+    note: str | None = None
+
+
+def test_phase_init_writes_signals_record_before_placement(
+    _isolated_run_root, monkeypatch,
+):
+    """C1 denominator: the SELECTED set persists at emission, including a
+    sizer-dropped name that produced no candidate (candidate_built=False)."""
+    import datetime as _dt
+    run_dir = _isolated_run_root / "ledgers" / "_auto_paper_runs" / "signals-test"
+    monkeypatch.setattr(
+        run_entry, "scan_today",
+        lambda **kw: [_FakeScanReportFull(
+            candidates=[_FakeScanCand(ticker="GKOS")],
+            eligible_tickers=["GKOS", "ZZZZ"],   # ZZZZ selected but sizer-dropped
+            signal_date=_dt.date(2026, 8, 13),
+        )],
+    )
+    monkeypatch.setattr(run_entry.screener_mod, "screen",
+                        lambda ticker, claimed_sector_etf=None: _ok_screener_result(ticker))
+    monkeypatch.setattr(run_entry, "_fetch_industry", lambda t: "Medical Devices")
+
+    rc = run_entry.phase_init(run_dir)
+    assert rc == 0
+
+    doc = yaml.safe_load((run_dir / "00_signals.yml").read_text(encoding="utf-8"))
+    assert doc["cycle_id"] == run_dir.name
+    block = doc["setups"][0]
+    assert block["setup"] == "ts_momentum_liquid_us"
+    assert block["signal_date"] == "2026-08-13"
+    assert block["n_selected"] == 2
+    by_ticker = {s["ticker"]: s["candidate_built"] for s in block["selected"]}
+    assert by_ticker == {"GKOS": True, "ZZZZ": False}
+
+
+def test_phase_init_signals_record_empty_scan_is_void_not_silent(
+    _isolated_run_root, monkeypatch,
+):
+    """Zero signals emitted -> the record SAYS so (VOID branch is provable)."""
+    run_dir = _isolated_run_root / "ledgers" / "_auto_paper_runs" / "signals-void"
+    monkeypatch.setattr(
+        run_entry, "scan_today",
+        lambda **kw: [_FakeScanReportFull(candidates=[], eligible_tickers=[],
+                                          note="no eligible names today")],
+    )
+    monkeypatch.setattr(run_entry.screener_mod, "screen",
+                        lambda ticker, claimed_sector_etf=None: _ok_screener_result(ticker))
+    monkeypatch.setattr(run_entry, "_fetch_industry", lambda t: "n/a")
+
+    rc = run_entry.phase_init(run_dir)
+    assert rc == 0
+    doc = yaml.safe_load((run_dir / "00_signals.yml").read_text(encoding="utf-8"))
+    block = doc["setups"][0]
+    assert block["n_selected"] == 0
+    assert block["selected"] == []
+    assert block["note"] == "no eligible names today"
+
+
+def test_phase_init_signals_record_tolerates_minimal_report_shape(
+    _isolated_run_root, monkeypatch,
+):
+    """Back-compat: a report exposing only .candidates still writes a block."""
+    run_dir = _isolated_run_root / "ledgers" / "_auto_paper_runs" / "signals-minimal"
+    monkeypatch.setattr(
+        run_entry, "scan_today",
+        lambda **kw: [_FakeScanReport(candidates=[_FakeScanCand(ticker="GKOS")])],
+    )
+    monkeypatch.setattr(run_entry.screener_mod, "screen",
+                        lambda ticker, claimed_sector_etf=None: _ok_screener_result(ticker))
+    monkeypatch.setattr(run_entry, "_fetch_industry", lambda t: "Medical Devices")
+
+    rc = run_entry.phase_init(run_dir)
+    assert rc == 0
+    doc = yaml.safe_load((run_dir / "00_signals.yml").read_text(encoding="utf-8"))
+    assert doc["setups"][0]["n_selected"] == 0

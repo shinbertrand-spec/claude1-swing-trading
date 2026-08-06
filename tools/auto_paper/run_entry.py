@@ -304,6 +304,45 @@ def phase_init(
         _emit(f"PHASE_INIT_FAIL scan_today: {exc!r}")
         return 1
 
+    # Fill-fidelity C1 (2026-08-06): durably record the strategy-EMITTED signal
+    # sets FIRST — before de-dupe, screener, sizing consumption, or placement —
+    # so "zero signals emitted" (VOID) is forever distinguishable from "signals
+    # emitted, no order placed" (FAULT). Anti-circularity: this is written from
+    # the ScannerReports at emission; it can never be reconstructed from the
+    # orders that were placed. For ranked kinds (ts_momentum top_k) the
+    # eligible set is already the post-cut SELECTED set, so membership here IS
+    # the C1 denominator; per-name rank is not preserved by the kind-state
+    # shapes (quant_scanner v1 limitation) and is not needed for C1.
+    # ``candidate_built: false`` = dropped at the scanner stage (sizer
+    # ValueError / zero shares — the 2026-05-28 silent-zero-placement class).
+    signals_payload = []
+    for r in reports:
+        cand_tickers = {c.ticker for c in (getattr(r, "candidates", None) or [])}
+        selected = list(getattr(r, "eligible_tickers", None) or [])
+        sd = getattr(r, "signal_date", None)
+        signals_payload.append({
+            "setup": getattr(r, "setup", None),
+            "spec_path": getattr(r, "spec_path", None),
+            "signal_date": (sd.isoformat() if hasattr(sd, "isoformat")
+                            else str(sd) if sd else None),
+            "note": getattr(r, "note", None),
+            "n_selected": len(selected),
+            "selected": [
+                {"ticker": t, "candidate_built": t in cand_tickers}
+                for t in selected
+            ],
+        })
+    _write_yaml(run_dir / "00_signals.yml", {
+        "written_at": _now(),
+        "cycle_id": run_dir.name,
+        "purpose": (
+            "C1 placement-completeness denominator (fill-fidelity prereg "
+            "2026-08-06): every strategy-selected signal, recorded at "
+            "emission, independent of order placement."
+        ),
+        "setups": signals_payload,
+    })
+
     # De-dupe across reports
     seen: set[str] = set()
     scanner_cands = []

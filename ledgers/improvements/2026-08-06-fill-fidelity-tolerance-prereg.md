@@ -44,6 +44,35 @@ the same accumulation DSR needs (Handoff A).
    consistent with the broker-confirmed SO phantom already adjudicated by the
    2026-07-27 external review, not a new investigation.
 
+## C1-verifiability addendum (2026-08-06, later same day — instrumentation only, tolerance unchanged)
+
+The operator asked whether C1 was actually verifiable: Task 0's skip rows
+cover orders placed-and-unfilled, but a signal that never became an order
+wrote no ledger — and `phase_init` persisted only post-sizer candidates
+(`00_candidates.yml`), discarding `ScannerReport.eligible_tickers`. The VOID
+("zero signals") and FAULT ("signals emitted, zero orders") branches were
+therefore indistinguishable — and that silent-drop class has happened before
+(the 2026-05-28 sizer-clamp bug: valid signals, zero placements).
+
+**Fix (plumbing, commit with this addendum):** `phase_init` now writes
+`00_signals.yml` into the run dir IMMEDIATELY after the scan returns — before
+de-dupe, screener, or any placement step. Per setup: `setup`, `spec_path`,
+`signal_date`, scan `note`, `n_selected`, and the SELECTED set with per-name
+`candidate_built` (False = dropped at the scanner/sizer stage). Anti-circular
+by construction: written from the ScannerReports at emission, never
+reconstructible from placed orders. Top-K boundary: for ranked kinds the
+eligible set is already the post-`top_k` cut, so membership IS the C1
+denominator; per-name rank is not preserved by the kind-state shapes
+(scanner v1 limitation, documented) and is not needed for C1. Cycle id =
+run-dir name ties the record to shell ledgers, placement results, and order
+ledgers in the same run.
+
+**C1 reconciliation on cycle 1** = `00_signals.yml` selected set (denominator)
+→ `candidate_built` (scanner stage) → `01_screener.yml` (screener drops) →
+placement results / order ledgers (numerator), then C2 skip rows for
+placed-but-unfilled. C1 is now verifiable end-to-end. The C1/C2/C3 targets
+and the outcome table below are UNCHANGED from the morning commit (ae26f8f).
+
 ## The tolerance — three checks (pre-registered, verbatim)
 
 ### C1 — Placement completeness (the one that matters most)
