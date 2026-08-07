@@ -73,6 +73,21 @@ placement results / order ledgers (numerator), then C2 skip rows for
 placed-but-unfilled. C1 is now verifiable end-to-end. The C1/C2/C3 targets
 and the outcome table below are UNCHANGED from the morning commit (ae26f8f).
 
+## Pinned schedule (2026-08-07 — computed from the spec rule, not estimated)
+
+Rule: rebalance dates = every 21st SPY trading day from index 252
+(`lookback_days=252` deployed), anchored at spec `period.start` 2017-01-01
+(`_kinds/ts_momentum.py:104`; live path anchored identically per the Bug-2
+fix). On the cached SPY calendar: …05-13, 06-12, **07-15** (lost inside BOTH
+the NFLX cron gate ~06-16→07-24 and the journal-write-deny outage
+07-01→07-24), next = **Thu 2026-08-13**. Because `data_cache.fetch` passes an
+EXCLUSIVE `end=today` to yfinance, the scan on the 13th sees data through
+08-12 (correctly zero candidates — not a fault); the **placement morning is
+Fri 2026-08-14 09:35 ET** (June precedent: 06-12 rebalance → 06-15
+placements). Cycles remaining before the 2026-11-17 D3 review: **four**
+(08-13, 09-14, 10-13, 11-11 → placement mornings 08-14 / 09-15 / 10-14 /
+11-12; Labor Day excluded, Veterans Day is a NYSE trading day).
+
 ## The tolerance — three checks (pre-registered, verbatim)
 
 ### C1 — Placement completeness (the one that matters most)
