@@ -1,0 +1,130 @@
+# Worked thesis #1 — Phase 1 proof-of-shape (ai-stack-analyst)
+# Reference price at creation: $1,694.55 (2026-08-07 close, data_cache).
+# NO position exists or is proposed. Operator owns entries and sizing.
+
+ticker: FIX              # Comfort Systems USA — electrical & mechanical
+status: candidate        # construction, modular/prefab, DC-heavy
+created_at: "2026-08-09"
+
+thesis: >
+  US datacenter electrical/mechanical construction capacity stays labor-bound
+  through at least 2028 — because journeyman-electrician cohorts that began
+  apprenticeships in 2024-25 cannot reach licensure before 2028-2030 while
+  ~30% of the incumbent union workforce is at or near retirement — so Comfort
+  Systems converts its committed backlog at sustained-or-better gross margins
+  even if new AI capex growth decelerates to the consensus path
+  (~+25% 2027, ~+6% 2028).
+
+layer: skilled_labor     # stack-map.yml — a binding leg of the power-delivery
+                         # compound, and its slowest legal unlock
+
+value_capture:
+  who_pays: >
+    Hyperscalers + DC developers on compressed schedules, via fixed-price
+    E&M contracts signed in a seller's market (tech = 45% of FY2025 revenue,
+    up from 33%) and via FIX's own modular/prefab capacity, which monetizes
+    the SOLUTION to the labor scarcity, not only the scarce hours.
+  why_not_competed_away: >
+    The input cannot be manufactured quickly: state-regulated 4-5 year
+    licensure gates new supply of electricians regardless of wage offered
+    (applications +70% 2022-24 changes nothing before 2028). Incumbent
+    contractor scale (existing licensed workforce + hyperscaler qualification
+    + bonding capacity) is the entry barrier between here and there.
+  moat_duration_expected: >
+    Through ~2028-2030 (first big licensure cohorts land). NOT indefinite —
+    this is a dated scarcity, and the thesis dies on schedule even if
+    nothing else kills it first.
+
+market_error:
+  what_consensus_gets_wrong: >
+    Contractors are priced on a late-cycle heuristic: capex growth
+    decelerates → bookings peak → margins mean-revert. The claim here is
+    DURATION, not level: (a) $11.94B of legally committed backlog (+99% YoY)
+    and ~$662B of hyperscaler leases signed-but-not-commenced sit UPSTREAM
+    of any new-bookings deceleration; (b) margin is set by labor scarcity at
+    EXECUTION time, not by capex growth at booking time — and the labor
+    clock is fixed by licensure law through 2028.
+  why_the_error_persists: >
+    Seventy years of construction-cyclicality priors; the off-balance-sheet
+    lease pipeline (GAAP recognizes at commencement) is invisible to the
+    backlog-growth heuristic most models run on.
+  when_bottleneck_became_consensus: "mid-2026 (labor as site-selection constraint enters mainstream coverage ~Jul-2026)"
+  when_price_moved: >
+    2024-2026, substantially: FIX ~5x off its 52-week low ($276→$1,500 range
+    per Mar-2026; $1,694.55 at thesis creation = ~46x FY26 consensus EPS
+    $36.76 vs 22.7x five-year median forward multiple). The story is
+    SUBSTANTIALLY PRICED — the residual edge, if any, is duration. Honest
+    corollary: this is a candidate for operator consideration on serious
+    pullbacks, not a pound-the-table entry at reference price.
+
+invalidation_triggers:   # written before any position; ANY firing -> escalate
+  - id: T1_backlog
+    trigger: "Total backlog prints below $10.5B (−12% from the $11.94B 2025-12-31 peak) for TWO consecutive quarters — the committed-duration leg dies."
+    source: "FIX 10-Q / earnings release, backlog disclosure"
+    cadence: quarterly
+    next_check: "2026-10-31"
+  - id: T2_margin
+    trigger: "Gross margin compresses >150bps YoY for TWO consecutive quarters (from the >25% Q4-2025 level) — labor-scarcity pricing power is broken regardless of the story."
+    source: "FIX 10-Q income statement"
+    cadence: quarterly
+    next_check: "2026-10-31"
+  - id: T3_labor_unlock
+    trigger: "US registered-apprenticeship ELECTRICIAN completions run-rate exceeds ~45K/yr, or a state-level licensure-reciprocity/fast-track wave is enacted in >=3 major DC states — the pipeline unblocks ahead of the 2028 schedule."
+    source: "DOL RAPIDS apprenticeship data (annual) + IBEW/IEC cohort reporting + state legislation trackers"
+    cadence: annual (January) + event-driven
+    next_check: "2027-01-31"
+  - id: T4_demand_duration
+    trigger: "Hyperscaler signed-but-not-commenced lease commitments fall below ~$400B (from ~$662B, Moody's early-2026) — the upstream demand pipe that outlasts capex deceleration is draining."
+    source: "Moody's / hyperscaler 10-K lease-commitment footnotes"
+    cadence: semiannual
+    next_check: "2027-02-09"
+  - id: T5_displacement
+    trigger: "FIX technology-segment book-to-bill < 1.0 for TWO consecutive quarters WHILE hyperscaler capex is still growing — prefab/self-perform displacement (the adversarial pass's strongest counterforce) is taking the work."
+    source: "FIX 10-Q segment disclosure vs hyperscaler capex prints"
+    cadence: quarterly
+    next_check: "2026-10-31"
+
+disqualifier_check:
+  checked_at: "2026-08-09"
+  negative_fcf_no_path: pass          # FY2025 FCF $1.04B, record (article_read)
+  recent_dilutive_raise_60d: unverified   # no raise surfaced in searches; not explicitly confirmed
+  sec_investigation_accounting: unverified   # nothing surfaced; not explicitly searched
+  customer_concentration_exposed: watch   # tech 45% of revenue, hyperscaler-heavy — sector concentration is the point of the thesis AND its gap-risk; single-customer split not disclosed in sources read
+  sector_weekly_downtrend: unverified  # not checked; no entry pending
+  verdict: pass                        # provisional — the two unverified cells
+                                       # MUST be closed before any operator entry
+
+horizon:
+  expected_years: "2-4"
+  what_makes_it_shorter: >
+    T3 firing (early labor unlock); T5 displacement; a hyperscaler capex
+    PAUSE (not deceleration — a pause) which converts backlog duration into
+    cancellation negotiations; margin peak confirmed by T2.
+
+rebuy_test:
+  question: "Would I buy this today at $1,694.55 (~46x FY26)?"
+  answer_at_creation: >
+    NO at reference price — which is exactly why status stays `candidate`
+    with triggers armed rather than a recommendation. The thesis earns a
+    look on drawdowns that do NOT coincide with a trigger firing.
+  cadence: quarterly
+  next_check: "2026-11-09"
+
+verify_log:
+  - date: "2026-08-09"
+    searched_for_refutation:
+      - "FIX bear case / overvaluation (found: ~35.5-46x fwd vs 22.7x 5yr median; GF Value 100%+ overvalued claims)"
+      - "insider activity (found: $59.7M insider sales last 3 months, ZERO purchases — management selling into the valuation)"
+      - "margin mean-reversion mechanics (found: EBITDA margin 13.3%→18.3%, GM >25% first time ever — the bear's mean-reversion base is real)"
+      - "prefab/modular displacement of on-site electrician hours (found: off-site assembly cuts on-site labor ~30%, schedules −30-50%; hyperscaler self-perform fastest-growing segment at 9.3% CAGR)"
+      - "AI capex deceleration path (found: UBS +76% '26 → +25% '27 → +6% '28; Goldman multiple-compression scenario)"
+    found: >
+      The refutation is SUBSTANTIAL: the multiple has already tripled off its
+      historical median, insiders are net sellers at size, the margin base
+      effect is peak-like, and prefab both mitigates the scarcity AND is
+      partially owned by FIX itself (cuts both ways). None of it falsifies
+      the licensure-clock mechanism (2028-30 is a legal fact, not a
+      forecast), and the committed-backlog + off-BS-lease duration argument
+      stands. Survives as CANDIDATE with conviction explicitly moderated:
+      mechanism intact, price late.
+    verdict: survives — weakened on price, intact on mechanism

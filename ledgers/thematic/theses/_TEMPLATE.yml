@@ -1,0 +1,65 @@
+# Thesis schema — ai-stack-analyst (Phase 1, 2026-08-09)
+# One file per candidate or holding: ledgers/thematic/theses/<TICKER>.yml
+# EVERY field below is required (handoff §3.2). A thesis missing any of them
+# is not a thesis — it is a story, and stories are the failure mode (§2).
+# The agent owns theses + invalidation; the OPERATOR owns entries and sizing.
+# No field in this schema ever places, sizes, or prices an order.
+
+ticker: XXXX
+status: candidate        # candidate | held | invalidated | rejected
+created_at: "YYYY-MM-DD"
+
+# ONE falsifiable sentence. Not "AI is big." Shape: "X stays supply-tight
+# through YYYY because A lags B by N quarters." If it cannot be false, rewrite.
+thesis: ""
+
+layer: ""                # stack-map.yml layer this expresses. If the binding
+                         # constraint has LEFT this layer, the thesis is wrong
+                         # even if the company performs (stack-map rule).
+
+value_capture:           # §2 guard: buying the economics, not the story
+  who_pays: ""
+  why_not_competed_away: ""
+  moat_duration_expected: ""
+
+market_error:            # §2 guard: consensus arbitrage check
+  what_consensus_gets_wrong: ""
+  why_the_error_persists: ""
+  when_bottleneck_became_consensus: ""   # date — vs when the price moved
+  when_price_moved: ""
+
+invalidation_triggers:   # >=2. Observable from PUBLIC data. Written BEFORE
+  - id: T1               # any position. Each: metric, threshold, source,
+    trigger: ""          # check cadence, next check date. Firing one ->
+    source: ""           # escalate to operator IMMEDIATELY (do not wait for
+    cadence: ""          # cadence); status -> invalidated unless the operator
+    next_check: "YYYY-MM-DD"   # explicitly overrides in writing.
+  - id: T2
+    trigger: ""
+    source: ""
+    cadence: ""
+    next_check: "YYYY-MM-DD"
+
+disqualifier_check:      # CLAUDE.md Disqualifiers — a good theme does not
+  checked_at: "YYYY-MM-DD"   # rescue a broken balance sheet
+  negative_fcf_no_path: pass|fail|unverified
+  recent_dilutive_raise_60d: pass|fail|unverified
+  sec_investigation_accounting: pass|fail|unverified
+  customer_concentration_exposed: pass|fail|unverified
+  sector_weekly_downtrend: pass|fail|unverified
+  verdict: pass|fail     # ANY fail -> status: rejected, log disposition
+
+horizon:
+  expected_years: ""
+  what_makes_it_shorter: ""
+
+rebuy_test:              # §2 guard: the never-selling failure mode
+  question: "Would I buy this today at this price?"
+  cadence: quarterly
+  next_check: "YYYY-MM-DD"
+
+verify_log:              # append-only; every re-verification. Adversarial:
+  - date: "YYYY-MM-DD"   # record what you searched FOR THE REFUTATION and
+    searched_for_refutation: []   # what you found — BEFORE the confirmation.
+    found: ""
+    verdict: ""          # survives | weakened | invalidated

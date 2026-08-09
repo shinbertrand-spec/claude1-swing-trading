@@ -1,0 +1,200 @@
+# AI-buildout stack map — v1 (Phase 1, ai-stack-analyst)
+# Structural model of the AI buildout by layer: who holds the constraint,
+# how tight, what loosens it, evidence + date. NOT a ticker list.
+# Handoff: Output/2026-08-09-claude1-handoff-ai-stack-analyst.md (vault).
+# Distinct from the AI-thematic SWING track (frozen universes, hold:true) —
+# no gate profiles, no trials, no universes shared. trials.yml untouched (103).
+#
+# claim_status vocabulary (literature rule #4 — never launder a summary
+# into a citation):
+#   article_read        — source read this session, figures quoted from it
+#   search_summary      — from search-result synthesis 2026-08-09; not read in full
+#   unverified_background — model background knowledge, NOT re-verified; do not
+#                           cite as evidence; upgrade before load-bearing use
+
+meta:
+  version: 1
+  built_at: "2026-08-09"
+  author: ai-stack-analyst (Phase 1, manual session)
+  review_cadence: quarterly (adversarial — search for the refutation first)
+
+# ---------------------------------------------------------------------------
+# THE CALL — the field this object exists for
+# ---------------------------------------------------------------------------
+binding_constraint:
+  current: >
+    The electric-power DELIVERY chain, as a compound of four sub-constraints
+    that gate each other: (1) generation-equipment slots — global gas-turbine
+    orders ~110 GW/yr vs 60-70 GW/yr manufacturing capacity, GE Vernova sold
+    out through 2028; (2) grid interconnection — 3-4 year queues in major
+    markets, up to 7 years in Northern Virginia; (3) transformers/switchgear —
+    2-5 year lead times, prices +77% vs pre-pandemic; (4) licensed electrical
+    labor — 4-5 year apprenticeship pipeline, ~30% of union electricians at or
+    near retirement, 20-30% wage premiums. Net effect: only 5 of 16 GW of
+    announced-2026 US datacenter capacity is under construction; TD Economics
+    haircuts announced AI capex to 60-70% deliverable.
+  evidence_date: "2026-07-16"
+  source: "TD Economics, 'Bottlenecked: Supply Constraints Are Likely to Slow the U.S. AI Buildout' (economics.td.com/ca-ai-buildout)"
+  claim_status: article_read
+  co_binding: >
+    Memory (HBM + conventional DRAM): HBM sold out for 2026; ~3:1 wafer
+    conversion ratio means every HBM ramp cuts commodity DRAM supply;
+    projected shortfall ~40% through end-2027 (search_summary 2026-08-09).
+  consensus_dating:   # §2 guard — when did each become consensus vs when price moved
+    power_bottleneck: "consensus ~2024; priced 2024-2026 (GEV / VRT / CEG / ETN re-rates). Constraint still DEEPENING (transformer leads lengthened ~140→160+ weeks into 2026) — the constraint outruns the priced capacity response."
+    memory: "consensus late-2025/H1-2026; priced violently H1-2026 (MU trailing P/E ~20 on peak-cycle EPS, then −39% drawdown; 'single-digit forward P/E mirage' debate live). Late."
+    electrical_labor: "entered mainstream coverage ~mid-2026 (Jul-2026 pieces: labor 'decides where projects get built'). Partially priced (FIX ~5x off its 52wk low) — the residual edge is DURATION, not discovery."
+  migration_forecast:
+    text: >
+      As transformer/switchgear factory expansions land 2027-28 and turbine
+      capacity stays rationed to ~2029, the residual constraint concentrates
+      in the two slowest-to-loosen legs: grid interconnection/permitting and
+      licensed labor (2024-25 apprentice cohorts cannot hold journeyman
+      licenses before 2028-2030). Memory co-binds until HBM4 volume + new fab
+      capacity land (late-2027+). A position tagged to a layer the constraint
+      has LEFT is wrong even if the company performs.
+    horizon: "2027-2028"
+    confidence: "moderate on the current call (multiple independent sources, hard delivery data); LOW on migration timing — factory-expansion schedules slip both ways"
+
+# ---------------------------------------------------------------------------
+# Layers (shovels -> bottlenecks). tightness: binding | co-binding | tight |
+# easing | slack. priced: how much of the constraint story the market already
+# carries, per consensus_dating discipline.
+# ---------------------------------------------------------------------------
+layers:
+  - layer: compute_accelerators
+    scope: GPUs / custom ASICs
+    constraint_holders: [NVIDIA, AMD, hyperscaler-ASIC programs]
+    tightness: easing
+    note: "The 2022-23 binding constraint; no longer binding — power and memory gate deployments now. Hyperscaler capex $750-800B 2026 (+~76%) is being ABSORBED elsewhere in the stack."
+    what_loosens: already loosened (CoWoS + HBM ramps, allocation maturity)
+    evidence_date: "2026-08-09"
+    claim_status: search_summary
+    priced: fully (the consensus layer)
+
+  - layer: memory_hbm_dram
+    scope: HBM3E/HBM4 + conventional DRAM
+    constraint_holders: [SK Hynix, Samsung, Micron]
+    tightness: co-binding
+    note: "HBM sold out 2026; HBM4 volume late-26/early-27 (projected share ~50/30/20 Hynix/Samsung/Micron); 3:1 wafer cannibalization makes CONVENTIONAL DRAM the second-order scarcity; SK Hynix CEO: crunch could stretch to 2030."
+    what_loosens: "HBM4 yield maturity + greenfield DRAM fab capacity (late-2027+); demand break (capex decel)"
+    evidence_date: "2026-08-09"
+    claim_status: search_summary
+    priced: heavily (violent H1-2026 re-rate, now correcting — see dispositions: MU)
+
+  - layer: advanced_packaging
+    scope: CoWoS / SoIC / hybrid bonding
+    constraint_holders: [TSMC, Amkor, ASE]
+    tightness: tight
+    note: "The 2024 binding constraint; TSMC expansions have moved it from binding to tight. Was NOT re-verified in depth this session."
+    what_loosens: continued TSMC/OSAT capacity adds
+    evidence_date: "2026-08-09"
+    claim_status: unverified_background
+    priced: substantially
+
+  - layer: networking_optics
+    scope: 800G->1.6T optics, switching, DSPs
+    constraint_holders: [Broadcom, Coherent, Lumentum, InnoLight-class]
+    tightness: tight
+    note: "1.6T transition underway; NOT researched this session — flagged for Phase 2 discovery."
+    what_loosens: transceiver capacity ramps
+    evidence_date: null
+    claim_status: unverified_background
+    priced: unknown — do not act on this row
+
+  - layer: power_generation
+    scope: gas turbines, nuclear PPAs, behind-the-meter
+    constraint_holders: [GE Vernova, Siemens Energy, Mitsubishi Power; Constellation-class nuclear incumbents]
+    tightness: binding
+    note: "Turbine orders ~110 GW/yr vs 60-70 GW/yr capacity; GEV sold out through 2028. Behind-the-meter avoids the queue but not the equipment lead times."
+    what_loosens: "manufacturing capacity adds (rationed to ~2029); demand break"
+    evidence_date: "2026-07-16"
+    claim_status: article_read
+    priced: heavily (2024-25 re-rates)
+
+  - layer: transmission_interconnect
+    scope: grid connection, HV lines, substations, permitting
+    constraint_holders: [utilities, PJM/ERCOT/ISO queues, grid EPCs (Quanta-class)]
+    tightness: binding
+    note: "Queues 3-4yr (7yr NoVA); permitting = 29% of PJM milestone change requests; Q1-2026: 75 projects / $130B delayed or blocked by local opposition; PJM attributes 94% of 32 GW peak-load growth through 2030 to datacenters."
+    what_loosens: "FERC/state reform, co-location + behind-the-meter norms — SLOW"
+    evidence_date: "2026-07-16"
+    claim_status: article_read
+    priced: partially (utilities re-rated; the queue itself is not investable)
+
+  - layer: transformers_switchgear
+    scope: GSU + substation transformers, MV/LV switchgear, bus duct
+    constraint_holders: [Hitachi Energy, Siemens Energy, Eaton, Hubbell, Powell-class specialists]
+    tightness: binding
+    note: "Leads 2-5yr; prices +77% vs pre-pandemic; GSU demand +274% 2019-25; leads LENGTHENED into 2026 (~140→160+ wks) — constraint outrunning capacity response. Powell: record $2.4B backlog, book-to-bill 1.7x, first >$400M single DC award."
+    what_loosens: "announced factory expansions landing 2027-28"
+    evidence_date: "2026-08-09"
+    claim_status: search_summary (TD price/lead figures article_read)
+    priced: substantially (specialists re-rated hard 2024-25)
+
+  - layer: skilled_labor
+    scope: licensed electricians, mechanical/commissioning crews, HV field talent
+    constraint_holders: [IBEW/IEC pipelines; large E&M contractors (Comfort Systems, Emcor, IES-class); the licensure clock itself]
+    tightness: binding — slowest legal unlock
+    note: ">300K electrician shortfall vs ~20K/yr retirements; 30% of union electricians at/near retirement; apprenticeship applications +70% 2022-24 BUT 2024-25 starters cannot hold journeyman licenses before 2028-2030; wage premiums 20-30%; labor now a SITE-SELECTION constraint. Counterforce (adversarial pass): prefab/modular cuts on-site hours ~30%, hyperscaler self-perform fastest-growing (9.3% CAGR)."
+    what_loosens: "licensure cohorts landing 2028-30; prefab penetration; capex break"
+    evidence_date: "2026-07-16"
+    claim_status: article_read (TD figures) + search_summary (prefab counterforce)
+    priced: partially — coverage arrived mid-2026; contractors already re-rated (FIX ~5x off 52wk low, 40x fwd) — see theses/FIX.yml
+
+  - layer: cooling
+    scope: liquid/direct-to-chip, CDUs, thermal chain
+    constraint_holders: [Vertiv-class, Boyd/CoolIT-class]
+    tightness: tight
+    note: "NOT re-verified this session; 2024-25 state was tight-but-responding."
+    what_loosens: capacity adds, standardization
+    evidence_date: null
+    claim_status: unverified_background
+    priced: heavily (2024-25 re-rates)
+
+  - layer: dc_real_estate
+    scope: powered shells, colo, hyperscale campuses
+    constraint_holders: [Digital Realty/Equinix-class, private operators, POWERED-LAND holders]
+    tightness: binding (as a derivative of power)
+    note: "Vacancy 1.0-1.6% = record low; 92% of under-construction pre-committed; ~$662B hyperscaler leases signed-but-not-commenced sitting off balance sheet (Moody's, early-2026). Scarce asset is the POWERED site, not the shell."
+    what_loosens: power delivery loosening upstream
+    evidence_date: "2026-08-09"
+    claim_status: search_summary
+    priced: partially
+
+  - layer: foundry_semicap
+    scope: leading-edge logic capacity + wafer-fab equipment
+    constraint_holders: [TSMC; ASML/AMAT/LRCX/KLA-class]
+    tightness: slack-to-tight
+    note: "Leading-edge logic is not the 2026 gate for AI deployments (power and memory are). NOT re-verified this session."
+    what_loosens: n/a
+    evidence_date: null
+    claim_status: unverified_background
+    priced: n/a
+
+  - layer: eda_ip
+    scope: chip design software + IP
+    constraint_holders: [Synopsys, Cadence, Arm]
+    tightness: slack (structural toll, never the queue)
+    note: "Value capture without constraint-holding; not a bottleneck play."
+    evidence_date: null
+    claim_status: unverified_background
+    priced: fully
+
+  - layer: model_labs_applications
+    scope: frontier labs + application layer
+    constraint_holders: [capital access + compute allocations]
+    tightness: n/a
+    note: "Mostly private / not investable as constraint-holders; the $750-800B capex row above is their spend. Application-layer profitability is the DEMAND-side keystone risk for every other layer (Goldman: an 'inevitable slowdown' could compress S&P multiple up to 20%; UBS capex path +76% '26 → +25% '27 → +6% '28)."
+    evidence_date: "2026-08-09"
+    claim_status: search_summary
+    priced: n/a
+
+  - layer: physical_inputs
+    scope: copper, gas supply, gensets, helium/sulfuric acid, water
+    constraint_holders: [diffuse]
+    tightness: tight (spot disruptions)
+    note: "TD flags helium (Strait of Hormuz) + sulfuric acid raising semi/copper costs; gensets as bridge power. Diffuse — hard to hold via a single constraint-holder."
+    evidence_date: "2026-07-16"
+    claim_status: article_read
+    priced: unknown
