@@ -11,13 +11,19 @@ For each paper-auto position in the ``starter`` state:
 3. Compose via :func:`tools.sell_decision.compute` (P/E expansion is
    fundamentals-only — passed as False for v1)
 4. If the composer returns a non-hold action (``sell_50`` /
-   ``sell_75`` / ``sell_100``), auto-place a limit-sell via
+   ``sell_75`` / ``sell_100``), cancel the broker-confirmed resting
+   protective stop FIRST (cancel-stop-then-sell, 2026-08-13 — Tiger
+   validates SELL quantity against UNENCUMBERED holdings at submission,
+   so an exit placed against a fully stop-protected position is rejected
+   on arrival), then auto-place a limit-sell via
    :meth:`tools.broker.tiger.TigerClient.place_limit_sell` at
-   bid − 0.1% (per CLAUDE.md execution rules), then cancel the resting
-   broker-side stop so we don't end up with a stale stop after exit.
+   bid − 0.1% (per CLAUDE.md execution rules). On placement failure the
+   stop is re-armed (same recovery contract as the stop_ratchet).
 5. Append the per-position evaluation to the ledger's
    ``sell_eval_history``. If a sell action was placed, transition the
-   ledger state to ``closed`` and record the exit price + reason.
+   ledger state to ``pending_close``; the reconciler completes the
+   lifecycle (-> closed on confirmed fill, -> starter + re-armed stop
+   on expiry).
 
 v1 simplifications (documented for the next session to revisit):
 
@@ -66,14 +72,15 @@ def _open_sell_tickers(client: TigerClient) -> set[str]:
     (Bug 2 of 2026-06-02 exits.py diagnostic): COIN went net short -639 sh
     because four 213-sh SELL limits fired on the same 213-sh long.
 
-    STP SELLs are EXCLUDED (2026-07-27 post-mortem review fix): the pending_close
-    redesign leaves the protective stop resting while the composer places its
-    exit, so counting the stop here suppressed every composer exit on every
+    STP SELLs are EXCLUDED (2026-07-27 post-mortem review fix): counting the
+    protective stop here suppressed every composer exit on every
     stop-protected position ("sell_pending_duplicate" forever) — sell-discipline
     was silently disabled for the whole track. The stop is not a competing
-    composer sell; the reconciler cancels it after confirming the exit fill.
-    The residual both-resting fill race is bounded by the point-of-sale
-    holdings guard and the same-evening reconcile.
+    composer sell. Since 2026-08-13 (cancel-stop-then-sell) the exit path
+    cancels a broker-confirmed resting stop itself immediately before
+    placing the exit — Tiger validates SELL quantity against unencumbered
+    holdings at submission, so leaving the stop resting got every exit
+    rejected on arrival (the 2026-07-27 GO incident).
 
     On a failed open-orders read, returns an empty set — placement then
     proceeds; the point-of-sale long-only holdings guard is the backstop
@@ -115,6 +122,106 @@ def _open_stop_order_ids(client: TigerClient) -> set[int]:
         if oid is not None:
             ids.add(int(oid))
     return ids
+
+
+def _sell_gone_at_broker(client: TigerClient, order_id: int) -> bool:
+    """True when a just-placed SELL is neither open nor filled at the broker.
+
+    Tiger encodes an at-submission rejection (e.g. "order quantity exceeds
+    your current holdings") as an instantly-EXPIRED order with a valid
+    order_id and filled=0 — ``place_limit_sell`` raises nothing (2026-07-27,
+    GO order #44074483903777792). Such an order vanishes from the book
+    immediately, so open+filled absence right after placement = rejected.
+    Any read failure stands the guard down (returns False): an unconfirmed
+    state must not trigger stop re-arm — the reconciler owns the slow path.
+    """
+    try:
+        oo = client.open_orders()
+        for o in oo.output.get("orders", []):
+            try:
+                if int(o.get("order_id")) == int(order_id):
+                    return False
+            except (TypeError, ValueError):
+                continue
+        fo = client.get_filled_orders()
+        for o in fo.output.get("orders", []):
+            try:
+                if int(o.get("order_id")) == int(order_id):
+                    return False
+            except (TypeError, ValueError):
+                continue
+        return True
+    except BrokerOrderError:
+        return False
+
+
+def _rearm_stop_after_failed_exit(
+    client: TigerClient,
+    *,
+    ticker: str,
+    doc: dict[str, Any],
+    shares: int,
+    stop_price: Optional[float],
+    cancelled_stop: int,
+) -> str:
+    """Re-arm the protective stop after cancel-stop-then-sell lost its exit.
+
+    Mirrors the stop_ratchet recovery contract: on re-arm failure the ledger
+    records ``stop_order_id`` cleared + a notes warning so the next
+    ratchet/reconcile pass retries. Returns a suffix for the caller's error
+    reason describing the outcome. Ledger writes are best-effort — the
+    caller is already reporting an error.
+    """
+    ps = doc.setdefault("position_state", {})
+    notes = doc.get("notes", "")
+    if stop_price is None or stop_price <= 0:
+        ps.pop("stop_order_id", None)
+        warning = (
+            f"cancel-stop-then-sell on {_today_iso()}: cancelled stop "
+            f"#{cancelled_stop}, exit placement failed, and no usable stop "
+            f"price to re-arm. Position TEMPORARILY UNPROTECTED — next "
+            f"reconcile pass re-arms."
+        )
+        doc["notes"] = f"{notes}\n{warning}".strip() if notes else warning
+        try:
+            _write_ledger(ticker, doc)
+        except state.PaperAutoStateError:
+            pass
+        return "; no usable stop price to re-arm — TEMPORARILY UNPROTECTED (next pass re-arms)"
+    try:
+        entry = client.place_stop_loss(
+            symbol=ticker.upper(), quantity=shares, stop_price=stop_price,
+        )
+    except BrokerOrderError as exc:
+        ps.pop("stop_order_id", None)
+        warning = (
+            f"cancel-stop-then-sell on {_today_iso()}: cancelled stop "
+            f"#{cancelled_stop}, exit placement failed, re-arm "
+            f"place_stop_loss failed: {exc}. Position TEMPORARILY "
+            f"UNPROTECTED — next ratchet/reconcile pass retries."
+        )
+        doc["notes"] = f"{notes}\n{warning}".strip() if notes else warning
+        try:
+            _write_ledger(ticker, doc)
+        except state.PaperAutoStateError:
+            pass
+        return f"; stop re-arm FAILED ({exc}) — TEMPORARILY UNPROTECTED (next pass retries)"
+    new_sid = entry.output.get("order_id")
+    if new_sid is not None:
+        ps["stop_order_id"] = int(new_sid)
+    else:
+        ps.pop("stop_order_id", None)
+    note = (
+        f"cancel-stop-then-sell on {_today_iso()}: cancelled stop "
+        f"#{cancelled_stop}, exit placement failed, re-armed stop "
+        f"#{new_sid} @ ${stop_price:.2f}."
+    )
+    doc["notes"] = f"{notes}\n{note}".strip() if notes else note
+    try:
+        _write_ledger(ticker, doc)
+    except state.PaperAutoStateError:
+        pass
+    return f"; protective stop re-armed as #{new_sid} @ ${stop_price:.2f}"
 
 # Default OHLCV window. base_stage_detect requires PRIOR_HIGH_LOOKBACK +
 # SWING_WINDOW = 262 bars; 1y of daily bars (~252) is the minimum sensible.
@@ -250,11 +357,14 @@ def _mark_ledger_pending_close(
     positions.json, and the protective stop had been cancelled. The
     position stayed live at Tiger with NO monitoring and NO stop.
 
-    Fix: transition to ``pending_close`` instead. The protective stop is
-    NOT cancelled (still defends if the limit-sell expires). The position
-    stays in positions.json (still visible to the operator + downstream
-    audits). Reconciler completes the lifecycle: on confirmed fill ->
-    closed; on expiry -> reverts to starter (stop is still in place).
+    Fix: transition to ``pending_close`` instead. The position stays in
+    positions.json (still visible to the operator + downstream audits).
+    Reconciler completes the lifecycle: on confirmed fill -> closed; on
+    expiry -> reverts to starter. Stop handling changed 2026-08-13
+    (cancel-stop-then-sell): the exit path cancels a broker-confirmed
+    resting stop BEFORE placing the limit-sell (Tiger rejects an exit
+    against encumbered shares), so on expiry the reconciler re-arms the
+    stop via ``_ensure_stop_for``.
     """
     doc.setdefault("meta", {})
     doc["meta"]["state"] = "pending_close"
@@ -634,9 +744,11 @@ def evaluate_exits(
         # fire (COIN: gapped through the $182.20 ratchet 2026-06-01, traded
         # sub-stop for three sessions, stop never executed). When that state
         # is broker-confirmed — the stop order id is still OPEN — force a
-        # full exit through the working limit-sell path and cancel the zombie
-        # stop after placement. Live passes only: the check needs the open-
-        # orders read, so dry_run and read-failure passes stand it down.
+        # full exit through the working limit-sell path; the standard
+        # cancel-stop-then-sell pre-placement cancel (2026-08-13) takes the
+        # zombie down before the exit is placed. Live passes only: the check
+        # needs the open-orders read, so dry_run and read-failure passes
+        # stand it down.
         watchdog_stop_id: Optional[int] = None
         if not dry_run and action != "sell_100":
             ps_wd = doc.get("position_state") or {}
@@ -801,16 +913,69 @@ def evaluate_exits(
                 contributing_triggers=contributing,
                 reason=(
                     f"dry_run — would place limit-sell {shares} {ticker} @ ${sell_limit:.2f}"
-                    " (stop is LEFT IN PLACE until reconcile confirms fill)"
+                    " (live run cancels a broker-confirmed resting stop first —"
+                    " cancel-stop-then-sell)"
                 ),
             ))
             continue
 
-        # Place the limit-sell. The protective stop is NOT cancelled here —
-        # the reconciler will cancel it only after confirming the limit-sell
-        # filled. If the limit-sell expires DAY-unfilled, the stop is still
-        # active and the position transitions back to ``starter`` on the
-        # next reconcile pass.
+        # --- Cancel-stop-then-sell (2026-08-13; closes the 2026-07-27
+        # "composer exit rejected by broker" OPEN structural bug) --------
+        # Tiger validates SELL quantity against UNENCUMBERED holdings at
+        # submission: with a full-size protective STP resting, every
+        # composer exit was rejected on arrival (EXPIRED / filled=0, GO
+        # order #44074483903777792) while the ledger still transitioned to
+        # pending_close on a phantom. Mirror stop_ratchet mechanics: cancel
+        # the broker-confirmed resting stop FIRST, then place the exit; on
+        # any placement failure re-arm the stop (bounded unprotected
+        # window, same recovery contract the ratchet uses). A stop id NOT
+        # visible in open_stop_ids (read failure, or already consumed) is
+        # left alone — nothing confirmed rests, so nothing encumbers.
+        ps_exit = doc.get("position_state") or {}
+        resting_stop_id: Optional[int] = None
+        raw_sid = ps_exit.get("stop_order_id")
+        if raw_sid is not None:
+            try:
+                cand = int(raw_sid)
+            except (TypeError, ValueError):
+                cand = None
+            if cand is not None and cand in open_stop_ids:
+                resting_stop_id = cand
+        try:
+            resting_stop_price: Optional[float] = float(
+                ps_exit.get("current_stop") or 0.0) or None
+        except (TypeError, ValueError):
+            resting_stop_price = None
+        if resting_stop_price is None:
+            sc_exit = doc.get("setup_classification") or {}
+            try:
+                resting_stop_price = float(sc_exit.get("stop_price") or 0.0) or None
+            except (TypeError, ValueError):
+                resting_stop_price = None
+
+        cancelled_stop: Optional[int] = None
+        if resting_stop_id is not None:
+            try:
+                cancel_entry = c.cancel(order_id=resting_stop_id)
+                accepted = bool(cancel_entry.output.get("accepted"))
+            except BrokerOrderError as exc:
+                results.append(ExitResult(
+                    ticker=ticker, action="error",
+                    reason=(f"cancel(stop #{resting_stop_id}): {exc}; exit NOT "
+                            "placed — position keeps stop protection, composer "
+                            "retries next tick"),
+                ))
+                continue
+            if not accepted:
+                results.append(ExitResult(
+                    ticker=ticker, action="error",
+                    reason=(f"broker rejected cancel of stop #{resting_stop_id}; "
+                            "exit NOT placed — position keeps stop protection, "
+                            "composer retries next tick"),
+                ))
+                continue
+            cancelled_stop = resting_stop_id
+
         try:
             sell_entry = c.place_limit_sell(
                 symbol=ticker.upper(),
@@ -818,14 +983,43 @@ def evaluate_exits(
                 limit_price=sell_limit,
             )
         except BrokerOrderError as exc:
+            reason = f"place_limit_sell: {exc}"
+            if cancelled_stop is not None:
+                reason += _rearm_stop_after_failed_exit(
+                    c, ticker=ticker, doc=doc, shares=shares,
+                    stop_price=resting_stop_price, cancelled_stop=cancelled_stop,
+                )
             results.append(ExitResult(
                 ticker=ticker, action="error",
-                reason=f"place_limit_sell: {exc}",
+                reason=reason,
             ))
             continue
 
         sell_order_id_raw = sell_entry.output.get("order_id")
         sell_order_id = int(sell_order_id_raw) if sell_order_id_raw is not None else None
+
+        # Submission-rejection guard (the 2026-07-27 failure shape): an
+        # order that is neither open nor filled immediately after placement
+        # was rejected at submission — it must NOT transition the ledger to
+        # pending_close (that was the phantom). Read failures stand the
+        # guard down; the reconciler owns the slow path.
+        if sell_order_id is not None and _sell_gone_at_broker(c, sell_order_id):
+            reason = (f"limit-sell #{sell_order_id} rejected at submission "
+                      "(neither open nor filled immediately after placement)")
+            if cancelled_stop is not None:
+                reason += _rearm_stop_after_failed_exit(
+                    c, ticker=ticker, doc=doc, shares=shares,
+                    stop_price=resting_stop_price, cancelled_stop=cancelled_stop,
+                )
+            results.append(ExitResult(
+                ticker=ticker, action="error",
+                sell_order_id=sell_order_id,
+                sell_limit_price=sell_limit,
+                sell_shares=shares,
+                cancelled_stop_order_id=cancelled_stop,
+                reason=reason,
+            ))
+            continue
 
         # Mark the local cache so a back-to-back ticker in this same loop
         # doesn't re-stack (defensive — same ticker shouldn't appear twice
@@ -853,6 +1047,20 @@ def evaluate_exits(
             sell_limit_price=sell_limit,
             exit_reason=exit_reason,
         )
+        if cancelled_stop is not None:
+            # Reflect the pre-placement stop cancel on the ledger: the id is
+            # dead at the broker. current_stop is kept as price memory — the
+            # reconciler re-arms at that level if the exit expires unfilled.
+            ps_pc = doc.setdefault("position_state", {})
+            ps_pc.pop("stop_order_id", None)
+            notes_pc = doc.get("notes", "")
+            cs_note = (
+                f"cancel-stop-then-sell on {_today_iso()}: cancelled protective "
+                f"stop #{cancelled_stop} before exit limit-sell #{sell_order_id} "
+                f"(broker validates SELL qty against unencumbered holdings); "
+                f"reconcile re-arms the stop if the exit expires unfilled."
+            )
+            doc["notes"] = f"{notes_pc}\n{cs_note}".strip() if notes_pc else cs_note
         try:
             _write_ledger(ticker, doc)
         except state.PaperAutoStateError as exc:
@@ -874,27 +1082,13 @@ def evaluate_exits(
             ticker, pending_sell_order_id=sell_order_id,
         )
 
-        # Watchdog case ONLY: cancel the proven-zombie stop now that the
-        # working exit is resting. The normal pending_close contract (stop
-        # stays until reconcile confirms the fill) assumes the stop WORKS as
-        # protection — a stop that sat below the market without firing is not
-        # protection, and leaving it invites a late double-fill. Cancel
-        # failure is non-fatal (reconcile clears it on close).
-        cancelled_stop: Optional[int] = None
-        if watchdog_stop_id is not None:
-            try:
-                c.cancel(watchdog_stop_id)
-                cancelled_stop = watchdog_stop_id
-            except BrokerOrderError:
-                pass
-
         results.append(ExitResult(
             ticker=ticker, action=action,
             placed=True,
             sell_order_id=sell_order_id,
             sell_limit_price=sell_limit,
             sell_shares=shares,
-            cancelled_stop_order_id=cancelled_stop,  # non-None ONLY on watchdog zombie-stop cancel
+            cancelled_stop_order_id=cancelled_stop,  # non-None when a resting stop was cancelled pre-placement
             climax_patterns_firing=climax_count,
             violations_firing=violations_count,
             base_stage=base_stage_val,
@@ -903,11 +1097,15 @@ def evaluate_exits(
             confidence=confidence,
             contributing_triggers=contributing,
             reason=(
-                "stop_breach_watchdog forced exit; zombie stop "
-                f"{'cancelled' if cancelled_stop is not None else 'CANCEL FAILED (reconcile clears)'}; "
-                "pending_close awaiting reconcile fill confirmation"
+                f"stop_breach_watchdog forced exit; zombie stop #{cancelled_stop} "
+                "cancelled before placement; pending_close awaiting reconcile "
+                "fill confirmation"
                 if watchdog_stop_id is not None
-                else "transitioned to pending_close; awaiting reconcile fill confirmation"
+                else (
+                    "transitioned to pending_close; awaiting reconcile fill confirmation"
+                    + (f" (protective stop #{cancelled_stop} cancelled pre-placement)"
+                       if cancelled_stop is not None else "")
+                )
             ),
         ))
 

@@ -816,3 +816,172 @@ def test_exits_dry_run_still_runs_when_gated(paper_dirs, monkeypatch):
     results = evaluate_exits(
         dry_run=True, fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)))
     assert results[0].action != "cron_gated"   # ran the composer, did not stand down
+
+
+# ---- cancel-stop-then-sell (2026-08-13 — closes the 2026-07-27 OPEN bug) ----
+# Tiger validates SELL qty against UNENCUMBERED holdings at submission, so a
+# resting full-size STP got every composer exit rejected on arrival (EXPIRED /
+# filled=0, GO order #44074483903777792). The exit path now cancels a
+# broker-confirmed resting stop BEFORE placing, re-arms it on any placement
+# failure, and refuses to transition to pending_close on a vanished sell.
+
+
+class _SellFailsStopOkTradeClient(FakeTradeClient):
+    """place_order fails for LIMIT orders (the exit) but accepts STP orders
+    (aux_price set) — reproduces 'exit lost, stop re-arm succeeds'."""
+
+    def place_order(self, order):
+        if getattr(order, "aux_price", None) is None:
+            raise RuntimeError("SELL_REJECTED")
+        return super().place_order(order)
+
+
+class _OrdersQueryableTradeClient(FakeTradeClient):
+    """FakeTradeClient + open/filled order queries returning empty lists —
+    _sell_gone_at_broker then sees the just-placed sell as vanished, i.e.
+    the instantly-EXPIRED at-submission rejection shape."""
+
+    def get_open_orders(self, *, account, **_):
+        return []
+
+    def get_filled_orders(self, *, account, **_):
+        return []
+
+
+def _pin_sell_50(monkeypatch):
+    monkeypatch.setattr(
+        exits, "sell_decision_compute",
+        lambda **kw: SimpleNamespace(output={
+            "action": "sell_50",
+            "confidence": "MEDIUM",
+            "contributing_triggers": ["climax_top_2 (count=2)"],
+            "in_doubt_default_applied": False,
+            "v1_preliminary_flag": True,
+        }),
+    )
+
+
+def test_sell_cancels_broker_confirmed_stop_before_placement(paper_dirs, monkeypatch):
+    """Composer exit on a stop-protected position: the broker-confirmed
+    resting STP is cancelled BEFORE the limit-sell is placed, the ledger's
+    stop_order_id is cleared (the id is dead), and the position still
+    transitions to pending_close. Stop seeded BELOW the synthetic close so
+    the watchdog stands down and the composer's sell_50 drives."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=100.00,
+                  stop_price=80.00, stop_order_id=55_555)
+    client = _client()
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+        holdings={"NVDA": 10.0},
+    )
+    r = results[0]
+    assert r.action == "sell_50"
+    assert r.placed is True
+    assert r.cancelled_stop_order_id == 55_555
+    assert "cancelled pre-placement" in (r.reason or "")
+
+    calls = client._tc.calls
+    cancel_idx = next(i for i, cl in enumerate(calls)
+                      if cl[0] == "cancel_order" and cl[2] == 55_555)
+    place_idx = next(i for i, cl in enumerate(calls) if cl[0] == "place_order")
+    assert cancel_idx < place_idx, "stop must be cancelled BEFORE the exit is placed"
+
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    assert doc["meta"]["state"] == "pending_close"
+    assert "stop_order_id" not in doc["position_state"]
+    assert "cancel-stop-then-sell" in doc["notes"]
+
+
+def test_cancel_rejected_blocks_exit(paper_dirs, monkeypatch):
+    """Broker refuses the stop cancel -> the exit is NOT placed; the position
+    keeps its stop protection and stays in starter for the next tick."""
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+                  stop_price=820.00, stop_order_id=55_555)
+    client = _client(cancel_accepted=False)
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+        holdings={"NVDA": 10.0},
+    )
+    r = results[0]
+    assert r.action == "error"
+    assert "exit NOT placed" in (r.reason or "")
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    assert doc["meta"]["state"] == "starter"
+    assert doc["position_state"]["stop_order_id"] == 55_555
+
+
+def test_exit_place_failure_rearms_stop(paper_dirs, monkeypatch):
+    """Stop cancelled, then the exit placement raises -> the protective stop
+    is re-armed at the ledger stop price (ratchet recovery contract) and the
+    ledger records the new stop id; no pending_close transition."""
+    from tools.broker.tiger import TigerClient
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=850.00,
+                  stop_price=820.00, stop_order_id=55_555)
+    client = TigerClient(_trade_client=_SellFailsStopOkTradeClient())
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+        holdings={"NVDA": 10.0},
+    )
+    r = results[0]
+    assert r.action == "error"
+    assert "place_limit_sell" in (r.reason or "")
+    assert "re-armed" in (r.reason or "")
+
+    # Exactly one successful order at the broker: the re-armed STP @ 820.
+    place_calls = [c for c in client._tc.calls if c[0] == "place_order"]
+    assert len(place_calls) == 1
+    assert place_calls[0][1] == "SELL" and place_calls[0][5] == 820.00
+
+    doc = yaml.safe_load(open(state.ledger_path("NVDA")))
+    assert doc["meta"]["state"] == "starter"          # never pending_close
+    assert doc["position_state"]["stop_order_id"] == 90_000
+    assert "TEMPORARILY UNPROTECTED" not in doc["notes"]
+    assert "re-armed stop" in doc["notes"]
+
+
+def test_submission_rejection_detected_no_pending_close(paper_dirs, monkeypatch):
+    """The 2026-07-27 failure shape: place_limit_sell returns an order id but
+    the order is instantly gone at the broker (EXPIRED at submission). The
+    guard must refuse the pending_close transition and re-arm the stop —
+    no more phantom pending_close."""
+    from tools.broker.tiger import TigerClient
+    _seed_starter(paper_dirs, ticker="GO", shares=10, fill_price=8.04,
+                  stop_price=8.43, stop_order_id=55_555)
+    client = TigerClient(_trade_client=_OrdersQueryableTradeClient())
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(
+        client=client,
+        fetch_ohlcv_fn=_fake_fetch(_synthetic_ohlcv(parabolic_tail=True)),
+        holdings={"GO": 10.0},
+    )
+    r = results[0]
+    assert r.action == "error"
+    assert "rejected at submission" in (r.reason or "")
+    assert r.cancelled_stop_order_id == 55_555
+
+    doc = yaml.safe_load(open(state.ledger_path("GO")))
+    assert doc["meta"]["state"] == "starter"          # NOT pending_close
+    assert "pending_sell_order_id" not in doc["position_state"]
+    # Stop re-armed under a fresh broker id (the sell consumed 90_000).
+    assert doc["position_state"]["stop_order_id"] == 90_001
+    assert "cancel-stop-then-sell" in doc["notes"]

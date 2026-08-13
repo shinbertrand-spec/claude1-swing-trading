@@ -2017,7 +2017,11 @@ def reconcile_today(
     #   filled  -> meta.state := closed; cancel any resting stop;
     #              remove from positions.json
     #   expired -> meta.state := starter; clear pending_sell_order_id;
-    #              leave protective stop alone (it was never cancelled)
+    #              re-arm/verify the protective stop via _ensure_stop_for
+    #              (cancel-stop-then-sell in exits.py, 2026-08-13, cancels
+    #              the stop BEFORE placing the exit, so the reverted
+    #              starter may be naked; pre-fix reverts where the stop
+    #              survived are covered by the idempotent live-STP check)
     #   open    -> no change (rare for DAY orders)
     pending_close = _pending_close_ledgers()
     for entry in pending_close:
@@ -2092,9 +2096,12 @@ def reconcile_today(
             continue
 
         # Sell order is gone from broker but not in today's fills =
-        # DAY-expired unfilled (or manually cancelled). Revert to starter;
-        # the protective stop is still in place because exits.py never
-        # cancelled it.
+        # DAY-expired unfilled (or manually cancelled). Revert to starter.
+        # cancel-stop-then-sell (exits.py, 2026-08-13) cancels the
+        # protective stop BEFORE placing the exit, so the reverted starter
+        # may be NAKED — re-arm via _ensure_stop_for. Idempotent: a live
+        # STP already covering the position is detected and kept, which
+        # also handles pre-fix reverts where the stop genuinely survived.
         revert_reason = (
             f"exit limit-sell #{sell_oid} expired unfilled "
             "(or cancelled outside framework); position reverts to starter"
@@ -2111,11 +2118,24 @@ def reconcile_today(
                 ))
                 continue
 
+        stop_sid: int | None = None
+        stop_err: str | None = None
+        if not dry_run:
+            revert_qty = int(entry.get("shares") or 0)
+            if revert_qty > 0:
+                stop_sid, stop_err = _ensure_stop_for(
+                    ticker, revert_qty, open_by_id=open_by_id, client=c,
+                )
+            else:
+                stop_err = f"non-positive shares={revert_qty}; cannot ensure stop"
+
         results.append(ReconcileResult(
             ticker=ticker,
             action="exit_expired_reverted",
             broker_order_id=sell_oid,
             requested_qty=int(entry.get("shares") or 0),
+            stop_order_id=stop_sid,
+            stop_place_error=stop_err,
             reason=revert_reason,
         ))
 
