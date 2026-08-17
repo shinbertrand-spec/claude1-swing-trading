@@ -151,8 +151,14 @@ def _seed_starter(
     fill_price=850.00,
     stop_price=820.00,
     stop_order_id=None,
+    fill_date="2025-04-01",
 ):
-    """Write a starter-state paper-auto ledger + matching positions.json entry."""
+    """Write a starter-state paper-auto ledger + matching positions.json entry.
+
+    ``fill_date`` defaults far in the past so the post-entry grace period
+    (2026-08-17) never engages in tests that aren't about it; grace tests
+    pass a date at/near the synthetic df's last bar.
+    """
     state.write_submitted_ledger(
         ticker=ticker, setup_type="EP", setup_grade="Swan",
         pivot_price=fill_price, limit_price=fill_price + 0.50,
@@ -164,7 +170,7 @@ def _seed_starter(
     doc = yaml.safe_load(open(p))
     doc["meta"]["state"] = "starter"
     doc["position_state"]["starter"]["fill_price"] = float(fill_price)
-    doc["position_state"]["starter"]["fill_date"] = "2025-04-01"
+    doc["position_state"]["starter"]["fill_date"] = fill_date
     if stop_order_id is not None:
         doc["position_state"]["stop_order_id"] = int(stop_order_id)
     state._validate_against_schema(doc)
@@ -985,3 +991,143 @@ def test_submission_rejection_detected_no_pending_close(paper_dirs, monkeypatch)
     # Stop re-armed under a fresh broker id (the sell consumed 90_000).
     assert doc["position_state"]["stop_order_id"] == 90_001
     assert "cancel-stop-then-sell" in doc["notes"]
+
+
+# ---- Post-entry grace period (2026-08-17 — the 2026-08-14 day-0 exit class) ----
+# The simulator only consults the sell-composer once offset > grace_period_bars
+# (fill bar = offset 0; tools/backtest/sell_aware.py grace_period_bars=3,
+# simulator.py step 5). The live monitor had no equivalent: on 2026-08-14 the
+# 13:32 ET tick evaluated three fills ~2h old against full-day OHLCV that
+# predates their entries and same-day-exited MU/STX/WDC (violations_1 +
+# sell_into_strength 0.8 — the pre-entry run-up ts_momentum SELECTS FOR).
+# Grace suppresses the TRANSACTION only; the verdict is still recorded.
+
+
+def _fill_date_at_bar(df, bars_held):
+    """ISO fill_date such that the df's last bar sits ``bars_held`` bars
+    after the fill bar (simulator offset semantics: fill bar = offset 0)."""
+    return df.index[-(bars_held + 1)].date().isoformat()
+
+
+def test_grace_period_suppresses_day0_composer_sell(paper_dirs, monkeypatch):
+    """The MU replay (2026-08-14): position filled TODAY (bar 0), composer
+    fires sell_50 on pre-entry OHLCV → verdict recorded, NOTHING transacted:
+    no sell placed, stop NOT cancelled, ledger stays starter.
+
+    start_close=1000 keeps the synthetic close ABOVE the 880 stop so the
+    stop-breach watchdog (correctly grace-exempt) stands down here."""
+    df = _synthetic_ohlcv(start_close=1000.0, parabolic_tail=True)
+    _seed_starter(paper_dirs, ticker="MU", shares=43, fill_price=969.25,
+                  stop_price=880.00, stop_order_id=55_555,
+                  fill_date=_fill_date_at_bar(df, 0))
+    client = _client()
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(df), holdings={"MU": 43.0},
+    )
+    r = results[0]
+    assert r.action == "sell_50"            # the composer's true verdict, preserved
+    assert r.placed is False
+    assert r.grace_suppressed is True
+    assert "grace period" in (r.reason or "")
+    assert r.contributing_triggers and "grace_period" in r.contributing_triggers[0]
+
+    # NO broker transactions of any kind.
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+    assert [c for c in client._tc.calls if c[0] == "cancel_order"] == []
+
+    # Ledger: still starter, stop intact, verdict recorded with the flag.
+    doc = yaml.safe_load(open(state.ledger_path("MU")))
+    assert doc["meta"]["state"] == "starter"
+    assert doc["position_state"]["stop_order_id"] == 55_555
+    history = doc["sell_eval_history"]
+    assert len(history) == 1
+    assert history[0]["action"] == "sell_50"
+    assert history[0]["grace_suppressed"] is True
+    assert history[0]["bars_held"] == 0
+
+
+def test_grace_period_boundary_bar3_suppressed(paper_dirs, monkeypatch):
+    """offset 3 is the LAST suppressed bar (simulator: composer runs only when
+    offset > grace_period_bars=3)."""
+    df = _synthetic_ohlcv(parabolic_tail=True)
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=100.00,
+                  stop_price=80.00, stop_order_id=55_555,
+                  fill_date=_fill_date_at_bar(df, 3))
+    client = _client()
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(df), holdings={"NVDA": 10.0},
+    )
+    assert results[0].grace_suppressed is True
+    assert results[0].placed is False
+    assert [c for c in client._tc.calls if c[0] == "place_order"] == []
+    assert yaml.safe_load(open(state.ledger_path("NVDA")))["meta"]["state"] == "starter"
+
+
+def test_grace_period_expired_bar4_transacts(paper_dirs, monkeypatch):
+    """offset 4 = first bar PAST grace → the normal cancel-stop-then-sell exit
+    path runs unchanged (mirrors test_sell_cancels_broker_confirmed_stop_...)."""
+    df = _synthetic_ohlcv(parabolic_tail=True)
+    _seed_starter(paper_dirs, ticker="NVDA", shares=10, fill_price=100.00,
+                  stop_price=80.00, stop_order_id=55_555,
+                  fill_date=_fill_date_at_bar(df, 4))
+    client = _client()
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(df), holdings={"NVDA": 10.0},
+    )
+    r = results[0]
+    assert r.action == "sell_50"
+    assert r.placed is True
+    assert r.grace_suppressed is False
+    assert r.cancelled_stop_order_id == 55_555
+    assert yaml.safe_load(open(state.ledger_path("NVDA")))["meta"]["state"] == "pending_close"
+
+
+def test_watchdog_overrides_grace_period(paper_dirs, monkeypatch):
+    """A broker-confirmed FAILED stop (close below a still-open STP) must
+    force the exit even on bar 0 — grace only suppresses composer
+    discretion, never stop protection."""
+    df = _synthetic_ohlcv()   # close ≈ 135, far below the 820 stop
+    _seed_starter(paper_dirs, ticker="COIN", shares=10, fill_price=850.00,
+                  stop_price=820.00, stop_order_id=55_555,
+                  fill_date=_fill_date_at_bar(df, 0))
+    client = _client()
+    monkeypatch.setattr(exits, "_open_sell_tickers", lambda _c: set())
+    monkeypatch.setattr(exits, "_open_stop_order_ids", lambda _c: {55_555})
+    _pin_sell_50(monkeypatch)   # composer wants sell_50 → grace would suppress
+
+    results = evaluate_exits(
+        client=client, fetch_ohlcv_fn=_fake_fetch(df), holdings={"COIN": 10.0},
+    )
+    r = results[0]
+    assert r.action == "sell_100"           # watchdog escalation, not the composer
+    assert r.placed is True
+    assert r.grace_suppressed is False
+    assert r.contributing_triggers and "stop_breach_watchdog" in r.contributing_triggers[0]
+    assert yaml.safe_load(open(state.ledger_path("COIN")))["meta"]["state"] == "pending_close"
+
+
+def test_grace_dry_run_records_verdict_no_broker(paper_dirs, monkeypatch):
+    """dry_run inside grace: the suppressed verdict surfaces on the
+    ExitResult (dry_run never persists ledgers) and no client is needed."""
+    df = _synthetic_ohlcv(parabolic_tail=True)
+    _seed_starter(paper_dirs, ticker="MU", shares=43, fill_price=969.25,
+                  stop_price=880.00, fill_date=_fill_date_at_bar(df, 1))
+    _pin_sell_50(monkeypatch)
+
+    results = evaluate_exits(dry_run=True, fetch_ohlcv_fn=_fake_fetch(df))
+    r = results[0]
+    assert r.action == "sell_50"
+    assert r.placed is False
+    assert r.grace_suppressed is True

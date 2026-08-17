@@ -11,8 +11,12 @@ For each paper-auto position in the ``starter`` state:
 3. Compose via :func:`tools.sell_decision.compute` (P/E expansion is
    fundamentals-only — passed as False for v1)
 4. If the composer returns a non-hold action (``sell_50`` /
-   ``sell_75`` / ``sell_100``), cancel the broker-confirmed resting
-   protective stop FIRST (cancel-stop-then-sell, 2026-08-13 — Tiger
+   ``sell_75`` / ``sell_100``) AND the position is past the post-entry
+   grace period (``GRACE_PERIOD_BARS`` = 3 bars, fill bar = bar 0 —
+   backtest parity, 2026-08-17; inside the window the verdict is recorded
+   with ``grace_suppressed: true`` but never transacted), cancel the
+   broker-confirmed resting protective stop FIRST
+   (cancel-stop-then-sell, 2026-08-13 — Tiger
    validates SELL quantity against UNENCUMBERED holdings at submission,
    so an exit placed against a fully stop-protected position is rejected
    on arrival), then auto-place a limit-sell via
@@ -59,6 +63,20 @@ from . import cron_gate, holdings_guard, state
 # auto-exit at the paper broker. ``tighten_stop`` is non-trivial in v1 —
 # trailing-stop management is post-MVP — so it's intentionally NOT included.
 SELL_ACTIONS = frozenset({"sell_50", "sell_75", "sell_100"})
+
+# Post-entry grace period (2026-08-17; backtest parity). The simulator only
+# consults the sell-composer once offset > grace_period_bars, where the fill
+# bar is offset 0 (tools/backtest/simulator.py step 5;
+# tools/backtest/sell_aware.py SellPolicy.grace_period_bars default 3). The
+# live monitor had no equivalent and on 2026-08-14 same-day-exited three
+# fresh fills on OHLCV that predates their entries — sell_into_strength fired
+# on the pre-entry run-up ts_momentum SELECTS FOR, so every trend entry looks
+# like "sell into strength" on its own fill day. Live behavior inside the
+# window: detectors still run and the verdict IS recorded in
+# sell_eval_history (``grace_suppressed: true`` — free calibration data);
+# only the transaction is suppressed. Protective stops and the stop-breach
+# watchdog are exempt — a real breakdown still exits via the stop path.
+GRACE_PERIOD_BARS = 3
 
 # Per CLAUDE.md execution rules: limit-sell at bid - 0.1%.
 SELL_LIMIT_OFFSET_PCT = 0.001
@@ -246,6 +264,7 @@ class ExitResult:
     pe_doubled_late_stage: Optional[bool] = None
     confidence: Optional[str] = None
     contributing_triggers: Optional[list[str]] = None
+    grace_suppressed: bool = False    # composer SELL verdict recorded but not transacted (post-entry grace)
     reason: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -320,6 +339,8 @@ def _append_sell_eval(
     confidence: str,
     new_stop: float | None,
     pe_warning: bool = False,
+    grace_suppressed: bool = False,
+    bars_held: int | None = None,
 ) -> None:
     """Append a sell_eval_history entry to the in-memory ledger doc."""
     eval_entry: dict[str, Any] = {
@@ -336,6 +357,13 @@ def _append_sell_eval(
     }
     if new_stop is not None:
         eval_entry["new_stop"] = float(new_stop)
+    if grace_suppressed:
+        # ``action`` stays the composer's TRUE verdict (in-enum, calibration
+        # data); this flag says the transaction was suppressed by the
+        # post-entry grace period (GRACE_PERIOD_BARS, backtest parity).
+        eval_entry["grace_suppressed"] = True
+        if bars_held is not None:
+            eval_entry["bars_held"] = int(bars_held)
     doc.setdefault("sell_eval_history", []).append(eval_entry)
 
 
@@ -549,13 +577,22 @@ def _evaluate_one(
     except (ValueError, KeyError):
         pass  # insufficient bars
 
+    # Bars held (simulator offset semantics: fill bar = offset 0). Drives
+    # sell_into_strength's days_in_move below AND the post-entry grace
+    # period in evaluate_exits. An unparseable index or a fetch that lacks
+    # the fill-day bar clamps to 0 — fail-safe INSIDE grace (no sell on
+    # bad data).
+    try:
+        idx_dates = [pd.Timestamp(ts).date() for ts in df.index]
+        bars_held = max(0, sum(1 for d in idx_dates if d >= fill_date) - 1)
+    except (TypeError, ValueError):
+        bars_held = 0
+
     # --- Detector 4: sell-into-strength --------------------------------
     sis_triggered = False
     sis_fraction = 0.0
     try:
-        idx_dates = [pd.Timestamp(ts).date() for ts in df.index]
-        bars_since_fill = sum(1 for d in idx_dates if d >= fill_date)
-        bars_since_fill = max(1, bars_since_fill)
+        bars_since_fill = max(1, bars_held + 1)
         # Gain over the LAST 3 bars (per sell_into_strength 2-3 day window).
         if len(df) >= 4:
             recent_close = float(df["Close"].iloc[-1])
@@ -616,6 +653,7 @@ def _evaluate_one(
         "sis_triggered": sis_triggered,
         "pe_warning": pe_warning,
         "setup_grade": setup_grade,
+        "bars_held": bars_held,
     }
 
 
@@ -739,6 +777,26 @@ def evaluate_exits(
         confidence = decision_out.get("confidence", "MEDIUM")
         contributing = list(decision_out.get("contributing_triggers", []))
 
+        # --- Post-entry grace period (2026-08-17; backtest parity) -------
+        # The simulator never consults the composer until offset >
+        # GRACE_PERIOD_BARS (fill bar = offset 0). The live monitor had no
+        # equivalent: on 2026-08-14 it evaluated bar 0 and same-day-exited
+        # three fresh fills on OHLCV that predates their entries. Inside
+        # the window the verdict is recorded (grace_suppressed) but never
+        # transacted. The stop-breach watchdog below is EXEMPT — a failed
+        # stop has no grace.
+        bars_held = int(ctx["bars_held"])
+        grace_suppressed = False
+        if action in SELL_ACTIONS and bars_held <= GRACE_PERIOD_BARS:
+            grace_suppressed = True
+            contributing.insert(
+                0,
+                f"grace_period: composer verdict {action} recorded but NOT "
+                f"transacted — position is {bars_held} bar(s) post-entry "
+                f"(suppression window = fill bar + {GRACE_PERIOD_BARS} bars, "
+                "backtest parity)",
+            )
+
         # --- Stop-breach watchdog (2026-07-27, post-mortem Finding B) ----
         # A resting STP whose trigger sits ABOVE the last close has failed to
         # fire (COIN: gapped through the $182.20 ratchet 2026-06-01, traded
@@ -749,8 +807,11 @@ def evaluate_exits(
         # zombie down before the exit is placed. Live passes only: the check
         # needs the open-orders read, so dry_run and read-failure passes
         # stand it down.
+        # Runs even when the composer already said sell_100, IF that verdict
+        # was grace-suppressed — a broker-confirmed failed stop must exit
+        # regardless of the grace window (2026-08-17).
         watchdog_stop_id: Optional[int] = None
-        if not dry_run and action != "sell_100":
+        if not dry_run and (action != "sell_100" or grace_suppressed):
             ps_wd = doc.get("position_state") or {}
             try:
                 wd_stop = float(ps_wd.get("current_stop") or 0.0)
@@ -766,6 +827,7 @@ def evaluate_exits(
             ):
                 watchdog_stop_id = int(wd_sid)
                 action = "sell_100"
+                grace_suppressed = False   # a failed stop overrides grace
                 contributing.insert(
                     0,
                     f"stop_breach_watchdog: close {wd_close:.2f} < resting stop "
@@ -773,10 +835,13 @@ def evaluate_exits(
                     f"stop failed to fire)",
                 )
 
-        if action not in SELL_ACTIONS:
+        if action not in SELL_ACTIONS or grace_suppressed:
             # Hold / tighten_stop / sell_1_3 — record but don't transact.
             # (sell_1_3 is intentionally not in SELL_ACTIONS for v1; we
             # treat it as a noisy hold to avoid 33% partial-fill plumbing.)
+            # grace_suppressed SELL verdicts route here too: recorded with
+            # the composer's true action + the suppression flag, never
+            # transacted (2026-08-17, backtest parity).
             _append_sell_eval(
                 doc,
                 climax_count=climax_count,
@@ -787,6 +852,8 @@ def evaluate_exits(
                 confidence=confidence,
                 new_stop=None,
                 pe_warning=pe_warning,
+                grace_suppressed=grace_suppressed,
+                bars_held=bars_held,
             )
             if not dry_run:
                 try:
@@ -807,8 +874,15 @@ def evaluate_exits(
                 pe_doubled_late_stage=pe_warning,
                 confidence=confidence,
                 contributing_triggers=contributing,
-                reason=("dry_run — sell_eval recorded, no transaction"
-                        if dry_run else None),
+                grace_suppressed=grace_suppressed,
+                reason=(
+                    f"grace period — composer {action} suppressed "
+                    f"(bars_held={bars_held} <= {GRACE_PERIOD_BARS}); "
+                    "verdict recorded in sell_eval_history"
+                    if grace_suppressed else
+                    ("dry_run — sell_eval recorded, no transaction"
+                     if dry_run else None)
+                ),
             ))
             continue
 

@@ -6,7 +6,7 @@ testable without network.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 
 import pandas as pd
@@ -32,28 +32,26 @@ def test_trading_days_between_past_date_negative():
 
 
 def test_parse_from_calendar_dict():
-    """Mock a yfinance Ticker whose .calendar returns the dict shape."""
-    future = date(2026, 8, 13)
-    past = date(2026, 2, 13)
+    """Mock a yfinance Ticker whose .calendar returns the dict shape.
+
+    The helper compares against the SYSTEM clock, so the fixture dates are
+    clock-relative (2026-08-17 fix: the original hardcoded date(2026, 8, 13)
+    expired and both parse tests started failing on age alone)."""
+    future = date.today() + timedelta(days=88)
+    past = date.today() - timedelta(days=95)
     fake = SimpleNamespace(
         calendar={"Earnings Date": [past, future]},
         earnings_dates=None,
     )
-    today = date(2026, 5, 18)
-    # Patch the "today" reference by monkey-patching is not necessary —
-    # the helper takes today from the system clock; instead we verify the
-    # parser returns the future date (whichever is >= today).
-    # Since the actual call uses utc today, we simulate by ensuring the
-    # future date is in the future relative to "real" today (2026-05-18+).
     parsed, source = _parse_next_earnings_date(fake)
     assert parsed == future
     assert "calendar" in source
 
 
 def test_parse_from_earnings_dates_df():
-    """Mock the DataFrame fallback path."""
-    future = pd.Timestamp("2026-08-13")
-    past = pd.Timestamp("2026-02-13")
+    """Mock the DataFrame fallback path (clock-relative dates, see above)."""
+    future = pd.Timestamp(date.today() + timedelta(days=88))
+    past = pd.Timestamp(date.today() - timedelta(days=95))
     df = pd.DataFrame(
         {"EPS Estimate": [None, None]},
         index=pd.DatetimeIndex([past, future]),

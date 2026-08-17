@@ -511,6 +511,15 @@
         "v1_preliminary_flag": {
           "type": "boolean",
           "description": "Set true while swing-sell-discipline is in v1. Permits sells to fire on incomplete rules but marks them for v2 retrospective review."
+        },
+        "grace_suppressed": {
+          "type": "boolean",
+          "description": "True when the composer's SELL verdict was recorded but NOT transacted because the position was inside the post-entry grace period (tools.auto_paper.exits.GRACE_PERIOD_BARS = 3 bars, fill bar = bar 0 — parity with tools/backtest/sell_aware.py SellPolicy.grace_period_bars). Added 2026-08-17 after the 2026-08-14 day-0 composer exits. `action` stays the composer's true verdict."
+        },
+        "bars_held": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Trading bars held at evaluation time (fill bar = 0, simulator offset semantics). Recorded alongside grace_suppressed."
         }
       }
     },

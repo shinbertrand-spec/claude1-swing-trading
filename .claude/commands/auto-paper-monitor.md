@@ -1,5 +1,5 @@
 ---
-description: /auto-paper-monitor — intraday per-bar sell-decision composer + trailing-stop ratchet for the paper-auto track. For every position in `starter` state, fetches recent OHLCV, runs the five sell-discipline detectors (climax_top, violations, base_stage, sell_into_strength, pe_expansion via EDGAR), composes via tools.sell_decision. If the composer returns a non-hold action, auto-places a limit-sell via TigerClient (bid - 0.1%), cancels the resting broker stop, and transitions the ledger to closed. Then ratchets remaining starter positions' stops upward per CLAUDE.md trailing rules (+5% gain -> stop to BE; +10% gain -> stop to +5%). Read-and-write; only touches the paper-auto track. Cron-eligible every 30 min during US session. Supports --dry-run.
+description: /auto-paper-monitor — intraday per-bar sell-decision composer + trailing-stop ratchet for the paper-auto track. Step 0 runs reconcile_today first (2026-08-17) so fresh fills are promoted + stop-armed at the tick, not at 16:30. Then for every position in `starter` state, fetches recent OHLCV, runs the five sell-discipline detectors (climax_top, violations, base_stage, sell_into_strength, pe_expansion via EDGAR), composes via tools.sell_decision. If the composer returns a SELL action past the 3-bar post-entry grace period (grace-suppressed verdicts are recorded, not transacted — backtest parity 2026-08-17), auto-places a limit-sell via TigerClient (bid - 0.1%), cancels the resting broker stop, and transitions the ledger to closed. Then ratchets remaining starter positions' stops upward per CLAUDE.md trailing rules (+5% gain -> stop to BE; +10% gain -> stop to +5%). Read-and-write; only touches the paper-auto track. Cron-eligible every 30 min during US session. Supports --dry-run.
 ---
 
 # /auto-paper-monitor — Intraday Sell-Decision Auto-Exit
@@ -17,6 +17,29 @@ Run this on a cron during the US session (default: every 30 min 10:00 AM – 3:3
 ## $ARGUMENTS parsing
 
 - `--dry-run` — runs the detector composition and writes `sell_eval_history` entries but does NOT place sells, does NOT cancel stops, does NOT close ledgers. Useful before enabling cron to inspect what the composer would do.
+
+## Step 0 — Reconcile broker state FIRST (fill promotion + stop arming; 2026-08-17)
+
+```python
+from tools.auto_paper.reconcile import reconcile_today
+from tools.broker.tiger import TigerClient
+client = TigerClient()
+recon_results = reconcile_today(client=client, dry_run=<args.dry_run>)
+```
+
+**Why this runs at every tick (2026-08-14 incident):** the first-ever ts_momentum fills sat at the broker with NO protective stop from 10:13 to 13:32 ET, because fill-promotion + stop-placement only happened at the 16:30 reconcile. A morning fill must be stop-protected by the next monitor pass, not at the close. `reconcile_today`:
+
+1. Promotes filled `submitted` entries to `starter` and **places their protective stop sized to the actual filled quantity** — closing the stop-less window.
+2. Closes stop-outs BEFORE the stop refresh (the load-bearing order is handled internally).
+3. Re-arms DAY-expired stops on positions still open (`refresh_starter_stops`).
+4. Resolves `pending_close` fills/expiries (re-arms the stop on an expiry revert).
+5. Recovers dangling write-ahead intents.
+
+**Intraday-safe by design** (live-verified 2026-08-14 13:32 ET): still-open DAY orders → `still_open`, no state change; the FIX-4 held-symbol guard prevents premature `closed_unfilled` expiry. The 16:30 `/auto-paper-reconcile` cron stays authoritative for end-of-day (skip-row emission, execution attribution).
+
+This step **subsumes the old Step 1a** — `reconcile_stop_outs` + `refresh_starter_stops` are called inside `reconcile_today` in the same load-bearing order. Do not call them again separately.
+
+Surface in the summary: `filled` / `partial` rows (with their new `stop_order_id`), `stopped_out`, `stop_replaced`, `error`. `still_open` / `stop_intact` are steady-state noise.
 
 ## Step 1 — Run the exit evaluator
 
@@ -36,49 +59,19 @@ The module:
    - `tools.sell_into_strength` — 10-15% in 2-3 days
    - `tools.pe_expansion_check.compute_from_ticker` — TTM EPS via EDGAR (edgartools); falls back to False on any error (unknown ticker, ADR, negative EPS, network). The result lands in `sell_eval_history.pe_doubled_late_stage` regardless.
 4. Composes via `tools.sell_decision.compute(...)`.
-5. If composer returns a SELL action (`sell_50` / `sell_75` / `sell_100`):
+5. **Post-entry grace period (2026-08-17, backtest parity):** if the position is ≤ 3 bars post-entry (`GRACE_PERIOD_BARS`, fill bar = bar 0 — mirroring `tools/backtest/sell_aware.py` `grace_period_bars=3` / `simulator.py` step 5), a composer SELL verdict is **recorded to `sell_eval_history` with `grace_suppressed: true` but NOT transacted**. The 2026-08-14 day-0 exits (MU/STX/WDC sold 2h after fill on pre-entry OHLCV) are the incident class this closes. The stop-breach watchdog is EXEMPT — a broker-confirmed failed stop still forces the exit; protective stops themselves are unaffected by grace.
+6. Past the grace window, if composer returns a SELL action (`sell_50` / `sell_75` / `sell_100`):
    - Places a limit-sell at last close × (1 − 0.001) per CLAUDE.md execution rules
    - Cancels the resting broker-side stop (recorded as `position_state.stop_order_id` by `/auto-paper-reconcile`) so we don't leave a stale stop after exit
    - Transitions the ledger to `closed` with `exit_price` + `exit_reason`
    - Updates `journal/paper-auto/positions.json` entry to `stage: closed`
-6. Otherwise (`hold` or other) just appends to `sell_eval_history` and leaves the position open.
+7. Otherwise (`hold` or other) just appends to `sell_eval_history` and leaves the position open. `grace_suppressed` rows surface in the summary with the composer's wanted action — audit them; they're free calibration data.
 
 If no positions are in `starter` state, returns `[]` and the command exits with `AUTO_PAPER_MONITOR_NOTHING_OPEN`.
 
-## Step 1a — Close stop-outs, then refresh DAY-expired broker stops (self-healing)
+## Step 1a — (RETIRED 2026-08-17, subsumed by Step 0)
 
-Two broker-state reconciliations, IN THIS ORDER (the order is load-bearing):
-
-```python
-from tools.auto_paper.reconcile import reconcile_stop_outs, refresh_starter_stops
-from tools.broker.tiger import TigerClient
-client = TigerClient()
-# 1. Detect + close positions whose protective STP filled. MUST run before the
-#    refresh: a stopped-out position's stop_order_id is in the broker's FILLED
-#    list (not open_orders), so refresh would otherwise see "no live stop" and
-#    re-arm a STP on a position we no longer hold.
-stop_out_results = reconcile_stop_outs(client=client, dry_run=<args.dry_run>)
-# 2. Re-arm DAY-expired stops on positions that are STILL open.
-refresh_results = refresh_starter_stops(client=client, dry_run=<args.dry_run>)
-```
-
-**Why stop-out detection (added 2026-06-05):** Tiger paper STP fills are not otherwise reconciled — without this, a stopped-out position's ledger stays stale in `starter` forever, its realized loss never reaches the calibration log, and the refresh would re-arm a phantom stop. `reconcile_stop_outs` closes the ledger at the stop's `avg_fill_price` (via `_apply_realized_close`, which also records the Phase-3 calibration outcome) and removes it from positions.json.
-
-`reconcile_stop_outs` outcomes:
-- `stopped_out` — protective STP filled; ledger closed + removed from positions.json + calibration outcome recorded
-- `stop_out_dry_run` — would close (`--dry-run`)
-- `error` — broker/data issue; manual review
-
-**Naked-short guard (P3 hardening, 2026-06-08):** `refresh_starter_stops` now fetches broker holdings and never places a SELL stop for a position the broker doesn't actually hold (it would create naked-short exposure if it triggered — the COIN −639 incident class). This also belt-and-suspenders the Step-1a ordering above: even if a stopped-out position slips past `reconcile_stop_outs`, the now-flat position is `not_held` and no phantom stop is re-armed. Placed quantity is clamped to `min(journal_shares, broker_held)`.
-
-`refresh_starter_stops` outcomes per starter:
-- `stop_intact` — ledger's `stop_order_id` (or any live STP SELL on the symbol) is live at the broker; no-op
-- `stop_replaced` — placed a fresh STP at the ledger's `current_stop`, sized to the broker-held qty, recorded the new `stop_order_id` on the ledger
-- `not_held` — broker holds <1 share; stop NOT placed (naked-short guard); journal/broker desync surfaced for the stuck-closing / pre-session-sweep reconcilers
-- `stop_dry_run` — would have placed a fresh STP (`--dry-run`)
-- `error` — could not refresh; ledger / broker state may need manual review
-
-Surface `stopped_out`, `stop_replaced`, and `error` rows in the summary so the operator can audit. `stop_intact` is the steady-state expectation post-fix.
+The separate `reconcile_stop_outs` + `refresh_starter_stops` calls that lived here are now executed inside Step 0's `reconcile_today`, in the same load-bearing order (stop-outs BEFORE refresh — a stopped-out position's stop_order_id is in the broker's FILLED list, so refresh would otherwise re-arm a STP on a position we no longer hold). The naked-short guard (P3 hardening, 2026-06-08: never place a SELL stop the broker can't back; qty clamped to `min(journal_shares, broker_held)`) lives inside `refresh_starter_stops` and still applies. Do NOT call these two functions separately — that would double the broker round-trips for identical results.
 
 ## Step 1b — Trailing-stop ratchet (post-exit pass)
 
