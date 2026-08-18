@@ -94,6 +94,20 @@ rules:
       adversarial re-verification of ALL theses within 5 business days,
       a dispositions.md note, and operator notification.
 
+sourcing:   # operator 2026-08-18 (ERII gate): how candidates enter the funnel
+  screens_do_not_nominate: >
+    Screens (coverage tier, coldness, index membership) are EXCLUSION
+    criteria. They must never nominate a candidate. A candidate needs a
+    MECHANISM first — a causal chain from the theme to the name's
+    revenue, stated in one sentence with a quantity — and only then is it
+    run through the screens. A name that passes every screen but has no
+    chain is not a candidate; it is a chart.
+  no_candidate_is_valid: >
+    "NO QUALIFIED CANDIDATE" IS A VALID QUARTERLY OUTCOME, recorded as
+    such. The book is under no obligation to hold anything; an empty
+    book that refused ten mechanism-less names is performing better than
+    a full one that accepted them.
+
 sizing:   # handoff §3 — the standing rule any future sizing logic must implement.
           # Phase 1 built no conviction-weighting logic, so nothing was deleted;
           # this section exists so none is ever built.

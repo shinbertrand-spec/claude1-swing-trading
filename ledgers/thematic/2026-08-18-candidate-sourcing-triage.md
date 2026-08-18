@@ -62,3 +62,74 @@ refutation search cannot soften)
 
 **Not built this session** — scope discipline: the triage is committed, the
 build is queued with the 2026-08-31 clearing pass. trials.yml untouched (103).
+
+---
+
+## Post-triage gate (2026-08-18, operator) — ERII FAILS requirement (1). No build.
+
+### Requirement 1 (ranked first): the causal chain, one sentence with a quantity
+
+Attempted, with ERII's actual disclosures (web-verified this session):
+
+> US datacentre load growth (+34–92 GW by 2028) adds power-plant
+> cooling-water consumption at ~12× the direct draw (4.52 vs 0.36 L/kWh) —
+> but that water is fresh cooling-tower makeup at US thermoelectric plants,
+> while ERII's revenue is pressure exchangers for MENA seawater-RO
+> megaprojects (Q2-2026 desal revenue $11.5M, **−57% YoY** on Gulf
+> project delays, per the Q2-2026 earnings call) — **zero US SWRO projects
+> in the public pipeline are datacentre-attributed, so the DC-attributable
+> quantity in ERII's served market is ~$0 of revenue.**
+
+The only chain that connects them is "datacentres stress municipal water →
+(someday) US desal" — exactly the shape the gate pre-refutes with the
+audit's own volumes (<0.1% of Arizona state water, 0.4% Texas). Said, and
+stopped: **no chain, no build.** The audit's ~12× relocation mechanism is
+real physics at the power plant; the water it moves is not the water ERII
+monetizes — different molecules, different continents, different buyers
+(Gulf sovereign water authorities, not US utilities or hyperscalers).
+
+### Requirement 5: the water question CLOSES — as a result
+
+**"Real mechanism, no neglected listed expression."** The relocation
+mechanism stands (LBNL fleet intensity rising to 0.45–0.48 by 2028); the
+neglected-tier listed names examined (ERII decisively, MWA thinly) do not
+monetize it; the names that plausibly touch DC water economics (XYL, VLTO,
+ECL/CoolIT) are covered-tier where R3 documents no edge. This is a result
+and is recorded as one. Re-open only on a NEW mechanism-bearing listed
+name, not on price action.
+
+### Cold-screen justification: WITHDRAWN
+
+R1 is **theme-attention timing, not single-stock drawdown** — a −63pp
+relative move is an EVENT, not coldness, and the event is now identified:
+the Q2-2026 revenue collapse (−57% YoY) on MENA megaproject delays — a
+thesis-relevant business deterioration, precisely what the pre-registered
+"why is it down 50%" refutation existed to catch. Re-derived separately,
+on attention: the water THEME plausibly IS cold (the audit: water appears
+in no hyperscaler capex-guidance bottleneck discussion; Ecolab FELL on its
+CoolIT acquisition; six state laws all disclosure-only) — but theme
+coldness without a mechanism nominates nothing (rules.yml
+sourcing.screens_do_not_nominate, added this date).
+
+### Precision corrections
+
+- **Index-membership measurement, stated:** the Ivković criterion is
+  **non-S&P-500 membership**, specifically. ERII is not an S&P 500 member
+  (small-cap; Russell 2000 constituent; S&P 600 status not determined this
+  session and irrelevant to the criterion — sub-index membership is
+  context, not a disqualifier). The triage table's "Index member: No"
+  meant, and now reads, "not S&P 500."
+- **Return reconciliation:** the audit's −42.6% is trailing-12-month
+  ABSOLUTE (≈ our −43.4% computed 2026-08-18, window a few days apart —
+  consistent). The triage's −63pp was 6-month RELATIVE (−49.7% absolute
+  vs SPY +13.1%). No contradiction: different windows, absolute vs
+  relative — and the fact that the 6-month leg is steeper than the
+  12-month locates the damage in the recent half, i.e., the Q2 event.
+
+### Standing outcome
+
+The quarterly sourcing outcome for 2026-Q3, as of this date: **no
+qualified candidate** — a valid outcome per rules.yml. FIX remains the
+book's only candidate (covered-tier, ~5% ceiling, entry blocked). The
+ownership-layer question remains open but unexpressed; the water question
+is closed as above.
