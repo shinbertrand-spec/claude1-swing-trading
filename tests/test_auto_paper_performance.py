@@ -248,6 +248,23 @@ def test_empty_track_returns_empty_report(paper_dirs, deployable_path):
     assert any(c.status == "no_data" for c in report.comparisons)
 
 
+def test_archived_ledger_counts_in_realized(paper_dirs, deployable_path):
+    """Closed ledgers archived out of the flat dir (2026-08-18 double-entry
+    guard fix) must stay in realized stats — else archiving re-creates the
+    2026-07-26 post-mortem's enumeration bug through the back door."""
+    ledger_dir, _ = paper_dirs
+    _seed_closed_position(
+        paper_dirs, ticker="NVDA",
+        fill_price=100.0, exit_price=120.0, initial_stop=95.0,
+    )
+    arch = ledger_dir / "_archive"
+    arch.mkdir(parents=True, exist_ok=True)
+    (ledger_dir / "NVDA.yml").rename(arch / "NVDA-2026-05-15-closed.yml")
+    report = performance.compute_performance(deployable_path=deployable_path)
+    assert report.n_realized == 1
+    assert report.realized_trades[0].ticker == "NVDA"
+
+
 def test_single_closed_winner(paper_dirs, deployable_path):
     """A single winning trade → 100% win rate + positive expectancy."""
     _seed_closed_position(

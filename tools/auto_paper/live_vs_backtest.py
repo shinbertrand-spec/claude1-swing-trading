@@ -89,7 +89,9 @@ def trades_from_ledgers(ledger_dir: Optional[Path] = None) -> tuple[list[SleeveT
     d = Path(ledger_dir) if ledger_dir else LEDGER_DIR
     trades: list[SleeveTrade] = []
     notes: list[str] = []
-    for p in sorted(d.glob("*.yml")):
+    # _archive/ included (2026-08-18): closed ledgers are archived out of the
+    # flat dir on ticker re-selection — the sleeve curve must keep them.
+    for p in sorted(d.glob("*.yml")) + sorted((d / "_archive").glob("*.yml")):
         try:
             doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         except Exception:

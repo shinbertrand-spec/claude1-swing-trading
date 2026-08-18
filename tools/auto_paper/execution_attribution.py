@@ -329,7 +329,9 @@ def compute_skip_rows(
 ) -> list[SkipRow]:
     d = Path(ledger_dir) if ledger_dir else LEDGER_DIR
     rows: list[SkipRow] = []
-    for p in sorted(d.glob("*.yml")):
+    # _archive/ included (2026-08-18): closed ledgers are archived out of the
+    # flat dir on ticker re-selection — skip rows must keep following them.
+    for p in sorted(d.glob("*.yml")) + sorted((d / "_archive").glob("*.yml")):
         try:
             doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         except Exception:
@@ -348,7 +350,8 @@ def compute_rows(
 ) -> list[AttributionRow]:
     d = Path(ledger_dir) if ledger_dir else LEDGER_DIR
     rows: list[AttributionRow] = []
-    for p in sorted(d.glob("*.yml")):
+    # _archive/ included (2026-08-18): see compute_skip_rows.
+    for p in sorted(d.glob("*.yml")) + sorted((d / "_archive").glob("*.yml")):
         try:
             doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         except Exception:

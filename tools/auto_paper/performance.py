@@ -498,12 +498,26 @@ def compute_performance(
         for e in (positions_data.get("positions", []) or [])
         if e.get("ticker")
     }
+    # _archive/ is included: closed ledgers are archived out of the flat dir
+    # when their ticker is re-selected (2026-08-18 double-entry-guard fix) —
+    # realized history must follow them there, or archiving would re-create
+    # the very enumeration bug this comment block describes (demonstrated:
+    # the 2026-08-14 MXL archive silently dropped MXL's May trade until this).
+    # A ticker with both a flat-dir and archived ledgers contributes one
+    # realized trade per ledger — separate round trips, counted separately.
     ledger_dir = state.PAPER_AUTO_LEDGER_DIR
-    tickers = sorted(
-        os.path.splitext(fn)[0]
+    ledger_files = [
+        (os.path.splitext(fn)[0], os.path.join(ledger_dir, fn))
         for fn in (os.listdir(ledger_dir) if os.path.isdir(ledger_dir) else [])
         if fn.endswith(".yml") and not fn.startswith("_")
-    )
+    ]
+    arch_dir = os.path.join(ledger_dir, state.ARCHIVE_SUBDIR)
+    ledger_files += [
+        (fn.split("-", 1)[0].upper(), os.path.join(arch_dir, fn))
+        for fn in (os.listdir(arch_dir) if os.path.isdir(arch_dir) else [])
+        if fn.endswith(".yml")
+    ]
+    ledger_files.sort()
 
     realized: list[RealizedTrade] = []
     open_positions: list[OpenPosition] = []
@@ -511,12 +525,15 @@ def compute_performance(
     n_open_total = 0
     n_unfilled = 0
 
-    for ticker in tickers:
-        entry = index.get(ticker, {})
-        ledger = _load_paper_ledger(state.ledger_path(ticker))
+    for ticker, ledger_fp in ledger_files:
+        ledger = _load_paper_ledger(ledger_fp)
         if ledger is None:
             notes.append(f"{ticker}: paper-auto ledger missing or unreadable; skipped")
             continue
+        # meta.ticker is authoritative (archive filenames carry date/state
+        # suffixes; the filename parse above is only a fallback).
+        ticker = str(((ledger.get("meta") or {}).get("ticker")) or ticker).upper()
+        entry = index.get(ticker, {})
 
         meta_state = ((ledger.get("meta") or {}).get("state") or "").lower()
         ps = ledger.get("position_state", {}) or {}

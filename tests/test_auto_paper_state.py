@@ -234,3 +234,52 @@ def test_record_stop_order_id_writes_field(paper_dirs):
 def test_record_stop_order_id_missing_ledger(paper_dirs):
     with pytest.raises(state.PaperAutoStateError, match="no paper-auto ledger"):
         state.record_stop_order_id("MISSING", stop_order_id=1)
+
+
+# ------------------------------------------- archive_closed_ledger (2026-08-18)
+
+
+def _write_and_close(ticker="NVDA", *, meta_state="closed", exit_date="2026-05-15"):
+    state.write_submitted_ledger(
+        ticker=ticker, setup_type="EP", setup_grade=None,
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        shares=10, broker_order_id=10001, broker="tiger_paper",
+    )
+    p = state.ledger_path(ticker)
+    doc = yaml.safe_load(open(p, encoding="utf-8"))
+    doc["meta"]["state"] = meta_state
+    if exit_date:
+        doc["position_state"]["exit_date"] = exit_date
+    with open(p, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh)
+    return p
+
+
+def test_archive_closed_ledger_moves_file(paper_dirs):
+    src = _write_and_close()
+    dest = state.archive_closed_ledger("NVDA")
+    assert not os.path.isfile(src)
+    assert os.path.isfile(dest)
+    assert os.path.basename(dest) == "NVDA-2026-05-15-closed.yml"
+    assert yaml.safe_load(open(dest, encoding="utf-8"))["meta"]["ticker"] == "NVDA"
+
+
+def test_archive_refuses_open_state(paper_dirs):
+    state.write_submitted_ledger(
+        ticker="NVDA", setup_type="EP", setup_grade=None,
+        pivot_price=850.00, limit_price=850.50, stop_price=820.00,
+        shares=10, broker_order_id=10001, broker="tiger_paper",
+    )
+    with pytest.raises(state.PaperAutoStateError, match="not terminal"):
+        state.archive_closed_ledger("NVDA")
+    assert state.ledger_exists("NVDA")
+
+
+def test_archive_collision_gets_suffix(paper_dirs):
+    _write_and_close()
+    d1 = state.archive_closed_ledger("NVDA")
+    _write_and_close()  # same ticker closes again on the same recorded date
+    d2 = state.archive_closed_ledger("NVDA")
+    assert d1 != d2
+    assert os.path.basename(d2) == "NVDA-2026-05-15-closed-2.yml"
+    assert os.path.isfile(d1) and os.path.isfile(d2)

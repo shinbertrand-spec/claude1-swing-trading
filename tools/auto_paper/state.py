@@ -13,7 +13,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -42,6 +42,65 @@ def ledger_path(ticker: str) -> str:
 def ledger_exists(ticker: str) -> bool:
     """True iff a paper-auto ledger file exists for this ticker."""
     return os.path.isfile(ledger_path(ticker))
+
+
+# Terminal lifecycle states: the ledger records a finished round trip (or an
+# entry that expired unfilled), not a position. Only these may be archived.
+ARCHIVABLE_STATES = frozenset({"closed", "closed_unfilled"})
+
+ARCHIVE_SUBDIR = "_archive"
+
+
+def archive_dir() -> str:
+    """Directory closed paper-auto ledgers are archived into (computed from
+    PAPER_AUTO_LEDGER_DIR at call time so test monkeypatching works)."""
+    return os.path.join(PAPER_AUTO_LEDGER_DIR, ARCHIVE_SUBDIR)
+
+
+def ledger_close_date(doc: dict[str, Any]) -> Optional[str]:
+    """Best-effort YYYY-MM-DD a ledger's position closed: exit_date first,
+    else the meta.updated_at date part. None when neither parses."""
+    ps = doc.get("position_state") or {}
+    for v in (ps.get("exit_date"), (doc.get("meta") or {}).get("updated_at")):
+        if v:
+            return str(v)[:10]
+    return None
+
+
+def archive_closed_ledger(ticker: str) -> str:
+    """Move a TERMINAL (closed / closed_unfilled) paper-auto ledger into
+    ``_archive/`` so the ticker becomes placeable again.
+
+    A closed ledger is history, not a position — leaving it in the flat dir
+    made the pipeline's double-entry guard block re-entry of any ticker the
+    track had EVER traded (the cycle-1 MXL block, 2026-08-14; rule fixed
+    2026-08-18). The file is MOVED, never deleted: the realized-performance,
+    live-curve, and execution-drag scanners all include ``_archive/`` so
+    historical stats and the audit trail keep the full record.
+
+    Raises PaperAutoStateError when the ledger is missing or its state is
+    not terminal. Returns the archive path written.
+    """
+    src = ledger_path(ticker)
+    if not os.path.isfile(src):
+        raise PaperAutoStateError(f"no paper-auto ledger for {ticker} at {src}")
+    doc = load_ledger(ticker)
+    st = str(((doc.get("meta") or {}).get("state")) or "").lower()
+    if st not in ARCHIVABLE_STATES:
+        raise PaperAutoStateError(
+            f"refusing to archive {ticker}: state={st!r} is not terminal "
+            f"(archivable: {sorted(ARCHIVABLE_STATES)})"
+        )
+    d = archive_dir()
+    os.makedirs(d, exist_ok=True)
+    base = f"{ticker.upper()}-{ledger_close_date(doc) or _today()}-{st}"
+    dest = os.path.join(d, f"{base}.yml")
+    n = 2
+    while os.path.exists(dest):
+        dest = os.path.join(d, f"{base}-{n}.yml")
+        n += 1
+    os.replace(src, dest)
+    return dest
 
 
 def load_ledger(ticker: str) -> dict[str, Any]:

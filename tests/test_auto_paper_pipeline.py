@@ -938,3 +938,91 @@ def test_cap_still_binds_on_open_positions(paper_client, paper_dirs):
     result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
     assert result.status == "rejected"
     assert "position count" in result.reason
+
+
+# ------------------------------------ closed-ledger re-entry (2026-08-18 fix)
+
+
+def _make_closed_ledger(ticker="NVDA", exit_days_ago=30, unfilled=False):
+    """Write a submitted ledger then mutate it to a terminal state on disk."""
+    import datetime as dt
+
+    import yaml as _yaml
+
+    state.write_submitted_ledger(
+        ticker=ticker, setup_type="EP", setup_grade=None,
+        pivot_price=850, limit_price=850.5, stop_price=820,
+        shares=10, broker_order_id=1, broker="tiger_paper",
+    )
+    p = state.ledger_path(ticker)
+    with open(p, encoding="utf-8") as fh:
+        doc = _yaml.safe_load(fh)
+    doc["meta"]["state"] = "closed"
+    if unfilled:
+        doc["position_state"]["unfilled"] = True
+    else:
+        doc["position_state"]["exit_date"] = (
+            dt.date.today() - dt.timedelta(days=exit_days_ago)
+        ).isoformat()
+    with open(p, "w", encoding="utf-8") as fh:
+        _yaml.safe_dump(doc, fh)
+    return p
+
+
+def test_open_ledger_blocks_with_named_gate(paper_client, paper_dirs):
+    state.write_submitted_ledger(
+        ticker="NVDA", setup_type="EP", setup_grade=None,
+        pivot_price=850, limit_price=850.5, stop_price=820,
+        shares=10, broker_order_id=1, broker="tiger_paper",
+    )
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
+    assert result.status == "rejected"
+    assert result.reason.startswith("double_entry_guard:")
+    assert "state=submitted" in result.reason
+
+
+def test_closed_ledger_archived_and_placement_proceeds(paper_client, paper_dirs):
+    """A closed ledger past the cooldown is archived; re-entry places.
+
+    The pre-fix behavior (state-blind file-existence check) blocked every
+    previously-traded ticker forever — the cycle-1 MXL block."""
+    import os as _os
+
+    _make_closed_ledger(exit_days_ago=30)
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
+    assert result.status == "placed", result.reason
+    # Old ledger moved into _archive/, new submitted ledger in the flat dir.
+    archived = _os.listdir(state.archive_dir())
+    assert len(archived) == 1 and archived[0].startswith("NVDA-")
+    assert archived[0].endswith("-closed.yml")
+    assert state.ledger_exists("NVDA")
+    assert state.load_ledger("NVDA")["meta"]["state"] == "submitted"
+
+
+def test_closed_ledger_recent_exit_hits_reentry_cooldown(paper_client, paper_dirs):
+    p = _make_closed_ledger(exit_days_ago=2)
+    import os as _os
+
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
+    assert result.status == "rejected"
+    assert result.reason.startswith("reentry_cooldown:")
+    # Ledger NOT archived on a cooldown decline.
+    assert _os.path.isfile(p)
+    assert not _os.path.isdir(state.archive_dir())
+
+
+def test_closed_unfilled_ledger_skips_cooldown(paper_client, paper_dirs):
+    """An entry that expired unfilled carries no cooldown — no trade occurred."""
+    _make_closed_ledger(unfilled=True)
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=False)
+    assert result.status == "placed", result.reason
+
+
+def test_dry_run_closed_ledger_does_not_archive(paper_client, paper_dirs):
+    import os as _os
+
+    p = _make_closed_ledger(exit_days_ago=30)
+    result = place_candidate(_vcp_cand(), client=paper_client, dry_run=True)
+    assert result.status == "dry_run", result.reason
+    assert _os.path.isfile(p)
+    assert not _os.path.isdir(state.archive_dir())

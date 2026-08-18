@@ -18,6 +18,7 @@ Session 2.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import os
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
@@ -28,6 +29,23 @@ from ..contract import TraceEntry
 from ..regime_check import classify_broad
 from ..trend_template import compute_from_ticker as tt_from_ticker
 from . import config, gate_chain, intent_log, screener, state
+
+# Re-entry cooldown after a FILLED close (double-entry guard, 2026-08-18):
+# conservative calendar-day enforcement of the CLAUDE.md §Discipline
+# no-revenge-trading rule ("no new entries in that name for 5 trading days").
+# 7 calendar days always spans >= 5 trading days on holiday-free weeks.
+REENTRY_COOLDOWN_CALENDAR_DAYS = 7
+
+
+def _days_since(iso_date: Optional[str]) -> Optional[int]:
+    """Whole calendar days since an ISO date; None when unparseable."""
+    if not iso_date:
+        return None
+    try:
+        d = _dt.date.fromisoformat(str(iso_date)[:10])
+    except ValueError:
+        return None
+    return (_dt.date.today() - d).days
 
 # Hard rules per CLAUDE.md, applied to the paper-auto track in isolation.
 # EXCEPTION: the theme/cluster cap is CROSS-TRACK (a correlated gap hits both
@@ -406,12 +424,53 @@ def place_candidate(
             f"setup_type {cand.setup_type!r} not on deployable list",
         )
 
-    # 2. Refuse if a paper-auto ledger already exists (don't double-up)
+    # 2. Double-entry guard — refuse if an OPEN paper-auto ledger exists for
+    # this ticker. A TERMINAL (closed / closed_unfilled) ledger is history,
+    # not a position: a monthly rebalance legitimately re-selects names it
+    # has traded before, so a closed ledger is archived out of the way and
+    # placement proceeds (2026-08-18 fix — the state-blind file-existence
+    # check blocked MXL in fill-fidelity cycle 1 and would block every
+    # previously-traded ticker forever). Re-entry within 7 calendar days of
+    # a FILLED close is declined (`reentry_cooldown`): conservative
+    # enforcement of the CLAUDE.md §Discipline no-revenge-trading rule
+    # (5 trading days; 7 calendar days covers it without a trading calendar,
+    # under-covering only on multi-holiday weeks). Unfilled closes carry no
+    # cooldown — no trade occurred. States outside open/terminal are refused
+    # loudly so a malformed ledger stays visible.
+    terminal_ledger_pending_archive = False
     if state.ledger_exists(cand.ticker):
-        return _reject(
-            cand.ticker,
-            f"paper-auto ledger already exists at {state.ledger_path(cand.ticker)}",
-        )
+        existing = state.load_ledger(cand.ticker)
+        ex_state = str(((existing.get("meta") or {}).get("state")) or "unknown").lower()
+        if ex_state not in state.ARCHIVABLE_STATES:
+            return _reject(
+                cand.ticker,
+                f"double_entry_guard: open paper-auto ledger already exists at "
+                f"{state.ledger_path(cand.ticker)} (state={ex_state})",
+            )
+        closed_on = state.ledger_close_date(existing)
+        if not (existing.get("position_state") or {}).get("unfilled"):
+            days = _days_since(closed_on)
+            if days is not None and days < REENTRY_COOLDOWN_CALENDAR_DAYS:
+                return _reject(
+                    cand.ticker,
+                    f"reentry_cooldown: {cand.ticker} closed {closed_on} "
+                    f"({days}d ago) — no-revenge-trading rule (CLAUDE.md "
+                    f"§Discipline: 5 trading days, enforced as "
+                    f"{REENTRY_COOLDOWN_CALENDAR_DAYS} calendar days)",
+                )
+        if dry_run:
+            # Dry runs write nothing, so the terminal ledger stays in place;
+            # the 4d pre-place validation must tolerate it (overwrite flag) —
+            # a real run archives it here first.
+            terminal_ledger_pending_archive = True
+        else:
+            archived_to = state.archive_closed_ledger(cand.ticker)
+            cand.reasoning_trace.append(TraceEntry(
+                tool="tools.auto_paper.state.archive_closed_ledger",
+                inputs={"ticker": cand.ticker, "prior_state": ex_state,
+                        "closed_on": closed_on},
+                output={"archived_to": archived_to},
+            ).to_dict())
 
     # 2a. Re-fire double-place guard: refuse if a non-terminal write-ahead
     # intent for this ticker is still dangling. A prior attempt placed (or may
@@ -645,6 +704,9 @@ def place_candidate(
             broker="tiger_paper",
             sector_etf=cand.sector_etf,
             reasoning_trace=cand.reasoning_trace,
+            # Dry run over a terminal (would-be-archived) ledger: the file is
+            # deliberately left in place, so skip the exists-check only.
+            overwrite=terminal_ledger_pending_archive,
         )
     except state.PaperAutoStateError as exc:
         return PlacementResult(

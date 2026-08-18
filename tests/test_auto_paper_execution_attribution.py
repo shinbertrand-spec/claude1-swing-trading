@@ -216,3 +216,29 @@ class TestSkipSeriesAndRender:
 
     def test_render_empty(self):
         assert "none recorded" in ea.render_skips_markdown([])
+
+
+class TestArchiveScan:
+    """_archive/ inclusion (2026-08-18): closed ledgers archived out of the
+    flat dir on ticker re-selection must stay visible to both scanners."""
+
+    def test_fill_rows_found_in_archive_subdir(self, tmp_path):
+        ldir = tmp_path / "ledgers"
+        (ldir / "_archive").mkdir(parents=True)
+        (ldir / "AAA.yml").write_text(
+            yaml.safe_dump(_ledger(ticker="AAA")), encoding="utf-8")
+        (ldir / "_archive" / "BBB-2026-06-02-closed.yml").write_text(
+            yaml.safe_dump(_ledger(ticker="BBB", state="closed", order_id=2)),
+            encoding="utf-8")
+        rows = ea.compute_rows(ldir, price_loader=_price_loader_factory())
+        assert {r.ticker for r in rows} == {"AAA", "BBB"}
+
+    def test_skip_rows_found_in_archive_subdir(self, tmp_path):
+        ldir = tmp_path / "ledgers"
+        (ldir / "_archive").mkdir(parents=True)
+        (ldir / "_archive" / "CCC-2026-08-13-closed.yml").write_text(
+            yaml.safe_dump(_unfilled_ledger(ticker="CCC", order_id=3)),
+            encoding="utf-8")
+        skips = ea.compute_skip_rows(ldir, price_loader=_ohlc_loader(low=103.5),
+                                     intraday_loader=_NO_INTRADAY)
+        assert [s.ticker for s in skips] == ["CCC"]
