@@ -99,13 +99,15 @@ entry_triggers:          # rules.yml R1 (retrofit 2026-08-18) — symmetric with
       price_run_component: "COLD required: trailing 6-month total return <= SPY AND <= XLI (sector). A drawdown that leaves FIX still outrunning its sector is not cold."
       attention_component: "COLD required: 30-day news count at or below the trailing-12-month monthly average."
       precondition: >
-        BLOCKING (R1): all disqualifier_check cells must read pass — at
-        retrofit three read unverified (dilutive raise, SEC investigation,
-        sector weekly trend) and one reads watch (customer concentration).
-        These must clear FIRST. Additionally: no invalidation trigger
-        (T1-T6) fired, and keystone-monitor.yml has no unresolved firing
-        (one IS unresolved as of 2026-08-18 — channel C, Texas/EIA).
-        E1 cannot fire today; that is the design working.
+        BLOCKING (R1): all disqualifier_check cells must read pass.
+        UPDATE 2026-08-18 (clearing plan executed): dilutive-raise, SEC
+        investigation, and sector-trend all CLOSED as pass via EDGAR +
+        XLI computation; the remaining blockers are (a) the
+        customer-concentration `watch` — operator risk-acceptance at
+        entry consideration — and (b) the unresolved keystone channel-C
+        firing (Texas/EIA, 2026-08-11). Plus: no invalidation trigger
+        (T1-T6) fired. E1 still cannot fire today; that is the design
+        working.
       source: "consensus EPS + price (data_cache); finviz news counts; SPY/XLI total returns"
       cadence: quarterly (with the rebuy test) + event-driven on drawdowns
       next_check: "2026-11-09"
@@ -183,14 +185,37 @@ keystone_ref: "../keystone-monitor.yml"   # R4 — channel-C firing 2026-08-11
                          # (Texas/EIA) flags this thesis; see verify_log.
 
 disqualifier_check:
-  checked_at: "2026-08-09"
+  checked_at: "2026-08-18"             # three cells CLOSED this date (the
+                                       # clearing plan's first execution —
+                                       # the apparatus's first real test)
   negative_fcf_no_path: pass          # FY2025 FCF $1.04B, record (article_read)
-  recent_dilutive_raise_60d: unverified   # no raise surfaced in searches; not explicitly confirmed
-  sec_investigation_accounting: unverified   # nothing surfaced; not explicitly searched
+  recent_dilutive_raise_60d: pass     # CLOSED 2026-08-18 via EDGAR: filings
+                                       # 2026-06-19..08-18 contain NO S-3/S-1/424B;
+                                       # 8-Ks are items 5.02+7.01 (06-22) and 7.01
+                                       # (08-03) — no 1.01/3.02 unregistered sales.
+                                       # Only insider Form 144/4 sale paperwork
+                                       # (the known insider-selling bear fact,
+                                       # recorded separately in verify_log).
+                                       # TIME-DECAYING: re-run within 60d of entry.
+  sec_investigation_accounting: pass  # CLOSED 2026-08-18 via EDGAR: full-text
+                                       # search (investigation/Wells/subpoena/
+                                       # accounting investigation) = ZERO matches
+                                       # 2024+ (only 2001-2022 historicals); 10-Q
+                                       # filed 2026-07-23 Item 1 Legal Proceedings
+                                       # = normal-course claims, immaterial
+                                       # accruals, no regulatory matter disclosed.
+                                       # TIME-DECAYING: re-run within 60d of entry.
   customer_concentration_exposed: watch   # tech 45% of revenue, hyperscaler-heavy — sector concentration is the point of the thesis AND its gap-risk; single-customer split not disclosed in sources read
-  sector_weekly_downtrend: unverified  # not checked; no entry pending
-  verdict: pass                        # provisional — the two unverified cells
-                                       # MUST be closed before any operator entry
+  sector_weekly_downtrend: pass       # CLOSED 2026-08-18: XLI weekly close
+                                       # 184.99 vs RISING 30-wk MA 174.35 (+6.1%),
+                                       # 8/8 recent weeks above — no weekly
+                                       # downtrend. Point-in-time: recomputed at
+                                       # every E1 evaluation.
+  verdict: pass                        # three cells closed 2026-08-18; the
+                                       # remaining `watch` (customer concentration)
+                                       # is the operator's risk-acceptance call at
+                                       # entry consideration — E1 stays BLOCKED by
+                                       # it AND by the unresolved keystone firing.
   clearing_plan:                       # operator item 3 (2026-08-18): what
                                        # closes each open cell, owner, deadline.
                                        # Gates unchanged — they now have owners.

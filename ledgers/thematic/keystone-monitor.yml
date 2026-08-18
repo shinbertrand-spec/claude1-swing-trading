@@ -102,32 +102,33 @@ combination_rule: >
   written amendment, never mid-firing.
 
 composite_fp_rate: >
-  OR means the composite FP rate is the UNION of three channels, and
-  only C was censused with archive rigor (operator follow-up 2026-08-18).
-  Stated per channel:
-  C — 0 confirmed false positives in 73 observations (both firings ever
-  adjudicated true at census time) => by the rule of three, the 95%
-  upper bound is ~3/73 = ~4.1% per observation, ~0.45 firings/yr at ~11
-  obs/yr. CAVEAT OWNED: the census window (2020-2026) CONTAINS NO CAPEX
-  BUST — this is a BOOM-ERA false-positive bound; in a bust the channel
-  should fire, and those would be true positives.
-  B — not EV/S-censusable from archives in-session; PRICE-PROXY census
-  run 2026-08-18 (median trailing-12m return of CRM/NOW/ADBE/HUBS
-  < −20%, 2014-2026, episodes merged at 6-month separation): ~3 events
-  in 12.6 years = ~0.24/yr (the 2022 SaaS de-rate, a brief 2025-04
-  tariff-shock crossing — the one plausible FP — and the current
-  2025-11-onward AI-monetisation de-rate). The proxy UNDERCOUNTS
-  multiple-only compression masked by revenue growth; method stated,
-  labeled a proxy, not a census.
-  A — NOT censusable to C's rigor (capex guidance lives in earnings
-  calls, no tidy archive). Narrative reconstruction 2015-2025: ~2
-  episodes where >=2 of the top-5 cut/flattened capex guidance in the
-  same quarter (H1-2019 cloud digestion; late-2022 Meta-led trims) =
-  ~0.2/yr, labeled an ESTIMATE by method.
-  UNION UPPER BOUND: <= ~0.9 flags/yr (0.45 + 0.24 + 0.2), and the
-  channels are CORRELATED (2022 fires A and B together), so flags
-  cluster into fewer distinct events than the sum implies. Expect
-  roughly one flag-event per year in the current regime.
+  OR means the composite FP rate is the UNION of three channels.
+  RESTATED (operator close-out 2026-08-18): **C is MEASURED; A and B are
+  ESTIMATED.** Per channel:
+  C (MEASURED) — 0 confirmed false positives in 73 observations (both
+  firings ever adjudicated true at census time) => by the rule of three,
+  the 95% upper bound is ~3/73 = ~4.1% per observation, ~0.45
+  firings/yr at ~11 obs/yr. CAVEAT OWNED: the census window (2020-2026)
+  CONTAINS NO CAPEX BUST — this is a BOOM-ERA false-positive bound; in
+  a bust the channel should fire, and those would be true positives.
+  B (ESTIMATED) — the 2026-08-18 price-return census (~3 merged events /
+  12.6yr = ~0.24/yr on CRM/NOW/ADBE/HUBS median trailing-12m < −20%) is
+  a PROXY WITH BIDIRECTIONAL ERROR, not a measurement of the channel's
+  actual trigger: price return is not multiple compression — a
+  multiple-only de-rate can hide under revenue growth (proxy misses a
+  real firing) AND an earnings-driven price drop can cross the proxy
+  line with multiples flat (proxy counts a non-firing). ~0.2-0.3/yr is
+  an estimate, no more.
+  A (ESTIMATED) — not censusable to C's rigor (capex guidance lives in
+  earnings calls, no tidy archive). Narrative reconstruction 2015-2025:
+  ~2 episodes where >=2 of the top-5 cut/flattened capex guidance in
+  the same quarter (H1-2019 cloud digestion; late-2022 Meta-led trims)
+  = ~0.2/yr.
+  UNION: <= ~0.9 flags/yr as an upper bound built from ONE measurement
+  and TWO estimates — stated as such. Channels are CORRELATED (2022
+  fires A and B together), so flags cluster into fewer distinct events
+  than the sum implies. Expect roughly one flag-event per year in the
+  current regime.
 
 adjudication_rule: >
   NO RETROSPECTIVE RECLASSIFICATION (operator follow-up 2026-08-18):

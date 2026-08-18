@@ -92,3 +92,17 @@ The keystone scenario is a capex **bust**, so the standing assumption is the bus
 **3. SEC-investigation cell now carries the same 60-day staleness clause as the dilutive-raise cell** (`FIX.yml clearing_plan`): closed now for candidacy, re-run inside 60 days of any actual entry.
 
 **4. R3 sign-off path CLOSED** (`rules.yml` R3 consequence + `FIX.yml r3_consequence` + template): a stated edge claim is the *precondition* for the full-anchor path — sign-off can only endorse an edge the thesis actually claims. **"None documented" has no override: half-anchor is the ceiling, not a delay.** For FIX the only route to full anchor is to first document a real edge (which the quarterly re-verification would then attack), then obtain sign-off.
+
+---
+
+## Addendum 3 — close-out notes, cells closed, sourcing redirect (2026-08-18)
+
+**Rules layer CLOSED per operator.** Two final notes recorded: (1) `rules.yml sizing.survivorship_defence_unavailable` — "our process would have selected the survivors" is an unavailable defence for the −70%, same class as the withdrawn R2 immunity argument; envelope FINAL at 14%, further tightening is false precision. (2) `keystone-monitor.yml composite_fp_rate` restated as **C measured, A and B estimated** — B's price-proxy has *bidirectional* error (multiple-only de-rates hide under revenue growth AND earnings-driven price drops cross the line with multiples flat), not just undercount.
+
+**FIX's three cells CLOSED 2026-08-18 — the apparatus's first real test, executed** (13 days ahead of the 08-31 deadline):
+- `recent_dilutive_raise_60d` → **pass**: EDGAR 2026-06-19..08-18 shows no S-3/S-1/424B; the two 8-Ks are items 5.02+7.01 and 7.01 — no 1.01/3.02. Only insider Form 144/4 sale paperwork (the known insider-selling bear fact, already in verify_log). 60-day decay clause applies at entry.
+- `sec_investigation_accounting` → **pass**: EDGAR full-text zero matches 2024+ (investigation/Wells/subpoena); 10-Q filed 2026-07-23 Item 1 = normal-course claims, immaterial accruals. 60-day decay clause applies at entry.
+- `sector_weekly_downtrend` → **pass**: XLI weekly 184.99 vs rising 30-wk MA 174.35 (+6.1%), 8/8 weeks above. Recomputed at every E1 check.
+- **E1 remains blocked** by the customer-concentration `watch` (operator risk-acceptance at entry) and the unresolved keystone channel-C firing — closing three cells did not open the gate, which is the design working.
+
+**Sourcing redirect executed as triage** (`2026-08-18-candidate-sourcing-triage.md`): screens run over both deferred questions. **Selected for the build: ERII (Energy Recovery)** — 3–4 analysts, no index membership, −63pp relative to SPY over 6 months: the only name passing both the R3-neglected and R1-cold screens decisively, in the question the audit called its cleanest unpriced item. The ownership-layer question stays a question (US-listed owners are covered-tier; non-covered expressions are foreign-listed). Four refutation requirements pre-registered before the build — including the audit's own volumes-say-correctly-priced counter and "why is it down 50%." Build queued with the 08-31 pass; a rushed thesis is a story.
