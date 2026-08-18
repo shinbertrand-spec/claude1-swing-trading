@@ -66,13 +66,16 @@ rules:
       in the REQUIRED field coverage_tier.edge_claim_if_covered, what
       advantage exists there instead. A blank field blocks candidacy.
     consequence: >
-      TEETH (operator item 4, 2026-08-18 — "none documented" must cost
-      something): covered-tier names carry a DEFAULT SIZING CEILING OF
-      HALF THE ANCHOR (~5%). The full anchor is available only with a
-      written operator sign-off, recorded in the thesis file, endorsing
-      the specific edge claim. "None documented" with no sign-off = the
-      half-anchor ceiling stands. This binds the sizing_inputs guidance
-      the agent produces; the operator still owns final size.
+      TEETH (operator item 4, 2026-08-18; sign-off path CLOSED same day):
+      covered-tier names carry a SIZING CEILING OF HALF THE ANCHOR (~5%).
+      A STATED edge claim is the PRECONDITION for the full-anchor path —
+      written operator sign-off can only ENDORSE an edge the thesis
+      actually claims. "NONE DOCUMENTED" HAS NO OVERRIDE: the half-anchor
+      ceiling is a CEILING, not a delay pending sign-off. The only way to
+      the full anchor is to first document a real edge claim in the
+      thesis (which the quarterly re-verification then attacks), and then
+      obtain the sign-off. This binds the sizing_inputs guidance the
+      agent produces; the operator still owns final size.
     caveat_recorded: >
       The household edge is raw return only (concentrated portfolios carry
       LOWER Sharpe) on 1991-96 retail data. The tier filter screens for
@@ -126,17 +129,42 @@ sizing:   # handoff §3 — the standing rule any future sizing logic must imple
   group_cap: >
     RESOLUTION of the anchor-vs-group contradiction (operator item 1,
     2026-08-18): the ~10% per-position anchor and book-as-one-group
-    cannot both hold unaided — five anchored positions x a −50%
-    common-mode drawdown is a ~25pp drag against a rule that bounds the
-    damage at 10pp. Resolved by CAPPING TOTAL THEMATIC EXPOSURE, chosen
-    over the alternatives because: lowering the anchor would discard the
-    per-name evidence (~10% is the academic central estimate AND the
-    unconstrained-principal optimum), and deleting the correlation clause
-    would deny the audit's own common-mode finding (§4.1). The cap:
-    TOTAL book exposure <= 10pp / assumed common-mode group drawdown
-    vs benchmark. At the standing assumption of −50% (audit basis:
-    monetisation basket −20% to −51%, MU −39%, keystone-roll scenario)
-    that is <= 20% OF PORTFOLIO for the whole thematic book. The anchor
-    is then the PER-NAME ceiling inside that envelope (e.g. 10+4+3+2+1),
-    not a per-name entitlement. If the assumed common-mode drawdown
-    worsens, the cap tightens by the formula, not by debate.
+    cannot both hold unaided — several anchored positions x a common-mode
+    drawdown breaches a rule that bounds the damage at 10pp. Resolved by
+    CAPPING TOTAL THEMATIC EXPOSURE, chosen over the alternatives
+    because: lowering the anchor would discard the per-name evidence
+    (~10% is the academic central estimate AND the unconstrained-
+    principal optimum), and deleting the correlation clause would deny
+    the audit's own common-mode finding (§4.1). The cap: TOTAL book
+    exposure <= 10pp / assumed common-mode group drawdown vs benchmark.
+  drawdown_assumption: >
+    DERIVED, not assumed (operator follow-up 2026-08-18; the initial
+    −50% was optimistic — the audit's +500-970% supplier run-ups match
+    the dot-com optical run-up profile, and cohorts through an ACTUAL
+    capex turn did worse). Computed 2026-08-18 from the names' own
+    histories, max peak-to-trough of ticker/SPY (RELATIVE — the ten-point
+    rule is vs benchmark), medians per episode:
+    (1) dot-com capex bust 2000-02, equipment cohort CSCO/INTC/AMAT/
+    KLAC/GLW — the only true capex BUST in reachable data: median
+    relative −70.7% (absolute −82.2%; GLW −98% relative; SURVIVORS ONLY —
+    JDSU/Nortel/Lucent-class casualties excluded, so the true cohort is
+    worse and this number is optimistic);
+    (2) 2018 memory/crypto capex slowdown (MU/WDC/NVDA/AMAT/LRCX):
+    median relative −51.2%;
+    (3) 2022 tightening (NVDA/AMD/MU/WDC/VRT): median relative −56.4%.
+    The keystone scenario IS a capex bust, so the standing assumption is
+    the bust-cohort median: **−70% relative**, survivorship-biased
+    optimistic. The slowdown episodes (−51/−56%) bound the milder case.
+  envelope: >
+    Propagated by the formula, not chosen: 10pp / 0.70 = **~14% OF
+    PORTFOLIO** for the whole thematic book (supersedes the 20% derived
+    from the retired −50% assumption). The anchor is the PER-NAME ceiling
+    inside that envelope, not an entitlement. If the derivation worsens
+    (e.g. adding delisted dot-com casualties), the cap tightens by the
+    formula, not by debate.
+  sleeve_note: >
+    STATED PLAINLY: at a ~14% envelope (and even at 20%) this is a CAPPED
+    THEMATIC SLEEVE, not a 5-position book — one or two meaningful
+    positions plus remnants. The ENVELOPE binds; the per-name anchor
+    rarely does. Any language elsewhere implying a 5x10% thematic book is
+    superseded by this note.

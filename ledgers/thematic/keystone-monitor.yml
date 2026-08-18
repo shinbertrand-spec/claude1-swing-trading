@@ -97,10 +97,46 @@ combination_rule: >
   is a common-mode failure of the entire book while the false-positive
   cost is bounded work: a flag mandates the 5-day re-verification pass
   and NOTHING else — sells remain governed exclusively by R2, so a false
-  positive cannot directly cost alpha, only effort. FP consequence OWNED:
-  on the census below plus channels A/B, expect roughly 1-2 flags/yr in
-  the current regime; the real risk is alarm fatigue, mitigated by one
-  rule — thresholds change only via written amendment, never mid-firing.
+  positive cannot directly cost alpha, only effort. The real risk is
+  alarm fatigue, mitigated by one rule — thresholds change only via
+  written amendment, never mid-firing.
+
+composite_fp_rate: >
+  OR means the composite FP rate is the UNION of three channels, and
+  only C was censused with archive rigor (operator follow-up 2026-08-18).
+  Stated per channel:
+  C — 0 confirmed false positives in 73 observations (both firings ever
+  adjudicated true at census time) => by the rule of three, the 95%
+  upper bound is ~3/73 = ~4.1% per observation, ~0.45 firings/yr at ~11
+  obs/yr. CAVEAT OWNED: the census window (2020-2026) CONTAINS NO CAPEX
+  BUST — this is a BOOM-ERA false-positive bound; in a bust the channel
+  should fire, and those would be true positives.
+  B — not EV/S-censusable from archives in-session; PRICE-PROXY census
+  run 2026-08-18 (median trailing-12m return of CRM/NOW/ADBE/HUBS
+  < −20%, 2014-2026, episodes merged at 6-month separation): ~3 events
+  in 12.6 years = ~0.24/yr (the 2022 SaaS de-rate, a brief 2025-04
+  tariff-shock crossing — the one plausible FP — and the current
+  2025-11-onward AI-monetisation de-rate). The proxy UNDERCOUNTS
+  multiple-only compression masked by revenue growth; method stated,
+  labeled a proxy, not a census.
+  A — NOT censusable to C's rigor (capex guidance lives in earnings
+  calls, no tidy archive). Narrative reconstruction 2015-2025: ~2
+  episodes where >=2 of the top-5 cut/flattened capex guidance in the
+  same quarter (H1-2019 cloud digestion; late-2022 Meta-led trims) =
+  ~0.2/yr, labeled an ESTIMATE by method.
+  UNION UPPER BOUND: <= ~0.9 flags/yr (0.45 + 0.24 + 0.2), and the
+  channels are CORRELATED (2022 fires A and B together), so flags
+  cluster into fewer distinct events than the sum implies. Expect
+  roughly one flag-event per year in the current regime.
+
+adjudication_rule: >
+  NO RETROSPECTIVE RECLASSIFICATION (operator follow-up 2026-08-18):
+  every future firing is adjudicated ONCE, at firing time, in its log
+  row — signal or noise, with the reasoning written then. It is never
+  later reclassified to flatter the false-positive count; that is how
+  alarm systems get quietly disabled. The census's own labels on the two
+  historical firings (both true) were made at census time and are
+  FROZEN.
 
 census:   # operator item 2 — channel C's 3pp rule applied backwards over
           # EIA STEO archives (requested window 2015-2025)

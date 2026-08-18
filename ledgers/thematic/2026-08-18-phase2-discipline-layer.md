@@ -72,3 +72,23 @@ Sources for the verifications: [NucNet — restart pushed to early 2026](https:/
 **4. R3 teeth — ADDED** (`rules.yml` R3 `consequence` + `FIX.yml coverage_tier.r3_consequence`): covered-tier names carry a default **half-anchor sizing ceiling (~5%)**; the full anchor requires a written operator sign-off endorsing the specific edge claim, recorded in the thesis file. FIX ("none documented", no sign-off) sits at the half-anchor ceiling inside the 20% group cap.
 
 **§7.4 rulings, recorded:** (1) conceded and standing — −6.4%/yr is direction-only, never a metric (`rules.yml` R1 caveat). (2) **R2 kept; §4.2's structural-immunity reasoning is WITHDRAWN** per ruling — the paper's population is concentrated fundamentals managers; R2 stands on the full finding, not as "cheap insurance." (3) Palisades ~9–12-month slip stands as written. (4) Ivković era caveat accepted as recorded.
+
+---
+
+## Addendum 2 — second operator review (2026-08-18): derivation, composite FP, staleness, closed sign-off
+
+**1. The −50% is retired; the assumption is now DERIVED** (`rules.yml sizing.drawdown_assumption`). Computed from the names' own histories — max peak-to-trough of ticker/SPY (relative, matching the vs-benchmark rule), medians per episode:
+
+| Episode | Cohort | Median relative DD | Median absolute DD |
+|---|---|---|---|
+| Dot-com capex bust 2000–02 (**the only true capex bust in reachable data; survivors only**) | CSCO / INTC / AMAT / KLAC / GLW | **−70.7%** | −82.2% |
+| 2018 memory/crypto capex slowdown | MU / WDC / NVDA / AMAT / LRCX | −51.2% | −53.7% |
+| 2022 tightening | NVDA / AMD / MU / WDC / VRT | −56.4% | −65.4% |
+
+The keystone scenario is a capex **bust**, so the standing assumption is the bust-cohort median: **−70% relative**, explicitly survivorship-optimistic (GLW alone did −98% relative; JDSU/Nortel/Lucent-class casualties are absent from the data; the audit's +500–970% supplier run-ups match exactly that cohort's pre-bust profile). Propagated by the formula: **envelope = 10pp / 0.70 ≈ 14% of portfolio** (supersedes 20%). `rules.yml sizing.sleeve_note` now states plainly: at this envelope the book is a **capped thematic sleeve** — one or two meaningful positions plus remnants — not a 5-position book; the envelope binds, the anchor rarely does.
+
+**2. Composite FP rate stated as the union it is** (`keystone-monitor.yml composite_fp_rate`). **C**: 0 confirmed FPs in 73 observations ⇒ rule-of-three 95% bound ≈ **4.1%/obs, ≤ ~0.45/yr** — and the window contains **no capex bust**, so that is a boom-era bound. **B**: EV/S not archive-censusable in-session; price-proxy census run (median trailing-12m return of CRM/NOW/ADBE/HUBS < −20%, 2014–2026, 6-month episode merge): **~3 events / 12.6 yr ≈ 0.24/yr** (2022 SaaS de-rate; a brief 2025-04 tariff-shock crossing — the one plausible FP; the current 2025-11→ de-rate), proxy undercounts growth-masked compression — labeled proxy, not census. **A**: not censusable to C's rigor (guidance lives in calls); narrative reconstruction gives ~2 episodes/decade (H1-2019 digestion, late-2022) ≈ 0.2/yr — labeled estimate. **Union upper bound ≤ ~0.9 flags/yr**, channels correlated (2022 fires A+B together) so flags cluster. **Adjudication rule added:** every future firing is adjudicated once, at firing time, in its log row — never retrospectively reclassified; the census's two historical labels are frozen.
+
+**3. SEC-investigation cell now carries the same 60-day staleness clause as the dilutive-raise cell** (`FIX.yml clearing_plan`): closed now for candidacy, re-run inside 60 days of any actual entry.
+
+**4. R3 sign-off path CLOSED** (`rules.yml` R3 consequence + `FIX.yml r3_consequence` + template): a stated edge claim is the *precondition* for the full-anchor path — sign-off can only endorse an edge the thesis actually claims. **"None documented" has no override: half-anchor is the ceiling, not a delay.** For FIX the only route to full anchor is to first document a real edge (which the quarterly re-verification would then attack), then obtain sign-off.

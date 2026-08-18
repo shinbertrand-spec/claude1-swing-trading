@@ -72,10 +72,14 @@ coverage_tier:           # rules.yml R3 (retrofit 2026-08-18)
     edge. This materially weakens FIX as a candidate; the handoff calls
     this the filter working, not a bug.
   r3_consequence: >
-    HALF-ANCHOR CEILING APPLIES (rules.yml R3 consequence, 2026-08-18):
-    covered tier + edge claim "none documented" + no operator sign-off =
-    sizing guidance capped at ~5% (half the ~10% anchor), inside the
-    20%-of-portfolio thematic group cap (rules.yml sizing.group_cap).
+    HALF-ANCHOR CEILING APPLIES, NO OVERRIDE PATH (rules.yml R3
+    consequence; sign-off path closed 2026-08-18): with the edge claim
+    reading "none documented" there is NOTHING for a sign-off to endorse
+    — the ~5% ceiling is a CEILING, not a delay. The only route to the
+    full anchor is to first document a real edge claim here (which the
+    quarterly re-verification would then attack), then obtain written
+    operator sign-off. Sits inside the ~14%-of-portfolio thematic
+    envelope (rules.yml sizing.envelope).
 
 entry_triggers:          # rules.yml R1 (retrofit 2026-08-18) — symmetric with
   attention_proxy: >     # invalidation triggers; answers when rebuy flips YES.
@@ -169,10 +173,11 @@ sizing_inputs:           # rules.yml §sizing — inputs only; operator sizes
     ONE group for this test until the keystone monitor says otherwise: a
     common-mode capex roll hitting every position at once is the binding
     scenario, not FIX alone. RESOLVED 2026-08-18 (rules.yml
-    sizing.group_cap): total thematic exposure capped at ~20% of
-    portfolio (= 10pp / the −50% common-mode assumption); FIX
-    additionally sits under the R3 half-anchor ceiling (~5%) while its
-    edge claim reads "none documented".
+    sizing.group_cap + envelope): total thematic exposure capped at ~14%
+    of portfolio (= 10pp / the DERIVED −70% bust-cohort common-mode
+    drawdown, superseding the initial −50% assumption); FIX additionally
+    sits under the R3 half-anchor ceiling (~5%, no override while the
+    edge claim reads "none documented").
 
 keystone_ref: "../keystone-monitor.yml"   # R4 — channel-C firing 2026-08-11
                          # (Texas/EIA) flags this thesis; see verify_log.
@@ -198,6 +203,7 @@ disqualifier_check:
       closes_via: "EDGAR full-text search (FIX + investigation/subpoena/Wells) + legal-proceedings and contingencies notes of the latest 10-Q/10-K"
       owner: agent (edgartools MCP)
       by: "2026-08-31"
+      note: "TIME-DECAYING, matching the dilutive-raise cell (operator follow-up 2026-08-18): whatever this shows now, the cell must be RE-RUN inside the 60-day window of any actual operator entry."
     sector_weekly_downtrend:
       closes_via: "XLI weekly close vs 30-week MA + MA slope (Weinstein stage) from data_cache — deterministic, no judgment"
       owner: agent (existing tools)
