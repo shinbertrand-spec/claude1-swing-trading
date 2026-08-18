@@ -256,7 +256,7 @@ layers:
     evidence_date: "2026-08-18"
     claim_status: audit_sourced
     priced: partially
-    re_rating_status: "NEVER RE-RATED — DLR EV/EBITDA 28.97 (FY21) -> 28.88 (flat vs pre-ChatGPT), EQIX −23%, NextDC +2.6%, Goodman −13.5%, Keppel DC −3.0% (audit §4 table). The §6 deferred 'ownership layer' question lives here: possibly correct pricing for commoditised asset ownership whose tenants hold the pricing power."
+    re_rating_status: "NEVER RE-RATED — DLR EV/EBITDA 28.97 (FY21) -> 28.88 (flat vs pre-ChatGPT), EQIX −23%, NextDC +2.6%, Goodman −13.5%, Keppel DC −3.0% (audit §4 table). The §6 deferred 'ownership layer' question lives here: possibly correct pricing for commoditised asset ownership whose tenants hold the pricing power. UPDATE 2026-08-19: this layer now carries the RESIDUE OF BOTH deferred questions — the never-re-rated owners AND the water-relocation mechanism (power-plant cooling at ~12x the direct draw is a cost/siting input of the owner-utility stack; the water question closed 2026-08-18 as 'real mechanism, no neglected listed expression' — spot-check scope, n~1). The question RE-OPENED as expressible: NXT.AX / GMG.AX / Keppel DC are screenable under the 2026-08-19 listing decision (rules.yml sourcing.listing_scope), mechanism-first as always."
 
   - layer: foundry_semicap
     scope: leading-edge logic capacity + wafer-fab equipment

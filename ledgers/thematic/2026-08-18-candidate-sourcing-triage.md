@@ -98,6 +98,24 @@ ECL/CoolIT) are covered-tier where R3 documents no edge. This is a result
 and is recorded as one. Re-open only on a NEW mechanism-bearing listed
 name, not on price action.
 
+**Closure scope (recorded 2026-08-19, so a future session can weigh the
+result): SPOT-CHECK, NOT A CENSUS — effectively n=1.** One name was
+examined to mechanism depth (ERII); one thinly (MWA); the covered names
+were dismissed by tier without mechanism work; no systematic sweep of
+listed water-exposed names (membranes, water utilities, reuse EPCCs,
+CWCO/GWRS-class small caps, foreign listings — now in scope per the
+2026-08-19 listing decision) was run. "No neglected listed expression" is
+therefore ONE CONFIRMED DEAD END plus unswept territory, and should be
+weighed as exactly that — the closure stops the QUESTION from driving
+work, it does not certify the territory empty.
+
+**Where the mechanism went (not vanished): MERGED INTO THE OWNERSHIP
+LAYER.** Power-plant cooling water at ~12× the direct draw is a cost and
+siting input of the power/asset stack that datacentre owners and their
+utilities carry — the ownership layer now holds the residue of BOTH
+deferred questions: the never-re-rated owners AND the relocated-water
+economics. Recorded on the stack map (`dc_real_estate`).
+
 ### Cold-screen justification: WITHDRAWN
 
 R1 is **theme-attention timing, not single-stock drawdown** — a −63pp

@@ -6,19 +6,35 @@ ticker: FIX              # Comfort Systems USA — electrical & mechanical
 status: candidate        # construction, modular/prefab, DC-heavy
 created_at: "2026-08-09"
 
+# THESIS REWRITTEN 2026-08-19 (nomination-standard pass, post-UNPROVEN
+# downgrade): the labour-SHORTAGE mechanism cannot be stated with a quantity
+# that survives BLS (no crisis signature; T6 armed and disconfirming). What
+# survives the standard is a BACKLOG thesis, so per the operator's rule it is
+# rewritten as one. Original (2026-08-09) labour-bound sentence preserved in
+# verify_log for the record.
 thesis: >
-  US datacenter electrical/mechanical construction capacity stays labor-bound
-  through at least 2028 — because journeyman-electrician cohorts that began
-  apprenticeships in 2024-25 cannot reach licensure before 2028-2030 while
-  ~30% of the incumbent union workforce is at or near retirement — so Comfort
-  Systems converts its committed backlog at sustained-or-better gross margins
-  even if new AI capex growth decelerates to the consensus path
-  (~+25% 2027, ~+6% 2028).
+  Comfort Systems converts its $11.94B legally committed backlog (+99% YoY,
+  2025-12-31) at the >25% gross margins embedded in fixed-price contracts
+  signed in the 2024-25 seller's market — a DURATION claim: committed work,
+  with ~$662B of hyperscaler signed-but-not-commenced leases upstream of it,
+  executes through 2027-28 at booked economics even if new AI-capex growth
+  decelerates to the consensus path (~+25% 2027, ~+6% 2028).
 
-layer: skilled_labor     # stack-map.yml — v2 (2026-08-18): DOWNGRADED to
-                         # UNPROVEN. BLS primary shows no crisis signature;
-                         # the licensure clock remains a legal fact but the
-                         # crisis-magnitude claims are unconfirmed (T6 armed).
+# Nomination-standard mechanism (one sentence, with a quantity):
+# "FIX's next ~1.5 years of revenue is already sold — $11.94B of legally
+# committed fixed-price backlog (+99% YoY) booked at >25% gross margin —
+# so near-term margin is set by contract vintage at execution, insulated
+# from the booking-cycle deceleration the multiple prices."
+
+layer: skilled_labor     # stack-map.yml layer of record — but NOTE (2026-08-19):
+                         # after the rewrite the mechanism is CONTRACTUAL
+                         # (backlog vintage), not scarcity. The thesis therefore
+                         # survives the layer's UNPROVEN tightness — the
+                         # layer-fit rule ("constraint left the layer = thesis
+                         # wrong") applies to scarcity theses, and this no
+                         # longer is one. Labour scarcity is demoted to
+                         # unpriced upside; T6 (BLS) still armed as the honest
+                         # test of that demoted leg.
 
 value_capture:
   who_pays: >
@@ -43,9 +59,12 @@ market_error:
     decelerates → bookings peak → margins mean-revert. The claim here is
     DURATION, not level: (a) $11.94B of legally committed backlog (+99% YoY)
     and ~$662B of hyperscaler leases signed-but-not-commenced sit UPSTREAM
-    of any new-bookings deceleration; (b) margin is set by labor scarcity at
-    EXECUTION time, not by capex growth at booking time — and the labor
-    clock is fixed by licensure law through 2028.
+    of any new-bookings deceleration; (b) near-term margin is set by
+    CONTRACT VINTAGE at execution time — fixed-price terms booked in the
+    2024-25 seller's market — not by capex growth at booking time.
+    (Rewritten 2026-08-19: the prior (b) claimed margin was set by labor
+    scarcity at execution — that mechanism is UNPROVEN per BLS and is
+    demoted; see verify_log.)
   why_the_error_persists: >
     Seventy years of construction-cyclicality priors; the off-balance-sheet
     lease pipeline (GAAP recognizes at commencement) is invisible to the
@@ -306,3 +325,36 @@ verify_log:
       entry is mechanically blocked by E1's preconditions (three
       unverified/watch cells + the unresolved keystone firing), which is
       the system working.
+  - date: "2026-08-19"
+    searched_for_refutation:
+      - "nomination-standard pass (rules.yml sourcing, screens-do-not-nominate): can the mechanism be stated in one sentence with a quantity, post-UNPROVEN downgrade?"
+    found: >
+      The LABOUR-SHORTAGE mechanism cannot — its quantity (>300K
+      shortfall, wage premium) is unconfirmed and the BLS series is
+      disconfirming (T6). The BACKLOG mechanism can: "FIX's next ~1.5
+      years of revenue is already sold — $11.94B of legally committed
+      fixed-price backlog (+99% YoY) booked at >25% gross margin — so
+      near-term margin is set by contract vintage at execution, insulated
+      from the booking-cycle deceleration the multiple prices." Per the
+      operator's rule (what survives is a backlog thesis → rewrite it as
+      one), the thesis sentence and market_error(b) were REWRITTEN this
+      date; the original 2026-08-09 sentence read: "US datacenter
+      electrical/mechanical construction capacity stays labor-bound
+      through at least 2028 — because journeyman-electrician cohorts that
+      began apprenticeships in 2024-25 cannot reach licensure before
+      2028-2030 while ~30% of the incumbent union workforce is at or near
+      retirement — so Comfort Systems converts its committed backlog at
+      sustained-or-better gross margins even if new AI capex growth
+      decelerates to the consensus path."
+      Trigger roles after the rewrite: T1 (backlog level) is now the
+      PRIMARY mechanism test; T2 (margin) tests the contract-vintage
+      claim directly; T4 (lease pipeline) tests the upstream-duration
+      leg; T5 (displacement) unchanged; T3+T6 (labour unlock / BLS) now
+      test the DEMOTED upside leg — firing them kills the upside story,
+      not the thesis. Horizon unchanged (backlog executes through
+      ~2027-28).
+    verdict: >
+      survives the nomination standard AS A BACKLOG THESIS — retirement
+      not required. Everything else stands: covered tier (~5% ceiling, no
+      override), E1 blocked by the customer-concentration watch + the
+      unresolved keystone firing, price late.

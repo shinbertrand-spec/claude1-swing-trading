@@ -107,6 +107,30 @@ sourcing:   # operator 2026-08-18 (ERII gate): how candidates enter the funnel
     such. The book is under no obligation to hold anything; an empty
     book that refused ten mechanism-less names is performing better than
     a full one that accepted them.
+  listing_scope: >
+    EXPLICIT DECISION (2026-08-19 — this was an UNWRITTEN constraint that
+    silently disqualified both deferred questions, which made it the
+    binding constraint; now written): **FOREIGN-LISTED CANDIDATES ARE
+    PERMITTED** on venues the operator's broker actually covers — Tiger
+    reaches HK / SG / AU / JP (operator-confirmed; the agent-side
+    TigerClient wrapper is US-shaped in its docstrings, but this book
+    PLACES NO ORDERS, so execution access is an operator fact, not an
+    agent one). Friction handling, stated per surface: (a) disqualifier
+    cells verify against the local statutory disclosure platform (ASX
+    announcements / SGXNet / HKEXnews) instead of EDGAR — same evidence
+    standard, different door; (b) the finviz-based screener does not
+    cover these names — its checks run manually from the same platforms;
+    (c) prices via yfinance suffix tickers (.AX/.SI/.HK/.T) — works
+    today; (d) analyst counts from aggregators, dated and sourced as
+    usual. COST OWNED: verification cadence is slower and partially
+    manual; a foreign thesis carries a `verification_surface:` note
+    naming its platforms. EDGE HONESTY: the Ivković LOCAL component
+    (+5.0pp) is structurally absent for this operator in any foreign
+    name — only the non-S&P-500 neglected component (+2.4pp) plausibly
+    applies, and R3's caveat (documented-not-promised) applies doubly.
+    CONSEQUENCE: the ownership-layer question RE-OPENS as expressible
+    (NXT.AX / GMG.AX / Keppel DC become screenable) — subject to
+    mechanism-first like everything else.
 
 sizing:   # handoff §3 — the standing rule any future sizing logic must implement.
           # Phase 1 built no conviction-weighting logic, so nothing was deleted;
