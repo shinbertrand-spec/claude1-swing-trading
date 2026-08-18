@@ -38,6 +38,9 @@ coverage_tier:           # rules.yml R3 — the documented individual edge is
   tier: ""               # neglected | covered (covered = index member OR high coverage)
   edge_claim_if_covered: ""   # REQUIRED when tier=covered: what advantage
                               # exists here instead? Blank blocks candidacy.
+  r3_consequence: ""     # covered tier: DEFAULT half-anchor sizing ceiling
+                         # (~5%); full anchor only with written operator
+                         # sign-off of the edge claim (rules.yml R3).
 
 entry_triggers:          # rules.yml R1 — symmetric with invalidation_triggers.
   attention_proxy: ""    # ONE stated heat proxy, stable for the thesis's life.

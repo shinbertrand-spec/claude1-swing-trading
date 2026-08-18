@@ -71,6 +71,11 @@ coverage_tier:           # rules.yml R3 (retrofit 2026-08-18)
     entry via E1, dated invalidation, scheduled sells), not an information
     edge. This materially weakens FIX as a candidate; the handoff calls
     this the filter working, not a bug.
+  r3_consequence: >
+    HALF-ANCHOR CEILING APPLIES (rules.yml R3 consequence, 2026-08-18):
+    covered tier + edge claim "none documented" + no operator sign-off =
+    sizing guidance capped at ~5% (half the ~10% anchor), inside the
+    20%-of-portfolio thematic group cap (rules.yml sizing.group_cap).
 
 entry_triggers:          # rules.yml R1 (retrofit 2026-08-18) — symmetric with
   attention_proxy: >     # invalidation triggers; answers when rebuy flips YES.
@@ -163,7 +168,11 @@ sizing_inputs:           # rules.yml §sizing — inputs only; operator sizes
     same bet. Per rules.yml correlation_note the whole AI-stack book is
     ONE group for this test until the keystone monitor says otherwise: a
     common-mode capex roll hitting every position at once is the binding
-    scenario, not FIX alone.
+    scenario, not FIX alone. RESOLVED 2026-08-18 (rules.yml
+    sizing.group_cap): total thematic exposure capped at ~20% of
+    portfolio (= 10pp / the −50% common-mode assumption); FIX
+    additionally sits under the R3 half-anchor ceiling (~5%) while its
+    edge claim reads "none documented".
 
 keystone_ref: "../keystone-monitor.yml"   # R4 — channel-C firing 2026-08-11
                          # (Texas/EIA) flags this thesis; see verify_log.
@@ -177,6 +186,32 @@ disqualifier_check:
   sector_weekly_downtrend: unverified  # not checked; no entry pending
   verdict: pass                        # provisional — the two unverified cells
                                        # MUST be closed before any operator entry
+  clearing_plan:                       # operator item 3 (2026-08-18): what
+                                       # closes each open cell, owner, deadline.
+                                       # Gates unchanged — they now have owners.
+    recent_dilutive_raise_60d:
+      closes_via: "EDGAR filings sweep, trailing 60 days: S-3/424B prospectuses + 8-K items 1.01/3.02 (unregistered sales) + share-count delta in the latest 10-Q cover"
+      owner: agent (edgartools MCP — available in-session)
+      by: "2026-08-31"
+      note: "TIME-DECAYING by definition — whatever this shows now, the cell must be RE-RUN inside the 60-day window of any actual operator entry."
+    sec_investigation_accounting:
+      closes_via: "EDGAR full-text search (FIX + investigation/subpoena/Wells) + legal-proceedings and contingencies notes of the latest 10-Q/10-K"
+      owner: agent (edgartools MCP)
+      by: "2026-08-31"
+    sector_weekly_downtrend:
+      closes_via: "XLI weekly close vs 30-week MA + MA slope (Weinstein stage) from data_cache — deterministic, no judgment"
+      owner: agent (existing tools)
+      by: "2026-08-31"
+      note: "point-in-time cell — re-computed at every E1 evaluation thereafter"
+    customer_concentration_exposed:
+      closes_via: >
+        FY2025 10-K concentration disclosure (any customer >=10% of
+        revenue, segment note): if disclosed, the cell resolves to the
+        disclosed figures; if NOT disclosed, the agent can only document
+        the absence — converting `watch` to a dated RISK ACCEPTANCE is
+        the operator's call, made at entry consideration, in writing.
+      owner: "agent for the 10-K pull (by 2026-08-31); OPERATOR for the accept/decline decision (at entry consideration)"
+      by: "pull 2026-08-31; decision deferred to entry"
 
 horizon:
   expected_years: "2-4"

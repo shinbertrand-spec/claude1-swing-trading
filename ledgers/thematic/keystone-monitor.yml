@@ -84,6 +84,65 @@ channels:
     source: "EIA STEO (monthly, ~2nd week); NERC assessments; ERCOT/PJM planning documents; state actions"
     cadence: "monthly, at STEO release"
     status_2026_08: "FIRED at arm time — see calibration entry below"
+    threshold_provenance: >
+      STATED PLAINLY (operator item 2, 2026-08-18): the 3pp threshold was
+      FITTED TO ONE OBSERVATION — the 2026-08-11 event (−8pp), set at
+      roughly half-size to catch smaller events of the same kind. It was
+      not derived from a false-positive study. The census below is the
+      first empirical check, run after the threshold was committed.
+
+combination_rule: >
+  EXPLICIT (operator item 2): the channels combine by OR — ANY single
+  channel firing flags the book. Chosen over 2-of-3 because the miss cost
+  is a common-mode failure of the entire book while the false-positive
+  cost is bounded work: a flag mandates the 5-day re-verification pass
+  and NOTHING else — sells remain governed exclusively by R2, so a false
+  positive cannot directly cost alpha, only effort. FP consequence OWNED:
+  on the census below plus channels A/B, expect roughly 1-2 flags/yr in
+  the current regime; the real risk is alarm fatigue, mitigated by one
+  rule — thresholds change only via written amendment, never mid-firing.
+
+census:   # operator item 2 — channel C's 3pp rule applied backwards over
+          # EIA STEO archives (requested window 2015-2025)
+  run_at: "2026-08-18"
+  method: >
+    ELLOAD_TX ("Net energy for load", ERCOT, STEO table 7d) from all 86
+    archived STEO base workbooks jan-2020..aug-2026; forward-year annual
+    growth per vintage (sum of 12 forecast months, target = vintage year
+    + 1, mirroring "Texas 2027 from an Aug-2026 vintage"); firing =
+    month-over-month vintage revision <= −3pp for the same target year.
+    Script-verified, 80 vintages parsed, 0 unparseable.
+  series_limitation: >
+    The ERCOT series DOES NOT EXIST before the Jan-2020 STEO regional
+    redesign — 2015-2019 of the requested window is unobservable at the
+    Texas level, reported rather than papered over. The census therefore
+    covers 6 years of vintages (2020-2025) plus 2026 to date; it is one
+    region (ERCOT) — the channel also watches PJM, which is uncensused.
+  pipeline_validation: >
+    The known event reproduces: jul-2026 vintage Texas-2027 growth
+    +13.67% -> aug-2026 +5.61% (revision −8.1pp) — matches the audit's
+    "14% to 6%" within rounding.
+  results:
+    revision_observations: 73
+    firings_in_census_window_2015_2025: 1
+    firings_all_vintages_incl_2026: 2
+    firings_per_year: "~0.17/yr on the 6 observable years (1 firing, 2020-2025); ~0.3/yr counting the 2026 event"
+    firing_table:
+      - "2025-12, target 2026: +15.2% -> +8.9% (−6.2pp) — a real precursor of the same materialization-shortfall story, not noise"
+      - "2026-08, target 2027: +13.7% -> +5.6% (−8.1pp) — the arming event"
+    near_misses_minus2_to_minus3pp:
+      - "2021-02, target 2022: +1.7% -> −0.6% (−2.4pp)"
+      - "2022-07, target 2023: −2.9% -> −5.1% (−2.2pp)"
+    distribution: "median revision +0.02pp; min −8.05; max +7.11"
+  reading: >
+    At 3pp the channel is QUIET in the old low-growth regime (zero
+    firings 2020-2024 — single-digit load-growth forecasts cannot
+    mechanically produce 3pp cuts often) and fires only on large
+    repricings of the DC-load story (both firings ever are exactly that).
+    False-positive pressure at this threshold is low; the threshold's
+    POWER is only evidenced by n=2 events, both from the current
+    double-digit-forecast regime. Reviewed annually with the census
+    re-run; changes only by written amendment.
 
 on_fire: >
   Any channel firing -> keystone_flag on EVERY thesis simultaneously:
