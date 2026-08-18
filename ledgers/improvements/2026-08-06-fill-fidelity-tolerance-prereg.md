@@ -131,3 +131,60 @@ was not a fault). Band basis: the historical fill log clusters ~29–58 bps
 - A FAULT here is a good outcome — the binding problem is that the automated
   track has produced nothing for nine weeks; finding out why, on a cycle that
   was going to run anyway, is worth more than a clean pass.
+
+---
+
+## C1 AMENDMENT — C1a / C1b (2026-08-18, committed before cycle 2; the original C1 text above is PRESERVED unchanged)
+
+**Provenance:** vault handoff
+`Output/2026-08-17-claude1-handoff-c1-fix-and-cycle2-readiness.md` §1.
+**Justification — a definitional error, not threshold relief.** C1 as written
+above ("every signal … must produce a placed order") conflates two opposite
+findings: *the pipeline broke* (a bug — the thing C1 exists to catch) and *a
+risk gate declined* (the system doing its job). The attended 2026-08-14 re-run
+(`ledgers/_auto_paper_runs/2026-08-14T14-13-52`) demonstrated the defect on a
+fully healthy pipeline: 8 signals → ARWR/LITE/SNDK placed, MU/STX/WDC declined
+by `gate_chain:correlation`, INTC declined by the dilution screener, MXL
+refused by the ledger-exists guard — 3/8 = FAULT under the text above,
+produced by every gate operating correctly. Under that definition D3 clause 2
+is unsatisfiable by any strategy whose pipeline contains risk gates, i.e. all
+of them. Amended under the repair-vs-search rule's clause (c): on its own
+correctness justification, before any cycle-2 result exists,
+irreversible-by-results.
+
+### C1a — pipeline completeness (gated, target 100%)
+
+Every emitted signal (the `00_signals.yml` selected set) must reach a
+**terminal, attributable disposition**: an order attempt, **or a named gate
+decline with the gate identified and its rule cited**. A signal reaching
+neither — vanished, silent exit, orphaned process, unlogged drop — is a
+**FAULT**. This is C1's original intent, correctly stated.
+
+### C1b — gate-decline census (recorded, NOT gated)
+
+Every decline is named with its gate and rule and reported in every cycle's
+scoring artifact. Not a fault — but a cycle where 5 of 8 signals are gated
+says something real about capacity even when nothing is broken.
+
+**Reconciliation path (existing artifacts; no new plumbing needed):**
+denominator = `00_signals.yml` selected set; dispositions =
+`candidate_built: false` (scanner/sizer-stage drop, recorded at emission),
+`01_screener.yml` (screener drops with rule text), `07_placement_results.yml`
+(per-candidate `status` + `reason` naming the gate — e.g.
+`gate_chain:correlation — duplicates open theme 'AI-momentum'`), and order
+ledgers (attempts). **C2, C3, and every other branch of the outcome table are
+UNCHANGED**; where the table's first row reads "C1 = 100%", read **C1a = 100%
+with the C1b census attached**.
+
+### Mandatory falsification test — cycle 1 re-scored under C1a (run at commit time, required by the handoff)
+
+Cycle-1 scoring is defined over the 09:35 headless run
+`ledgers/_auto_paper_runs/2026-08-14T13-35-11` (NOT the attended re-run):
+`00_signals.yml` = 8 selected; `_status.yml` shows `phases_completed: []`;
+no `01_screener.yml`, no placement results, no order ledgers, no gate
+declines of any kind — the orphaned process died before any disposition was
+written. **C1a = 0/8 terminal dispositions → cycle 1 still reads FAULT.**
+The amendment changes nothing about cycle 1's verdict; the case it re-scores
+is exactly the orphaned-process case C1a names as a fault. Had the amended
+definition passed cycle 1, this amendment would have been rejected as
+accommodation per the handoff's own test.
