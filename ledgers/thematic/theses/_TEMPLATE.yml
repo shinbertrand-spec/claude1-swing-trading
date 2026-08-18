@@ -1,8 +1,11 @@
-# Thesis schema — ai-stack-analyst (Phase 1, 2026-08-09)
+# Thesis schema — ai-stack-analyst (v2, Phase 2, 2026-08-18; v1 2026-08-09)
 # One file per candidate or holding: ledgers/thematic/theses/<TICKER>.yml
-# EVERY field below is required (handoff §3.2). A thesis missing any of them
-# is not a thesis — it is a story, and stories are the failure mode (§2).
-# The agent owns theses + invalidation; the OPERATOR owns entries and sizing.
+# EVERY field below is required. A thesis missing any of them is not a
+# thesis — it is a story, and stories are the failure mode.
+# v2 adds the discipline layer (rules.yml R1-R4 + sizing; evidence audit
+# 2026-08-18): entry_triggers, coverage_tier, sell_discipline,
+# sizing_inputs, keystone_ref.
+# The agent owns theses + triggers; the OPERATOR owns entries and sizing.
 # No field in this schema ever places, sizes, or prices an order.
 
 ticker: XXXX
@@ -17,16 +20,39 @@ layer: ""                # stack-map.yml layer this expresses. If the binding
                          # constraint has LEFT this layer, the thesis is wrong
                          # even if the company performs (stack-map rule).
 
-value_capture:           # §2 guard: buying the economics, not the story
+value_capture:           # buying the economics, not the story
   who_pays: ""
   why_not_competed_away: ""
   moat_duration_expected: ""
 
-market_error:            # §2 guard: consensus arbitrage check
+market_error:            # consensus arbitrage check
   what_consensus_gets_wrong: ""
   why_the_error_persists: ""
   when_bottleneck_became_consensus: ""   # date — vs when the price moved
   when_price_moved: ""
+
+coverage_tier:           # rules.yml R3 — the documented individual edge is
+  index_membership: ""   # ZERO in S&P 500 names. Record membership + count,
+  analyst_count: ""      # dated and sourced.
+  checked_at: "YYYY-MM-DD"
+  tier: ""               # neglected | covered (covered = index member OR high coverage)
+  edge_claim_if_covered: ""   # REQUIRED when tier=covered: what advantage
+                              # exists here instead? Blank blocks candidacy.
+
+entry_triggers:          # rules.yml R1 — symmetric with invalidation_triggers.
+  attention_proxy: ""    # ONE stated heat proxy, stable for the thesis's life.
+  triggers:
+    - id: E1             # each answers: at what price/multiple does the
+      rebuy_flip: ""     # rebuy test flip to YES?
+      price_run_component: ""   # cold = trailing return at/below sector AND market
+      attention_component: ""   # cold = proxy at/below its stated baseline
+      precondition: >
+        ALL disqualifier_check cells pass (none unverified, none watch),
+        no invalidation trigger has fired, and the keystone monitor has no
+        unresolved firing.
+      source: ""
+      cadence: ""
+      next_check: "YYYY-MM-DD"
 
 invalidation_triggers:   # >=2. Observable from PUBLIC data. Written BEFORE
   - id: T1               # any position. Each: metric, threshold, source,
@@ -40,6 +66,16 @@ invalidation_triggers:   # >=2. Observable from PUBLIC data. Written BEFORE
     cadence: ""
     next_check: "YYYY-MM-DD"
 
+sell_discipline:         # rules.yml R2 — scheduled attention only.
+  evaluation_events:     # a sell may be EVALUATED only at these:
+    - "the position's earnings dates"
+    - "the quarterly adversarial re-verification"
+    - "a pre-registered invalidation trigger firing"
+  next_earnings: "YYYY-MM-DD"
+  prohibited: "price moves and position rank inside the book NEVER trigger a sell evaluation (rules.yml R2)"
+  prior_sale_record: null   # record-only, never a trigger: date + price of any
+                            # prior exit in this name (re-entry bias guard)
+
 disqualifier_check:      # CLAUDE.md Disqualifiers — a good theme does not
   checked_at: "YYYY-MM-DD"   # rescue a broken balance sheet
   negative_fcf_no_path: pass|fail|unverified
@@ -47,13 +83,25 @@ disqualifier_check:      # CLAUDE.md Disqualifiers — a good theme does not
   sec_investigation_accounting: pass|fail|unverified
   customer_concentration_exposed: pass|fail|unverified
   sector_weekly_downtrend: pass|fail|unverified
-  verdict: pass|fail     # ANY fail -> status: rejected, log disposition
+  verdict: pass|fail     # ANY fail -> status: rejected, log disposition.
+                         # Any unverified/watch cell BLOCKS entry triggers (R1).
+
+sizing_inputs:           # rules.yml §sizing — the agent computes inputs; the
+                         # operator sizes. Anchor ~10% top position; downside-
+                         # vs-benchmark, never Kelly, never conviction score.
+  downside_vs_benchmark_scenario: ""   # plausible worst thesis+stop failure vs SPY
+  ten_point_test: ""     # at ~10% weight: probability this single name (or its
+                         # correlated group — see rules.yml correlation_note)
+                         # makes the book >10pp worse than SPY must be tiny.
+
+keystone_ref: "../keystone-monitor.yml"   # rules.yml R4 — a monitor firing
+                         # flags this thesis regardless of its own triggers.
 
 horizon:
   expected_years: ""
   what_makes_it_shorter: ""
 
-rebuy_test:              # §2 guard: the never-selling failure mode
+rebuy_test:              # the never-selling failure mode
   question: "Would I buy this today at this price?"
   cadence: quarterly
   next_check: "YYYY-MM-DD"

@@ -1,0 +1,117 @@
+# Discipline rules — ai-stack-analyst (Phase 2, 2026-08-18)
+# Evidence base: vault note wiki/notes/2026-08-18-thematic-conviction-book-evidence-audit.md
+# Every rule traces to a numbered finding there; none is a preference.
+# The audit killed three of the book's four founding premises; what survived
+# is entirely behavioural — so Phase 2 builds RULES, not forecasting.
+# The agent still never trades; the operator owns entries and sizing.
+# trials.yml untouched (103).
+
+meta:
+  version: 1
+  built_at: "2026-08-18"
+  handoff: "Output/2026-08-18-claude1-handoff-thematic-phase2-discipline-layer.md (vault)"
+  evidence: "wiki/notes/2026-08-18-thematic-conviction-book-evidence-audit.md (vault)"
+  banned_assumption: >
+    The "12-18 month pricing lag" is REFUTED (audit §1.2 — including by its
+    own three data points) and must not appear anywhere in this book as a
+    success metric, a note, or an assumption. Swept 2026-08-18: it appears
+    in NO live book artifact.
+
+rules:
+  - id: R1_entry_cold_never_hot
+    traces_to: "audit §2.1 — Ben-David/Franzoni/Kim/Moussawi RFS 36(3): hot-entry FFC4 alpha −6.4%/yr vs cold ≈0, same baskets. Highest measured value in the audit."
+    rule: >
+      Every thesis carries entry_triggers SYMMETRIC with
+      invalidation_triggers — armed, dated, observable — each answering:
+      at what price or multiple does the rebuy test flip to YES? A price
+      level alone is insufficient; the finding is about ATTENTION, so every
+      trigger requires BOTH components: (1) price-run — trailing return vs
+      sector and market; (2) attention — ONE stated coverage/heat proxy,
+      chosen per thesis and kept stable for its life.
+    precondition: >
+      No entry trigger may fire while ANY disqualifier_check cell reads
+      `unverified` or `watch`, or while the keystone monitor has an
+      unresolved firing. Clearing the cells is INSIDE the trigger, not
+      prose beside it.
+    caveat_recorded: >
+      The −6.4%/yr magnitude is measured on specialized-ETF launch cohorts,
+      sample ending 2019 — not on an individual's single-stock entries.
+      Direction adopted; the magnitude is NOT a success metric (Phase-2
+      report §4 — same failure shape as the refuted pricing lag).
+
+  - id: R2_sell_cadence_scheduled_attention_only
+    traces_to: "audit §3.5 — Akepanidtaworn et al. JF 78(6): PM selling underperforms random by ~80bps/yr, worst in fundamentals-oriented concentrated books; the SAME managers selling on earnings days beat non-announcement days by >150bps/yr. Hartzmark RFS 28(4): rank effect ~136bps/mo, return-based selling disappears once rank is controlled. Highest-confidence change."
+    rule: >
+      A sell may be EVALUATED only when one of two things happens:
+      (a) a scheduled attention event — the position's earnings date, or
+      the quarterly adversarial re-verification; (b) a pre-registered
+      invalidation trigger fires (the good kind of sell — a pre-committed
+      fact check, not salience).
+    prohibited:
+      - "A price move NEVER triggers a sell evaluation."
+      - "Position rank inside the book NEVER triggers a sell evaluation."
+    record_do_not_act:
+      - >
+        Re-entry keyed to one's own prior sale price: recorded per thesis
+        (sell_discipline.prior_sale_record), never a trigger. Repurchased
+        winners underperform repurchased losers by ~5%/yr; the prior sale
+        price carries no information about the security.
+
+  - id: R3_coverage_tier
+    traces_to: "audit §2.3 — Ivković/Sialm/Weisbenner: concentrated households beat diversified by 2.3-3.0pp/yr ENTIRELY in informationally-neglected names (non-S&P500 +2.4pp; local+non-S&P500 +6.9pp). In S&P 500 names: no difference at any portfolio size."
+    rule: >
+      Every candidate records index_membership and analyst_count, dated
+      and sourced. High-coverage / index-member names are NOT banned — but
+      they carry no documented edge, so the thesis must state explicitly,
+      in the REQUIRED field coverage_tier.edge_claim_if_covered, what
+      advantage exists there instead. A blank field blocks candidacy.
+    caveat_recorded: >
+      The household edge is raw return only (concentrated portfolios carry
+      LOWER Sharpe) on 1991-96 retail data. The tier filter screens for
+      where edge is DOCUMENTED; it does not promise edge in neglected
+      names.
+
+  - id: R4_keystone_monitor
+    traces_to: "audit §4.1 — ~$700-770B 2026 AI capex vs ~$142B disclosed AI revenue; Bain $2T-by-2030 with $800B shortfall; monetisation layer de-rating (CRM EV/S 8.61→4.37, NOW −32%, ADBE fwd 9.8)."
+    rule: >
+      ONE portfolio-level monitor (keystone-monitor.yml), not per thesis:
+      the aggregate demand-underwrite every layer depends on. When it
+      fires it flags EVERY thesis simultaneously — per-thesis triggers
+      structurally cannot catch a common-mode failure, because each thesis
+      stays intact right up until aggregate capex rolls. Thresholds and
+      cadence are pre-stated in the monitor file. A firing mandates
+      adversarial re-verification of ALL theses within 5 business days,
+      a dispositions.md note, and operator notification.
+
+sizing:   # handoff §3 — the standing rule any future sizing logic must implement.
+          # Phase 1 built no conviction-weighting logic, so nothing was deleted;
+          # this section exists so none is ever built.
+  traces_to: "audit §3/§3.1 — ACP Best Ideas §VI.B unconstrained-principal optimum 11%; academic central estimate ~10% (top five ≈26%); Buffett partnership letters 1957-70 read in primary."
+  anchor_top_position: >
+    ~10% for a top position — the academic central estimate, Best Ideas'
+    own optimum for an unconstrained principal, and where documented
+    practitioners actually land.
+  method: >
+    Size by DOWNSIDE-VERSUS-BENCHMARK, per Buffett's written partnership
+    rule: "reduce to a tiny figure the probability that the single
+    investment (or group, if there is intercorrelation) can produce a
+    result for our total portfolio more than ten percentage points poorer
+    than the Dow." NOT by Kelly, NOT by conviction score.
+  prohibited:
+    - >
+      Citing Best Ideas for concentration: its large allocations are an
+      AGENCY result (clients capping managers, principal spreading across
+      many managers). A principal who is his own manager is the
+      unconstrained case, where the paper's own optimum is ~11%. It is
+      routinely cited backwards, including in this project's own prior
+      reasoning — never again.
+    - >
+      Kelly or conviction-score sizing: every documented practitioner
+      sizes at 10-50% of full Kelly; Pabrai sized a 97.5%-full-Kelly idea
+      at 10%.
+  correlation_note: >
+    Buffett's rule is stated on the intercorrelated GROUP. This book's
+    layers share one keystone (R4), so for the ten-point test the WHOLE
+    BOOK is one group until the monitor and the theses demonstrate
+    otherwise. Diversification across layers is not diversification of
+    the keystone.

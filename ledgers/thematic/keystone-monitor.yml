@@ -1,0 +1,118 @@
+# Keystone monitor — ai-stack-analyst (Phase 2, 2026-08-18)
+# ONE portfolio-level variable: is aggregate AI demand underwriting the
+# capex that every layer of this book depends on? When it fires it flags
+# EVERY thesis simultaneously (rules.yml R4) — per-thesis triggers
+# structurally cannot catch a common-mode failure.
+#
+# DESIGN NOTE — the handoff §2.4 acceptance test forced a redesign, stated
+# here per its instruction: a bare capex-vs-revenue ratio would NOT have
+# flagged the 2026-08-03 Texas pause or the 2026-08-11 EIA load-forecast
+# cut — neither event moves capex guidance or disclosed revenue in-quarter,
+# so the ratio sits still while physical demand is revised underneath it.
+# The monitor is therefore ONE composite variable (demand_underwrite_status)
+# read from THREE observable channels, each with a pre-stated threshold and
+# cadence. Channel C exists precisely so physical-demand revisions become
+# visible the month they print.
+
+meta:
+  version: 1
+  built_at: "2026-08-18"
+  traces_to: "evidence audit §4.1 (vault, 2026-08-18)"
+  scope: "portfolio-level — every thesis file references this monitor"
+  no_forecasting: >
+    This file TRACKS published numbers and pre-states reaction thresholds.
+    It predicts nothing — no migration forecasts, no pricing-lag metrics.
+
+variable:
+  name: demand_underwrite_status
+  definition: >
+    Aggregate hyperscaler AI capex versus disclosed AI revenue, with the
+    enterprise-software monetisation layer as the leading indicator and
+    physical-demand materialization (grid load forecasts, DC development
+    actions) as the real-world check.
+  baseline_2026_08:
+    capex_2026: "~$700-770B (audit §4.1)"
+    disclosed_ai_revenue: "~$142B"
+    coverage_ratio: "~18-20% — recorded as the BASELINE, not as a firing"
+    bain_gap: "$2T annual revenue needed by 2030; $800B shortfall after crediting cloud migration + full productivity reinvestment (Bain, 6th annual tech report)"
+
+channels:
+  - id: A_capex_vs_revenue
+    metric: >
+      Aggregate top-5 hyperscaler AI capex guidance vs disclosed AI
+      revenue run-rate (the coverage ratio above).
+    threshold: >
+      FIRES if (a) two or more of the top-5 hyperscalers cut forward capex
+      guidance in the same quarter, OR (b) the coverage ratio DETERIORATES
+      for two consecutive quarters from the 2026-08 baseline — revenue
+      growing slower than capex is the Bain shortfall widening.
+    source: "hyperscaler quarterly earnings (capex guidance + AI revenue disclosures); Bain/UBS aggregate updates"
+    cadence: "quarterly, at hyperscaler earnings weeks"
+    status_2026_08: "not firing — capex still rising; ratio recorded as baseline"
+
+  - id: B_monetisation_leading
+    metric: >
+      Enterprise-software monetisation basket (CRM, NOW, ADBE, HUBS):
+      median forward EV/S versus 12 months prior, and AI-revenue guidance
+      direction.
+    threshold: >
+      FIRES on a further >20% median de-rate of the basket from the
+      2026-08 marks recorded below, or on any basket member guiding AI
+      revenue DOWN.
+    source: "quarterly filings + consensus multiples"
+    cadence: "monthly (multiples), quarterly (guidance)"
+    status_2026_08: >
+      ELEVATED at arm time, recorded honestly: the de-rate has already
+      happened (Salesforce EV/S 8.61 -> 4.37, −20.6%; ServiceNow −32.1%;
+      Adobe −28.4% at forward 9.8; HubSpot −51.0% — audit §4.1). The
+      channel arms from TODAY'S marks; the past de-rate is the reason this
+      monitor exists, not a pending signal.
+
+  - id: C_physical_demand
+    metric: >
+      Datacentre-load materialization on DC-exposed grids (ERCOT, PJM
+      first): EIA STEO load-growth forecast revisions, NERC/ISO
+      load-materialization language, and state-level DC development
+      actions in top-5 DC states.
+    threshold: >
+      FIRES on ANY of: (a) EIA STEO cuts a DC-exposed grid's forward-year
+      electricity-load-growth forecast by >=3 percentage points in a
+      single release; (b) NERC or an ISO reports large loads "slowed or
+      failed to materialize" (or equivalent language); (c) a top-5 DC
+      state enacts a development pause or restriction (compliance gates
+      recorded with their terms, not treated as freezes).
+    source: "EIA STEO (monthly, ~2nd week); NERC assessments; ERCOT/PJM planning documents; state actions"
+    cadence: "monthly, at STEO release"
+    status_2026_08: "FIRED at arm time — see calibration entry below"
+
+on_fire: >
+  Any channel firing -> keystone_flag on EVERY thesis simultaneously:
+  mandatory adversarial re-verification of all theses within 5 business
+  days (verify_log entries), a note in dispositions.md, and operator
+  notification. A firing is a FLAG, not an auto-invalidation — but every
+  bottleneck thesis keyed to US datacentre load must then SURVIVE the
+  flagged revision explicitly, in writing, or be downgraded.
+
+calibration:   # handoff §2.4 acceptance test — run against the live event
+  - date: "2026-08-18"
+    event: >
+      2026-08-03: the Texas governor paused new datacentre development
+      pending compliance standards (a compliance gate, not a freeze —
+      Amazon, Anthropic, Switch and others signed on 08-14/17).
+      2026-08-11: EIA STEO cut its forecast for Texas 2027 electricity
+      load growth from 14% to 6%. NERC independently reports ERCOT and
+      PJM large loads "slowed or failed to materialize."
+    would_it_have_flagged: >
+      YES — channel C(a): an 8-point cut >= the 3-point threshold, caught
+      at the monthly STEO cadence (flag date 2026-08-11); C(b) fires
+      independently on the NERC language; C(c) on the 08-03 pause.
+      Channels A and B would NOT have flagged it — which is exactly why
+      the single-ratio design was rejected (design note above).
+    action_taken: >
+      Treated as a LIVE firing at arm time, not only a calibration:
+      keystone_flag applied to the book's sole candidate (FIX) — its
+      demand-duration legs (T4 lease pipeline) must survive an ERCOT
+      load-growth revision of this size. Re-verification recorded in
+      theses/FIX.yml verify_log 2026-08-18.
+
+log: []   # append-only — one row per monthly STEO reading / quarterly earnings reading
