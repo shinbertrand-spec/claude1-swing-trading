@@ -26,8 +26,8 @@ These globs are in-scope (subject to the Forbidden rules below):
 - `wiki/concepts/**` — all concepts
 - `wiki/entities/**` — all entities
 - `wiki/sources/**` — all sources
-- `wiki/projects/swing.md` — swing-trading venture page *(does not yet exist; allowed when created)*
-- `wiki/notes/swing-*.md` — swing-prefixed notes *(none yet)*
+- `wiki/projects/swing.md` — swing-trading venture page *(the venture's project pages currently live as `wiki/projects/swing-*.md`, e.g. `swing-claude1-agent-broker-safety-controls.md`; those are covered by the swing-prefix rule and the `scope: swing` frontmatter rule)*
+- `wiki/notes/swing-*.md` — swing-prefixed notes (many exist)
 - `wiki/notes/*.md` excluding files prefixed with another venture key (`eins-*`, `kintsukuroi-*`, `murall-*`, `personal-*`)
 - `CLAUDE.md`, `index.md`, `log.md` — vault schema, catalog, history
 

@@ -15,6 +15,12 @@ with `CLAUDE.md` (framework) and the agent prompts in `.claude/agents/`.
 | 4:15 PM | EOD journal write-up | `/eod-journal` |
 | Friday 4:30 PM | Weekly review block | `/eod-journal` Step 5 (auto on Fridays) |
 
+This file covers the **human-discretionary loop only**. The other live tracks
+— paper-auto entry / monitor / reconcile crons, hourly `news-research`, X
+ingest, health checks — run per the cron tables in `CLAUDE.md` (§Paper-auto
+carve-out "Cron wiring" + §Subagent Workflow); their schedules are not
+duplicated here.
+
 ## Architecture summary
 
 ```
@@ -39,8 +45,9 @@ read journal/candidates/YYYY-MM-DD.md
 [ you say which 2 ]
     ↓
 for each pick:
-    trade-researcher (deep-dive) → propose entry/stop/target
-    risk-and-compliance (verification mode) → APPROVE / CONDITIONS / BLOCK
+    trade-researcher (deep-dive) → candidate ledger + bull report + proposed entry/stop/target
+    trade-skeptic (bear case) → bear report (Gate 0 requires it)
+    risk-and-compliance (verification mode) → SwingVerdict
     ↓
 [ you approve y/n per trade ]
     ↓
@@ -63,12 +70,15 @@ write EOD section + watchlist + reflection to journal
 2. **10:00 AM ET** — Technical evaluation of proposed trade parameters (sense-check entry/stop/target before compliance verification).
 3. **4:15 PM ET** — EOD report: SPY/QQQ/VIX close, sector leaders/laggards, portfolio + watchlist moves, macro events.
 
-Research-only. Returns Markdown. Does not write to files.
+Never recommends trades. It DOES write files: the candidate fact-ledger at
+`ledgers/candidates/YYYY-MM-DD/<TICKER>.yml` plus its bull-report Markdown
+alongside (required for the downstream Gate 0 precheck) — see CLAUDE.md
+§Subagent Workflow #1.
 
 ### `risk-and-compliance` — 2 modes
 
 1. **9:45 AM ET — Candidate-scan mode** — Scan for 3 swing-trade candidates passing every framework hard rule. Invoked by `/morning-scan-telegram` (headless via Task Scheduler).
-2. **10:00 AM ET — Verification mode** — Independent verification + framework rule check on each proposed trade. Verdict: APPROVE / APPROVE-WITH-CONDITIONS / BLOCK.
+2. **10:00 AM ET — Verification mode** — Independent verification + framework rule check on each proposed trade: Gate 0 (doctrine precheck) + the six-gate sequence. Verdict: the H3 `SwingVerdict` enum — ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT. (The legacy APPROVE / APPROVE-WITH-CONDITIONS / BLOCK trio was retired by H3.)
 
 Research-only. Adversarial by design. Reads `CLAUDE.md` before judging.
 
@@ -83,7 +93,10 @@ Research-only. Adversarial by design. Reads `CLAUDE.md` before judging.
 
 ## Setup
 
-One-time Telegram pipeline setup: see [`telegram-setup.md`](telegram-setup.md).
+One-time Telegram pipeline setup: COMPLETED (the `telegram-setup.md` runbook
+was retired in the 2026-08-11 audit). If it ever needs redoing, use
+`/telegram:configure` + `/telegram:access` and re-register the task via
+`scripts/install-morning-task.ps1`.
 
 Currently configured:
 - Plugin: `telegram@claude-plugins-official` v0.0.6 (installed at user scope)

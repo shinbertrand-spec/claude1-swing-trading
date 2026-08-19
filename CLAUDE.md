@@ -24,15 +24,18 @@ missed trades. Stack components and the gaps they close:
 | Position-sizer hard-rule re-run (5% / 20% / 15%-cash) | Bot doesn't oversize on conviction |
 | `tools.refresh_starter_stops` (auto-replace DAY-expired stops) | Bot doesn't forget to renew stops |
 | Per-bar `evaluate_exits` + `stop_ratchet` | Bot advances trailing stops under stress |
-| Phase 5.a backtest gate (Sharpe > 1.0 AND \|MDD\| < 25% AND n ≥ 30) | Bot doesn't deploy luck-driven strategies |
+| Backtest deployment gate (canonical statement in §Tools) | Bot doesn't deploy luck-driven strategies |
 | Swing-critic panel (shadow → live) | Bot gives every trade the second-look a human would skip |
-| 4-gate trace audit | Bot enforces narrative-truthfulness humans drift on |
+| Verification-gate trace audit | Bot enforces narrative-truthfulness humans drift on |
 
 Per Nate B Jones, [*A Polymarket Bot Made $438,000 In 30 Days*](https://www.youtube.com/watch?v=BiqG3it0gY0) (2026-04).
 Vault note: `c:/Users/User/Desktop/Obsidian/Bertieboo/wiki/notes/swing-discipline-gap-bot-over-human.md`.
-**Watch for:** if Claude1 ever starts *generating* new strategies (not just
-executing known ones), this framing needs to extend — speed and reasoning gaps
-also become operative.
+**Update (2026-08-11 audit):** the "watch for strategy generation" condition
+fired long ago — Claude1 *does* generate strategies (`quant-strategist`, since
+2026-05-24), so speed and reasoning gaps are operative too. Generation is
+governed by the trials.yml / DSR regime (§C1) and, since 2026-08-06, by the
+ratified venture stopping rule: candidate freeze to 2026-09-30, deploy trigger
+= both gates + fill fidelity, review 2026-11-17.
 
 ## Cross-project vault access
 
@@ -200,10 +203,10 @@ The trade-off this carve-out accepts:
 - The deployment gate's rolling-walk-forward |MDD| < 25% is the
   cross-instance discipline that replaces the per-position 8% discipline.
 
-Trail-to-breakeven and trail-to-+5% (the +5% / +10% lines above) apply
-to both tracks via `tools.auto_paper.stop_ratchet` (Session 5 enhancement),
-which operates on whatever the current stop is — independent of initial
-stop width.
+The trail-ratchet rule (§Risk Management above — the canonical statement)
+applies to both tracks via `tools.auto_paper.stop_ratchet` (Session 5
+enhancement), which operates on whatever the current stop is — independent
+of initial stop width.
 
 If a future quant strategy emerges where ATR stops AND walk-forward
 deployment gates AND per-position 5% cap together cannot bound risk
@@ -309,11 +312,11 @@ Examples: [`ledgers/_examples/`](ledgers/_examples/).
 - Position ledgers: `ledgers/positions/<TICKER>.yml` (one per open position;
   evolves through STARTER → Stage-2 → Stage-3 → trailing → closed)
 
-This is **Phase 1** of the 4-phase swing-risk-compliance-doctrine path. Phase 1
-defines the schema only — no Python tools yet (Phase 2), no automatic staleness
-enforcement (Phase 3), no automatic reasoning-trace verification (Phase 4).
-Subagents should adopt the contract by convention now; later phases will harden
-enforcement.
+The ledger contract began as **Phase 1** of the 4-phase
+swing-risk-compliance-doctrine path. Phases 2 (Python tools), 3 (automatic
+staleness enforcement), and 4 (automatic reasoning-trace verification) are all
+**complete** (see §Tools) — enforcement is hardened in code, not left to
+convention.
 
 **Contract for subagents (effective now):**
 - Every numerical claim in a `trade-researcher` or `risk-and-compliance` output
@@ -333,33 +336,53 @@ arithmetic — YoY growth, ATR, trend template, regime check, VCP detection,
 stop sizing, position sizing — runs through these tools, never through agent
 prose. Source of truth: [`tools/README.md`](tools/README.md).
 
-**Phases 2 + 3 + 4 + 5.a + 5.b + 5.c complete** (2026-05-18). **Red-team regression harness** added 2026-05-23: 27 adversarial tests over the 5-gate sequence (`tests/test_red_team_gates.py`). **Phase 6 bias audit** added 2026-05-23: periodic universe-side discovery-skew audit per Type 4 of `[[llm-financial-hallucination]]` (`tools/bias_audit.py` + `/bias-audit` slash command). **Phase 7 multi-agent debate (H1)** added 2026-05-25: `trade-skeptic` adversarial subagent + Gate 6 bull/bear synthesis (`tools/debate_synthesis.py`) emitting the H3 `SwingVerdict` enum (ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT); per-decision debate state at `ledgers/debate/<TICKER>-<DATE>.yml`. Phase 7 spec lives at `wiki/notes/swing-cherrypick-h1-design-spec.md` (vault). 46 modules + 376 tests in `tools/` and `tests/`:
+**Phases 2 + 3 + 4 + 5.a + 5.b + 5.c complete** (2026-05-18; first real-data
+backtest runs completed 2026-05-18/24). Later additions: **red-team regression
+harness** (2026-05-23, adversarial tests over the verification-gate sequence,
+`tests/test_red_team_gates.py`); **Phase 6 bias audit** (2026-05-23,
+`tools/bias_audit.py` + `/bias-audit` — periodic universe-side discovery-skew
+audit per Type 4 of `[[llm-financial-hallucination]]`; informational, never
+blocks trades); **Phase 7 multi-agent debate (H1)** (2026-05-25):
+`trade-skeptic` adversarial subagent + Gate 6 bull/bear synthesis
+(`tools/debate_synthesis.py`) emitting the H3 `SwingVerdict` enum — full
+description under Subagent Workflow #2/#3; spec at
+`wiki/notes/swing-cherrypick-h1-design-spec.md` (vault); per-decision debate
+state at `ledgers/debate/<TICKER>-<DATE>.yml`. The per-phase module inventory
+lives in `tools/README.md` only — not restated here.
 
-- **2.a SEPA-VCP pathway:** `compute_yoy`, `atr_compute`, `trend_template`, `regime_check`, `vcp_detect`, `stop_sizer`, `position_sizer`
-- **2.b EP pathway:** `prior_rally_pct`, `magna_score`, `ep_grade`, `earnings_calendar`, `ep_detect`, `day7_milestone_check`
-- **2.c.1 Pyramiding:** `sltb_scan`, `momentum_burst_detect`, `combined_breakeven`, `position_state`, `add_on_evaluator`
-- **2.c.2 Sell discipline (v1-preliminary):** `climax_top_detect`, `violations_detect`, `base_stage_detect`, `pe_expansion_check`, `sell_into_strength`, `sell_decision`
-- **2.c.3 Secondary setups:** `pullback_detect`, `rsi_divergence`, `resistance_break`
-- **Phase 3 staleness enforcement:** `freshness`, `stale_phrase_detector`, `ledger_freshness_audit`
-- **Phase 4 reasoning-trace verification:** `trace_validate`, `trace_rerun`, `claim_extract`, `trace_audit`
-- **Phase 6 bias audit (Type 4):** `bias_audit` — periodic universe-side discovery-skew audit (sector + market-cap distribution vs S&P 500 baseline). Monthly via `/bias-audit` slash command, or on-demand. Surfaces flagged buckets at |z| >= 2.0 over min sample of 30 candidates. Informational — never blocks trades.
-- **Phase 7 multi-agent debate (H1):** `debate_synthesis` — Gate 6 bull/bear synthesis. Composes the bull case from the candidate ledger (`setup_classification.grade` + `confluence_checklist.trace_refs`) and the bear case from the `trade-skeptic` Markdown's terminal ```json fragment. Resolves the H1-spec §6 decision table into an H3 `SwingVerdict` (ENTRY_STRONG / ENTRY_NORMAL / WATCH_BUILD_THESIS / DEFER / REJECT). Writes `ledgers/debate/<TICKER>-<DATE>.yml`. Two override paths: any `already_fired` risk trigger → REJECT; INVALIDATION_WEAK bear + A+/A bull grade + all 5 prior gates pass → ENTRY_STRONG floor. WATCH_BUILD_THESIS with `failure_mode: balanced_evidence_no_clear_stance` is NOT an entry.
-- **Phase 5.a walk-forward backtest (SEPA-VCP):** `backtest/data_cache`, `backtest/setup_replay`, `backtest/simulator`, `backtest/metrics`, `backtest/walk_forward`, `backtest/runner`
-- **Phase 5.b backtest extensions (4 more setups + 3 trail modes + rolling walk-forward):** `backtest/ep_replay`, `backtest/pullback_replay`, `backtest/rsi_div_replay`, `backtest/resistance_break_replay`, `backtest/trailing_stop`
-- **Phase 5.c backtest extensions (pyramiding + sell-aware exits):** `backtest/pyramid_simulator` (STARTER + Momentum-Burst ADD-ON #1 + Day-7 ADD-ON #2 with combined-BE stop migration + grade/regime gates), `backtest/sell_aware` (per-bar `sell_decision` composer over OHLCV-derivable detectors; new `--pyramid` and `--sell-aware` flags in runner)
+**Contract for `risk-and-compliance` pre-verdict (Phases 3 + 4 + 7):** before
+emitting a `SwingVerdict`, the subagent runs **Gate 0 (doctrine-compliance
+precheck) then the six-gate sequence (Gates 1–6) in order** — authoritative
+definition in `.claude/agents/risk-and-compliance.md` (numbering unified
+2026-08-11; an older phrasing here counted only the tool-backed subset as
+"all five"). The tool-backed gates:
+- **Gate 0:** `uv run python -m tools.debate_synthesis --precheck <ledger>`
+  (MANDATORY FIRST, added 2026-06-07) — exit code 1 → HARD ABORT before any
+  other gate. Verifies both the bull report (`<TICKER>.md`) and the bear
+  report (`<TICKER>-bear.md`) exist alongside the candidate ledger. Enforces
+  the workflow `trade-researcher → trade-skeptic → risk-and-compliance`. No
+  override path.
+- **Gate 1:** `tools.ledger_freshness_audit.compute_from_path(<ledger>)` — any `overall: stale` → REJECT
+- **Gate 2:** `tools.trace_audit.compute_from_path(<ledger>, <researcher_report_path>)` — any `verdict.overall == "BLOCK"` → REJECT
+- **Gate 3:** `tools.stale_phrase_detector` on BOTH bull AND bear reports — any BLOCK match → REJECT
+- **Gate 6:** `tools.debate_synthesis.compute_from_path(<ledger>, --bull <bull.md> --bear <bear.md>)` — composes the `SwingVerdict` (Phase 7, H1)
 
-**Contract for `risk-and-compliance` pre-verdict (Phases 3 + 4 + 7):** before emitting a `SwingVerdict`, the subagent MUST run all five in order:
-0. **`uv run python -m tools.debate_synthesis --precheck <ledger>` (Gate 0 — doctrine compliance, MANDATORY FIRST, added 2026-06-07)** — exit code 1 → HARD ABORT before any other gate. Verifies both the bull report (`<TICKER>.md`) and the bear report (`<TICKER>-bear.md`) exist alongside the candidate ledger. Enforces the workflow `trade-researcher → trade-skeptic → risk-and-compliance`. Skipping the skeptic produces verdicts that look clean but lack the adversarial bull/bear synthesis the framework promises. No override path. Closes the doctrine-non-compliance gap identified in the subagent panel self-assessment 2026-06-04.
-1. `tools.ledger_freshness_audit.compute_from_path(<ledger>)` — any `overall: stale` → REJECT
-2. `tools.trace_audit.compute_from_path(<ledger>, <researcher_report_path>)` — any `verdict.overall == "BLOCK"` → REJECT
-3. `tools.stale_phrase_detector` on BOTH bull AND bear reports — any BLOCK match → REJECT
-4. `tools.debate_synthesis.compute_from_path(<ledger>, --bull <bull.md> --bear <bear.md>)` — composes the `SwingVerdict` (Phase 7, H1)
+Gates 4 (hard-rule compliance via independent `tools.position_sizer` re-run)
+and 5 (adversarial review) are agent-judgment gates — see Subagent Workflow #3.
 
 `trace_audit` composes `trace_validate` (structural completeness + targeting), `trace_rerun` (pure-tool re-runs + OHLCV-tool shape checks), and `claim_extract` (prose↔ledger cross-reference, WARN-level).
 
-**Deployment gate (Phase 5):** a setup ships to live capital only after `tools.backtest.runner` shows on out-of-sample data: **Sharpe > 1.0 AND |max drawdown| < 25% AND n ≥ 30**. Per the doctrine's "walk-forward validation REQUIRED" callout in every operational note. Phase 5.a covers SEPA-VCP; Phase 5.b adds EP + 3 secondary setups, plus `ratchet` and `ma_trail` stop policies, plus rolling walk-forward windowing. Phase 5.c adds the Anchor-and-Pyramid multi-leg simulator + per-bar sell-discipline composer (4 OHLCV-derivable detectors → `sell_decision` → non-hold action exits). Portfolio-equity simulator (concurrent positions + cash + sector caps), pyramid+sell-aware combined, P/E expansion warning, and HTML reports remain Phase 5.d.
-
-Next: first real-data backtest runs (5 setups × 3 trail modes against a 5y universe) → iterate. Then Phase 5.c.
+**Deployment gate (Phase 5) — CANONICAL STATEMENT; every other mention in
+this file points here:** a setup ships to live capital only after
+`tools.backtest.runner` shows on out-of-sample data: **Sharpe > 1.0 AND
+|max drawdown| < 25% AND n ≥ 30** (aggregate clause) **AND ≥ 50% of
+individual OOS windows clear Sharpe > 0.5** (per-window clause, added
+2026-05-26). Since 2026-07-24 roster promotion ADDITIONALLY requires
+**DSR > 0.95** (§C1 below). Per-track gate-profile variants (e.g. the
+tighter ai_thematic_pure profile) are documented in the
+`tools/deployable_setups.yml` header — the enforced source. Per the
+doctrine's "walk-forward validation REQUIRED" callout in every operational
+note. (Phase-5 backtest scope details: `tools/README.md`.)
 
 ## Quant dimension (v1 shipped — Clenow momentum reference strategy)
 
@@ -375,50 +398,33 @@ sizing model for a portfolio of signals?*
 + `tools/quant_strategies/` package with declarative YAML strategy specs +
 kind-plugin registry. Architecture: `[[auto-research-loop]]` — strategy YAML
 is the editable input, `tools.backtest.runner` is the immutable executor,
-deployment gate (Sharpe > 1.0, |MDD| < 25%, n ≥ 30 on aggregated OOS) is the
-promotion filter. **quant-strategist + auto-research-loop + Phase 5.a
-deployment gate = a fully-articulated triple that the doctrine's
-"walk-forward validation REQUIRED" callout structurally unlocks.** v1 ships
-with Clenow Stocks-on-the-Move (88-ticker universe, weekly rebalance, top-K
-rank by 90-day exponential regression slope × R²; 6 combos, all 6 fail the
-gate honestly — the discipline lineage works as designed: refuses weak
-strategies). Cross-sectional mean-reversion (Alvarez/Chan) queued as v1.1.
+the deployment gate (§Tools canonical statement) is the promotion filter.
+**quant-strategist + auto-research-loop + Phase 5.a deployment gate = a
+fully-articulated triple that the doctrine's "walk-forward validation
+REQUIRED" callout structurally unlocks.** v1 shipped with Clenow
+Stocks-on-the-Move (88-ticker universe, weekly rebalance, top-K rank by
+90-day exponential regression slope × R²; 6 combos, all 6 failed the gate
+honestly — the discipline lineage works as designed: refuses weak
+strategies). *(Update 2026-08-11: many generations of setups were
+subsequently generated, gated, deployed, and mostly retired — the enforced
+roster is `tools/deployable_setups.yml`; history in ledgers/ + journal/.
+Generation is now governed by the trials.yml/DSR regime + the 2026-08-06
+candidate freeze — see §Positioning update.)*
 
-**Sharper framing from the 2026-05-23 batch:** the quant lineage's gift to
-Claude1 isn't (just) new signal sources — it's the **accumulated
-anti-self-deception machinery**: White 2000 Reality Check → Aronson 2006
-evidence-based TA → Pardo 2008 walk-forward methodology → Alvarez 2026
-practitioner protocol → López de Prado 2018 modern statistical defenses.
-The discretionary lineage doesn't have this discipline natively — it relies
-on judgment + journaling. See `wiki/concepts/walk-forward-analysis.md`
-§ "The discipline lineage" for the full citation chain.
+**Sharper framing:** the quant lineage's gift to Claude1 isn't (just) new
+signal sources — it's the **accumulated anti-self-deception machinery**
+(White 2000 → Aronson 2006 → Pardo 2008 → Alvarez → López de Prado 2018).
+Full citation chain: `wiki/concepts/walk-forward-analysis.md` § "The
+discipline lineage" (vault).
 
-**Open architectural questions** (to resolve as clipping surfaces real
-practitioner workflows):
-- One subagent (`quant-strategist`) or two (`signal-analyst` for per-bar
-  computation + `backtest-orchestrator` for the loop)?
-- Mean-reversion strategies (Alvarez / Connors / Chan) target 1-5 day holds —
-  shorter than the 2-day-to-6-week swing window. Sibling axis or in-scope?
-  See `wiki/concepts/cross-sectional-mean-reversion.md` and
-  `wiki/concepts/mean-reversion-strategy.md`.
-- Multi-agent adversarial debate (`wiki/concepts/multi-agent-adversarial-debate.md`)
-  was flagged as a partial mitigation for Type 4 bias (alongside Phase 6
-  `bias_audit`). Is it additive to `quant-strategist` (strategy debate over
-  the same backtest) or to `risk-and-compliance` (per-trade debate)?
-
-**Cross-cutting concept refs added to the vault since 2026-05-17** that
-this project should be aware of:
-- `wiki/concepts/quantitative-trading.md` — spine for the new axis
-- `wiki/concepts/cross-sectional-mean-reversion.md` — Alvarez / Chan strategy class
-- `wiki/concepts/mean-reversion-strategy.md` — broader hub
-- `wiki/concepts/walk-forward-analysis.md` — already cited (deployment gate)
-- `wiki/concepts/auto-research-loop.md` — architectural pattern
-- `wiki/concepts/harness-engineering.md` — operational concept
-- `wiki/concepts/multi-agent-adversarial-debate.md` — architectural candidate
-- `wiki/concepts/post-earnings-drift.md` — academic foundation for the
-  existing EP setup (Bonde's discretionary `[[episodic-pivot]]` framing
-  is convergent with the academic PEAD literature)
-- `wiki/concepts/alpha-decay.md` — strategy lifecycle concept
+**The 2026-05-24 "open architectural questions" are RESOLVED by events
+(2026-08-11 audit):** quant-strategist stayed a single subagent;
+mean-reversion strategies were built in-scope (and later retired on
+evidence); adversarial debate landed in `risk-and-compliance` (Phase 7
+per-trade debate). Cross-cutting quant concept pages live in the vault
+under `wiki/concepts/` (quantitative-trading, cross-sectional-mean-reversion,
+walk-forward-analysis, auto-research-loop, multi-agent-adversarial-debate,
+post-earnings-drift, alpha-decay, …) — browse there, not here.
 
 **Contract for subagents (effective now):**
 - Every numerical claim cites a tool's `TraceEntry` via the ledger's
@@ -429,7 +435,9 @@ this project should be aware of:
   ledger-slottable entry.
 - Library usage: `from tools.<name> import compute, compute_from_ticker`.
 
-Run the test suite before any tool change: `uv run pytest` (957 tests, ~15 s — count grows as new phases ship).
+Run the test suite before any tool change: `uv run pytest` (see the suite for
+the current count — 2,100+ green as of 2026-08-06; never hardcode the number
+here).
 
 ## Evaluation-honesty policies (adopted 2026-07-24, cherry-pick Batch A)
 
@@ -494,9 +502,12 @@ high-water) and appends EVERY verdict to `ledgers/paper-auto/_gates/`. A
 tripped breaker stays tripped until an operator reset
 (`python -m tools.auto_paper.gate_chain reset` — itself a logged action).
 The chain is long-only by construction (2026-07-24 NFLX lesson). WIRING
-NOTE: the `pipeline.place_candidate` call-site edit is deferred until the
-NFLX incident's Step-5 remediation completes; until then the chain runs
-standalone/demo only.
+STATUS (verified 2026-08-11): the NFLX remediation completed 2026-07-24 and
+the chain was WIRED the same day (commit `c9b17c7`,
+`ledgers/improvements/2026-07-24-phase1-live-validation-finishup.md` §1a) —
+`gate_chain` is the final sizing/veto word inside `pipeline.place_candidate`,
+fail-closed, with per-candidate JSONL logging and Kelly priors read from the
+roster row.
 
 **B2 — Signal-vs-execution attribution.** Every real entry fill decomposes
 vs its signal pivot into delay cost (signal -> fill-day open) + execution
@@ -564,8 +575,11 @@ Six specialized subagents handle the heavy lifting. All use the fact-ledger
    `wiki/notes/swing-cherrypick-h1-design-spec.md` (vault).
 
 3. **`risk-and-compliance`** — given a candidate ledger path + bull report
-   path + bear report path + proposed trade + portfolio state, runs the
-   **six-gate** verification sequence:
+   path + bear report path + proposed trade + portfolio state, runs **Gate 0
+   (doctrine-compliance precheck — `tools.debate_synthesis --precheck`;
+   verifies bull AND bear reports exist; FAIL → HARD ABORT, no override)
+   followed by the six-gate verification sequence** (authoritative
+   definition: `.claude/agents/risk-and-compliance.md`):
    1. `tools.ledger_freshness_audit` (Phase 3) — stale section → BLOCK
    2. `tools.trace_audit` (Phase 4) — empty trace_refs / divergent re-run → BLOCK
    3. `tools.stale_phrase_detector` (Phase 3) on bull AND bear reports → BLOCK
@@ -605,8 +619,8 @@ Six specialized subagents handle the heavy lifting. All use the fact-ledger
      `journal/positions.json`. Pre-existing positions land with
      `setup_classification.type: "Manual"`, `grade: null`, `stage: trailing`.
    - **`sync`** (read-only): pulls live state from the Tiger paper account via
-     `tools.broker.tiger.TigerClient` (paper-routed by default; refuses live).
-     Diffs against `journal/positions.json`. Surfaces drift across four buckets:
+     `tools.broker.tiger.TigerClient` (paper-only contract: see §Broker
+     bridge). Diffs against `journal/positions.json`. Surfaces drift across four buckets:
      matched-with-mismatches, journal-only, Tiger-only, orphan-orders
      (with `--include-orders`). Does NOT reconcile — the caller decides whether
      to onboard, close, or amend.
@@ -622,10 +636,10 @@ Six specialized subagents handle the heavy lifting. All use the fact-ledger
    `[[auto-research-loop]]` pattern over the Phase 5.a-c backtest harness.
    Strategy YAML at `tools/quant_strategies/*.yml` is the editable input;
    `tools.backtest.runner` is the immutable executor; only configs clearing
-   the deployment gate (Sharpe > 1.0, |MDD| < 25%, n ≥ 30 on aggregated OOS)
-   get promoted. v1 includes Clenow Stocks-on-the-Move (88-ticker universe,
-   weekly rebalance, top-K rank by 90-day exponential regression slope × R²).
-   Cross-sectional mean-reversion (Alvarez/Chan) queued as v1.1.
+   the deployment gate (§Tools canonical statement) get promoted. Outcomes
+   land on the enforced roster `tools/deployable_setups.yml`; generation is
+   governed by the trials.yml/DSR regime + the 2026-08-06 candidate freeze
+   (see §Positioning update + §Quant dimension).
 
 7. **Swing-critic panel** (shipped 2026-05-27, Phase 3 v1 in shadow mode) —
    multi-rater adversarial panel that fires on every quant-scanner paper-auto
@@ -650,13 +664,14 @@ Six specialized subagents handle the heavy lifting. All use the fact-ledger
    3. ≥2 `minus_20` → action=`reduce_20`, sizing_multiplier=0.8
    4. Otherwise → action=`preserve`, sizing_multiplier=1.0
 
-   Phase 3 v1 runs in **shadow mode by default** (~2 weeks 2026-05-27 →
-   2026-06-10): panel computes verdict, surfaces in Telegram summary, persists
-   to `ledgers/swing-critics/YYYY-MM-DD/<TICKER>/` and to the calibration log at
+   Phase 3 v1 runs in **shadow mode — STANDING, no calendar date**: panel
+   computes verdict, surfaces in Telegram summary, persists to
+   `ledgers/swing-critics/YYYY-MM-DD/<TICKER>/` and to the calibration log at
    `ledgers/swing-critics/_calibration/`, but `pipeline.place_candidate` ignores
-   `sizing_multiplier` when `apply_panel_sizing=False`. Once calibration
-   correlates panel verdicts with realized P&L, flip the flag to live.
-   Phase 3 v2 (~2026-06-10) makes the sizing modifier load-bearing.
+   `sizing_multiplier` while `apply_panel_sizing=False`. The 2026-06-05
+   observe-gate decision blocks the live flip until live firings produce
+   calibration data that correlates panel verdicts with realized P&L; only
+   then does Phase 3 v2 make the sizing modifier load-bearing.
 
    Cost: ~$40-60/month Anthropic API for 3 core critics × ~6 candidates/day ×
    22 trading days. Wall-clock: ~30s parallelized per candidate (Haiku 4.5).
@@ -680,12 +695,13 @@ default; refuses live unless `allow_live=True`) with read primitives
 `TraceEntry` for ledger audit; PII is masked at the API surface.
 
 Slash-command integration:
-- **`/morning-deep-dive` § 5p** — for **deployable setups** (SEPA-VCP, EP as
-  of 2026-05-24), offers `place TICKER` as a reply option in addition to
-  manual fill confirmation. Auto-places a paper limit-buy via Tiger API at
-  the proposed entry; user confirms the actual fill price once filled.
-  Non-deployable setups (those that have not cleared the rolling-walk-forward
-  gate) suppress the auto-place option — manual entry only.
+- **`/morning-deep-dive` § 5p** — for **deployable setups** (rows on the
+  enforced roster `tools/deployable_setups.yml` not marked `hold: true`),
+  offers `place TICKER` as a reply option in addition to manual fill
+  confirmation. Auto-places a paper limit-buy via Tiger API at the proposed
+  entry; user confirms the actual fill price once filled. Non-deployable
+  setups (those that have not cleared the rolling-walk-forward gate) suppress
+  the auto-place option — manual entry only.
 - **`/p_s_sync`** — diffs framework view (`journal/positions.json`) against
   Tiger live state. Read-only.
 
@@ -694,10 +710,22 @@ has two new optional fields populated when an entry is placed via Tiger:
 `broker_order_id` (int) and `broker` (enum: `tiger_paper` / `tiger_live` /
 `manual`). Older ledgers without these fields validate fine — both are optional.
 
-**Deployable-setup list** lives at `tools/deployable_setups.yml` (one source
-of truth read by both `/morning-deep-dive` § 5p and `tools.auto_paper`).
-Update both this file AND the `swing-phases` memory's "Final consolidated
-verdict" table when a new setup clears the deployment gate.
+**Deployable roster** lives at `tools/deployable_setups.yml` — the ENFORCED
+source of truth (read by `/morning-deep-dive` § 5p and `tools.auto_paper`;
+write-denied in settings). **CLAUDE.md never restates the roster.** Update
+protocol: when a setup clears or falls off the gate, the roster row changes
+(comment out / mark `hold: true`, never delete — audit trail); no CLAUDE.md
+or memory-table restatement. Roster history (clearances, parkings,
+retirements) is recorded on the roster rows and in ledgers/ + journal/
+(audit note 2026-08-11).
+
+State at the 2026-08-11 audit (roster wins if this drifts): sole live
+deployable = `ts_momentum_liquid_us` (DSR ~0.59 < the 0.95 promotion bar;
+zero live fills to date — live validation pending). The 2026-06-17
+net-of-cost gate retired `xs_short_term_reversal` (both variants),
+`residual_momentum_liquid_us`, `clenow_momentum_liquid_us`; `connors_rsi2`
+parked 2026-06-09; event candidates failed/retired (insider-buying
+2026-07-24 roster sprint; earnings-drift 2026-08-06, capacity+cost).
 
 ### Paper-auto carve-out (shipped 2026-05-24, session 1)
 
@@ -711,7 +739,7 @@ validation of deployable strategies:
 - **Ledgers:** `ledgers/paper-auto/<TICKER>.yml` (gitignored)
 - **Index:** `journal/paper-auto/positions.json` (gitignored)
 - **Slash command:** `/auto-paper` — reads today's candidate scan, filters
-  to deployable setups, runs the 5-gate per candidate, sizes via
+  to deployable setups, runs the verification gates per candidate, sizes via
   `position_sizer` against the paper account, auto-places via
   `TigerClient.place_limit_buy` without per-trade human confirmation.
   Supports `--dry-run`.
@@ -736,28 +764,20 @@ validation of deployable strategies:
    "paper-auto"` (additive schema changes; older ledgers validate
    unchanged).
 
-**Scope progression — ALL FOUR SESSIONS SHIPPED 2026-05-24/25:**
+**Scope progression — ALL FOUR SESSIONS SHIPPED 2026-05-24/25** (module
+detail lives in `tools/README.md`, not here):
 - Session 1: entry pipeline; `submitted` state writes.
-- Session 2: EOD reconciliation
-  (`tools.auto_paper.reconcile.reconcile_today()` pulls filled + open orders
-  from Tiger, matches by `broker_order_id`, transitions ledger state:
-  `submitted` → `starter` on full / partial fill, → `closed` on
-  DAY-expired). Slash command `/auto-paper-reconcile`.
-- Session 3: **broker-side stop orders** (plain STP SELL placed at
-  ledger `stop_price` sized to filled qty, on `submitted` → `starter`
-  transition; OCA bracket deferred) + **per-bar sell-decision composer
-  auto-exit** (`tools.auto_paper.exits.evaluate_exits()` composes 4
-  OHLCV-derivable sell-discipline detectors over each `starter` position;
-  on non-hold action, places limit-sell at bid − 0.1%, cancels resting
-  stop, transitions to `closed`). Slash command `/auto-paper-monitor`.
-  Schema bump: `position_state.stop_order_id` (optional int).
-- Session 4: **performance dashboard** (`tools.auto_paper.performance`)
-  reads closed paper-auto ledgers, computes realized TradeStats + ReturnStats
-  (reuses `tools.backtest.metrics`), compares against backtest expectations
-  from `tools/deployable_setups.yml` with a three-band status flag
-  (ok / warn / fail per 25%/50% Sharpe tolerance + n≥30 verdict threshold).
-  `compute_open_pnl()` pulls live unrealized P&L from Tiger. Slash command
-  `/auto-paper-perf`.
+- Session 2: EOD reconciliation (`tools.auto_paper.reconcile`; ledger state
+  `submitted` → `starter` on fill, → `closed` on DAY-expiry).
+  `/auto-paper-reconcile`.
+- Session 3: broker-side STP SELL stops on fill (OCA bracket deferred) +
+  per-bar sell-decision composer auto-exit
+  (`tools.auto_paper.exits.evaluate_exits()`; non-hold action → limit-sell
+  at bid − 0.1%, cancel resting stop, transition to `closed`).
+  `/auto-paper-monitor`. Schema: `position_state.stop_order_id` (optional).
+- Session 4: performance dashboard (`tools.auto_paper.performance` — realized
+  stats vs the roster rows' backtest expectations; `compute_open_pnl()` pulls
+  live unrealized P&L from Tiger). `/auto-paper-perf`.
 
 **Cron wiring:** `scripts/install-auto-paper-tasks.ps1` registers THREE
 Windows Task Scheduler jobs:
@@ -777,38 +797,44 @@ override `-EntryLocalTime` / `-MonitorStartLocalTime` /
 
 `/auto-paper-perf` is NOT cron'd — it's a query, not part of the
 trade-lifecycle loop. Run on demand to compare live results against the
-backtest's predicted edge (SEPA-VCP+sell-aware target Sharpe 2.28;
-EP loosened target 2.13).
+backtest expectations recorded on the current roster rows in
+`tools/deployable_setups.yml` (never against a restated number here).
 
 **Session 5 enhancements (shipped 2026-05-25):**
 - **Live trailing-stop ratchet** (`tools.auto_paper.stop_ratchet`) — runs
-  after `evaluate_exits()` in `/auto-paper-monitor`. Per CLAUDE.md §
-  Risk Management: gain ≥ 5% → stop migrates to break-even; gain ≥ 10%
-  → stop migrates to +5%. Cancel-then-place mechanic with
-  unprotected-state recovery: if `place_stop_loss` fails after a
-  successful cancel, the ledger clears `stop_order_id` + records the
-  unprotected state in `notes`; next ratchet/reconcile pass retries.
+  after `evaluate_exits()` in `/auto-paper-monitor`, enforcing the
+  §Risk Management trail-ratchet rule (canonical statement there).
+  Cancel-then-place mechanic with unprotected-state recovery: if
+  `place_stop_loss` fails after a successful cancel, the ledger clears
+  `stop_order_id` + records the unprotected state in `notes`; next
+  ratchet/reconcile pass retries.
 - **PE-expansion wired to EDGAR** (`tools.fundamentals.edgar_eps` +
-  `pe_expansion_check.compute_from_ticker`) — TTM EPS pulled via
-  edgartools (cached 24h on disk), baseline P/E vs current P/E from
-  the position's entry_price. Result lands in `sell_eval_history.pe_doubled_late_stage`.
-  Non-fatal: ADRs, negative-EPS names, network failures fall back to
-  `pe_expanded: False`. Note that the doctrine's "P/E doubled" trigger
-  is composer-additive only — adds `tighten_stop` to proposed actions
-  (which the ratchet now actually executes).
+  `pe_expansion_check.compute_from_ticker`) — TTM EPS via edgartools (24h
+  disk cache); result lands in `sell_eval_history.pe_doubled_late_stage`.
+  Non-fatal fallbacks (ADRs / negative EPS / network → `pe_expanded: False`).
+  The doctrine's "P/E doubled" trigger is composer-additive only — adds
+  `tighten_stop` to proposed actions (which the ratchet executes).
 
 **v1 simplifications (still deferred):**
 - Partial sells (`sell_50` / `sell_75`) from the composer close the whole
   position. Pyramid leg management is a future enhancement.
 - OCA stop+target groups deferred; STP SELL only.
 
-### AI-thematic track (shipped 2026-05-29, Alfred-refined plan)
+### AI-thematic track (shipped 2026-05-29, Alfred-refined plan; ON HOLD since 2026-06-05)
 
 Sub-track inside the paper-auto carve-out: focuses auto-paper thematically
-on "all AI industries and run-offs / gushers" while the existing 6 generic
-strategies keep running in parallel. Same `journal/paper-auto/positions.json`
-+ `ledgers/paper-auto/<TICKER>.yml` storage, shared 8-position cap; the only
-new identity is the `track:` field on each `deployable_setups.yml` row.
+on "all AI industries and run-offs / gushers". Same
+`journal/paper-auto/positions.json` + `ledgers/paper-auto/<TICKER>.yml`
+storage, shared 8-position cap; the only new identity is the `track:` field
+on each `deployable_setups.yml` row.
+
+**Status (2026-08-11 audit — the roster is authoritative):** all three
+ai-thematic rows carry `hold: true` (2026-06-05: the auto-paper v2
+boundary-refactor eval failed; per-row unblock criteria live on the roster
+comments). The original "generic strategies keep running in parallel"
+framing is stale — see §Deployable roster above: `ts_momentum_liquid_us` is
+the sole live deployable. Sweep evidence stays on the roster rows +
+`journal/backtest-sweep/2026-05-29-ai-thematic.md`.
 
 **Plan reference:** `plans/polymorphic-tickling-avalanche.md`
 (approved 2026-05-29). Refines the source draft at
@@ -829,44 +855,33 @@ Both built via `scripts/build_ai_thematic_universes.py` with audit-JSON
 sidecars recording per-ticker ADV + bucket assignments + drop reasons.
 
 **Strategy clones (Step 2 of plan):** five YAMLs under
-`tools/quant_strategies/`:
-- `xs_short_term_reversal_ai_pure.yml`, `xs_short_term_reversal_ai_broad.yml`
-- `connors_rsi2_ai_pure.yml`, `connors_rsi2_ai_broad.yml`
-- `clenow_momentum_ai_broad.yml`
+`tools/quant_strategies/` (`xs_short_term_reversal_ai_pure/broad`,
+`connors_rsi2_ai_pure/broad`, `clenow_momentum_ai_broad`) — each a
+mechanical clone of its generic-track source; only `meta.name`,
+`meta.description`, `universe.name`, the relevant param, and the `gate:`
+block change. **`gate:` is split by universe narrowness (Alfred Delta 1)** —
+the tighter `ai_thematic_pure` profile vs the default `ai_thematic_broad`
+profile; clause values are documented in the `tools/deployable_setups.yml`
+header (enforced source; not restated here). Plus a **top-3-contributor
+diagnostic** (Alfred Delta 2) on ai-pure variants: >50% of OOS |PnL| from
+top-3 tickers triggers a REVIEW flag (catches single-name idiosyncrasy on
+narrow universes).
 
-Each is a mechanical clone of its generic-track source — only
-`meta.name`, `meta.description`, `universe.name`, the relevant param
-(`bottom_n` / `top_k`), and the `gate:` block change. **`gate:` is split by
-universe narrowness (Alfred Delta 1):**
+**Sweep outcome (2026-05-29) + subsequent hold:** 3 of 5 variants cleared
+the split gate; NONE is live today — all three cleared rows carry
+`hold: true` since 2026-06-05 (see Status above). Verdicts + metrics live on
+the roster rows; sweep report `journal/backtest-sweep/2026-05-29-ai-thematic.md`;
+per-variant detail `journal/backtest/<variant>-ai-thematic.md`.
 
-| Profile | Used for | Clauses (BOTH must pass) |
-|---|---|---|
-| `ai_thematic_pure` | ai-pure variants (41 tickers) | Sharpe>1.2 ∧ \|MDD\|<22% ∧ n≥30 ∧ per-window≥60% |
-| `ai_thematic_broad` | ai-broad variants (~132 tickers) | Sharpe>1.0 ∧ \|MDD\|<25% ∧ n≥30 ∧ per-window≥50% (default) |
-
-Tighter gate on the pure track compensates for universe-narrowness
-concentration. Plus a **top-3-contributor diagnostic** (Alfred Delta 2)
-on ai-pure variants: >50% of OOS |PnL| from top-3 tickers triggers a
-REVIEW flag (catches single-name idiosyncrasy on narrow universes).
-
-**Sweep (Step 3-4): 3 of 5 variants cleared (2026-05-29).** DEPLOY:
-`xs_short_term_reversal_ai_pure` (Sharpe 1.86, |MDD| 19.34%, top-3 39%),
-`xs_short_term_reversal_ai_broad` (Sharpe 1.40, |MDD| 22.04%),
-`connors_rsi2_ai_broad` (Sharpe 1.02, |MDD| 5.11% — marginal). REJECT:
-`connors_rsi2_ai_pure` (Sharpe 1.17 below 1.2 floor),
-`clenow_momentum_ai_broad` (|MDD| 25.87% above 25% floor). Sweep report:
-`journal/backtest-sweep/2026-05-29-ai-thematic.md`. Per-variant detail:
-`journal/backtest/<variant>-ai-thematic.md`.
-
-**`residual_momentum_ai_broad` deferred (Alfred Delta 3):** not in v1
-sweep. Re-evaluate after 60 days of broad-track paper P&L.
+**`residual_momentum_ai_broad` deferred (Alfred Delta 3):** never swept.
+(Note: the generic `residual_momentum_liquid_us` was itself retired by the
+2026-06-17 net-of-cost gate.)
 
 **`track:` field convention (Alfred Delta 4, codified
 2026-05-29):** every row in `tools/deployable_setups.yml` carries an
-explicit `track:` — `generic` (original 6 deployables) or `ai_thematic`
-(the 3 new rows). Absence-as-default is not permitted; future
-grep/slice on the field would break. The 6 existing generic rows were
-backfilled in the same edit that added the 3 ai-thematic rows.
+explicit `track:` — `generic` or `ai_thematic`. Absence-as-default is not
+permitted; future grep/slice on the field would break. All generic rows
+were backfilled in the same edit that added the ai-thematic rows.
 
 **Doctrine guardrail (Alfred Delta 5):** universe additions must reuse
 algorithmically-identical clones of existing deployables. If a thematic
