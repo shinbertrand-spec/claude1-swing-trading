@@ -123,10 +123,28 @@ layers:
       v1 had this tight-but-easing on unverified background; the audit's
       primary sourcing reverses that.
     what_loosens: continued TSMC/OSAT capacity adds
-    evidence_date: "2026-07-16"
-    claim_status: audit_sourced (transcript cited in audit)
+    evidence_date: "2026-08-19"
+    claim_status: audit_sourced (transcript cited in audit) + search_summary (2026-08-19 substrate figures)
     priced: "substantially (TSMC is the most-covered name on earth — R3: no coverage edge here)"
     re_rating_status: not_yet_measured (vs own history) — flagged for next quarterly pass
+    sourcing_target_2026_08_19: >
+      THIS LAYER IS THE NEXT SOURCING PASS (see
+      2026-08-19-sourcing-pass-advanced-packaging.md). Two facts recorded
+      together, deliberately: (1) CoWoS packaging capacity itself is
+      EASING — ~35k wafers/month (late-2024) to ~120-140k (end-2026),
+      supply-demand gap narrowing ~20% -> ~10%; (2) the SUBSTRATE/FILM
+      chain feeding it is tight now — AI packages take 5-10x the ABF
+      film of a PC chip at 14 layers rising toward 18, ~95% of the film
+      is single-sourced against a ~+50% expansion through 2030, and
+      Ibiden (the main AI-server substrate maker) says it has film
+      secured for guidance but NOT for upside while committing ¥500bn
+      over three years. The pass targets (2); it must NOT be written as
+      a migration forecast from (1) to (2) — forecasting machinery stays
+      banned. Expression is largely Japanese/Taiwanese mid-cap (EDINET /
+      TDnet / TWSE MOPS doors), now reachable on IBKR; tier claim there
+      is the neglected component ONLY (JP/TW are regional, not local).
+      All figures are search_summary tier and must be re-pulled through
+      the statutory doors before any thesis is written.
 
   - layer: networking_optics
     scope: 800G->1.6T optics, switching, DSPs

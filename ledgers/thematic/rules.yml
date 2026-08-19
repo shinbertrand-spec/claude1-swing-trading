@@ -111,22 +111,34 @@ sourcing:   # operator 2026-08-18 (ERII gate): how candidates enter the funnel
     EXPLICIT DECISION (2026-08-19 — this was an UNWRITTEN constraint that
     silently disqualified both deferred questions, which made it the
     binding constraint; now written): **NON-US-LISTED CANDIDATES ARE
-    PERMITTED** on venues the operator's broker actually covers — Tiger
-    reaches SG / HK / AU / JP (operator-confirmed; the agent-side
-    TigerClient wrapper is US-shaped in its docstrings, but this book
-    PLACES NO ORDERS, so execution access is an operator fact, not an
-    agent one).
+    PERMITTED.** BROKER CORRECTED 2026-08-19 (second correction): the
+    operator's research-scope broker reach is **IBKR — ~150 markets,
+    including Europe, the Nordics, the UK, Canada, Japan and Taiwan** —
+    NOT Tiger's SG/HK/AU/JP as first written. Venue reach is therefore
+    NOT a binding screen for practically any developed-market listing.
+    This book PLACES NO ORDERS; broker reach is recorded as an operator
+    fact bounding what is worth researching, and this file has NO contact
+    with the execution path (`tools/broker/**` untouched, Tiger paper
+    invariant for the swing track unchanged).
   geography_correction: >
     🔴 CORRECTED 2026-08-19 (the first statement of listing_scope had the
     geography INVERTED and it materially reversed the edge argument):
     **the operator is SINGAPORE-BASED. SGX is the HOME exchange; US
     listings are the FOREIGN ones.** Consequences, all reversed from the
     original note:
-    (a) Ivković's LOCAL channel is AVAILABLE on SGX (and regionally on
-    HKEX) — it is not "structurally absent". The applicable figure on the
-    home exchange is therefore the **local AND non-S&P-500 combination
-    (+6.9pp)**, the strongest cell in the study, not the +2.4pp
-    non-S&P-500-only cell.
+    (a) Ivković's LOCAL channel is AVAILABLE on SGX — it is not
+    "structurally absent". On the home exchange the applicable figure is
+    the **local AND non-S&P-500 combination (+6.9pp)**, the strongest
+    cell in the study.
+    🔴 SECOND CORRECTION (2026-08-19, operator): **LOCAL MEANS SINGAPORE
+    ONLY.** Japan, Taiwan, Hong Kong, Europe, the UK and Canada are
+    REGIONAL or FOREIGN — NOT local. Ivković's local channel is
+    geographic proximity to the company's operations, and a Singapore
+    resident has no such proximity to a Gifu substrate plant or a
+    Hsinchu OSAT. On those venues claim **the non-S&P-500-equivalent
+    (neglected/under-covered) component ONLY** — never the +6.9pp
+    local-and-neglected figure. The +6.9pp cell is available on SGX
+    alone, and even there only with a named local fact (see (c)).
     (b) The local channel is a real mechanism here, not a formality:
     Singapore's 2019-2022 datacentre moratorium is exactly the
     local-fact class the mechanism describes — a siting/permitting
@@ -142,15 +154,45 @@ sourcing:   # operator 2026-08-18 (ERII gate): how candidates enter the funnel
     STATED HONESTLY: the EDGE venue and the TOOLING venue are opposite.
     The richest verification surface this project has is EDGAR (US) —
     edgartools MCP, full-text search, structured financials — while the
-    venues carrying the documented local edge (SGXNet, HKEXnews) have
-    the weakest agent-side tooling and need manual retrieval. So the
-    friction cost lands precisely on the names with the best edge case.
-    Handling, per surface: (a) disqualifier cells verify against SGXNet /
-    HKEXnews / ASX announcements — same evidence standard, manual door;
-    (b) the finviz screener does not cover these names — its checks run
-    manually; (c) prices via yfinance suffix tickers (.SI/.HK/.AX/.T);
-    (d) analyst counts from aggregators, dated and sourced. Every non-US
-    thesis carries a `verification_surface:` note naming its platforms.
+    venues carrying the coverage gap have the weakest agent-side tooling
+    and need manual retrieval. The friction cost lands precisely on the
+    names with the best edge case.
+  verification_doors: >
+    THE STATUTORY DISCLOSURE DOOR PER VENUE — same evidence standard as
+    EDGAR (primary filings, dated, quoted), different door. No thesis
+    verifies against press summaries where a statutory filing exists.
+      US ................ EDGAR (edgartools MCP; richest)
+      Japan ............. EDINET (statutory filings: yuka shoken hokokusho
+                          / quarterly) + TDnet (timely disclosure, TSE)
+      Taiwan ............ TWSE MOPS (Market Observation Post System)
+      UK ................ RNS (regulatory news service) + Companies House
+      Europe/Nordics .... the national regulated-information services /
+                          OAMs (e.g. Bundesanzeiger DE, AMF/BALO FR,
+                          Nasdaq Nordic company announcements)
+      Singapore ......... SGXNet
+      Hong Kong ......... HKEXnews
+      Australia ......... ASX company announcements
+      Canada ............ SEDAR+
+    Every non-US thesis carries a `verification_surface:` note naming the
+    doors it used, and prices come via yfinance suffix tickers
+    (.T/.TW/.L/.SI/.HK/.AX/.TO/.ST/.CO etc.).
+  language_barrier_is_the_edge: >
+    RECORDED AS A FIRST-CLASS FINDING, not a caveat: partial or delayed
+    English disclosure is SIMULTANEOUSLY the friction cost AND the reason
+    the coverage gap exists. Japanese and Taiwanese mid-caps file
+    completely and on time in Japanese/Chinese, with English summaries
+    that are partial, lagged, or absent — which is precisely why
+    global-institutional coverage thins out there and why the
+    non-S&P-500-equivalent neglect component is real rather than
+    nominal. **This is the edge's ORIGIN, not an obstacle to route
+    around.** Consequences: (a) do NOT substitute an English press
+    summary for the statutory filing — read the filing through the door
+    above and translate, recording `claim_status` as usual; (b) do NOT
+    treat "no English coverage" as absence of information — treat it as
+    the measurable form of neglect the tier test is looking for; (c)
+    budget the translation/retrieval time as the cost of the edge, and
+    if a thesis cannot bear that cost it is not a thesis this book can
+    hold honestly.
   coverage_measured_per_name: >
     Tier is MEASURED PER NAME, never inferred from the venue. A non-US
     listing is not automatically neglected: **GMG.AX (Goodman Group) is a
@@ -248,3 +290,16 @@ sizing:   # handoff §3 — the standing rule any future sizing logic must imple
     positions plus remnants. The ENVELOPE binds; the per-name anchor
     rarely does. Any language elsewhere implying a 5x10% thematic book is
     superseded by this note.
+  fx_caveat: >
+    STATED (2026-08-19, operator): the −70% drawdown assumption was
+    DERIVED ON US-LISTED NAMES IN USD (dot-com equipment cohort, 2018
+    memory, 2022 tightening — all ticker/SPY in USD). A non-USD-listed
+    position measured against a USD benchmark carries an additional FX
+    leg the derivation never observed: JPY/TWD/EUR weakness during a
+    global risk-off would ADD to the USD-measured drawdown, JPY strength
+    (the classic risk-off behaviour) would OFFSET it — direction is not
+    even stable across the two. SECOND-ORDER at a −70% magnitude: a
+    ±10% currency move shifts the envelope from ~14% to roughly
+    13-16%, inside the false-precision band the envelope was already
+    declared final against. Recorded so it is not discovered later and
+    mistaken for a new finding; it does NOT reopen the envelope.
