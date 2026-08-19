@@ -1,0 +1,22 @@
+🔔 *Morning Candidates — 2026-07-17*
+
+⚠️ Book is 9 positions vs the 8-cap — close 2 before ANY new entry can clear Mode 2.
+Regime: SPY stage_2_weakening (5/8), not Stage 4 — size at 0.75×.
+
+1. *GS* · XLF capital markets · $1070.00 · Stage-2 cont. (grade pending)
+Why: Record Q2 blowout 7/14 — EPS $20.98 vs ~$14.47 est, equities +72%, IB fees +55%
+Risk: 3 days post 9% earnings gap — chasing; same bet as MS (bank-earnings pair)
+Next earnings: 2026-10-13 (outside 10d window)
+
+2. *VRTX* · XLV large-cap biotech · $494.54 · Stage-2 cont. (grade pending)
+Why: CASGEVY label expansion (7/1) + Crinetics acquisition (7/6) diversify beyond CF
+Risk: +24% in a month — extended; stacks on existing XLV exposure (VRDN)
+Next earnings: 2026-08-04 (12 td — outside 10d window)
+
+3. *MS* · XLF wealth mgmt/trading · $213.49 · Stage-2 cont. (grade pending)
+Why: Record Q2 7/15 — EPS $3.46 vs $3.03, equities trading +69%, client assets $10T
+Risk: Same trade as GS dressed twice — pick one bank, not both
+Next earnings: 2026-10-14 (outside 10d window)
+
+Pick 2 of 3. At your desk run /morning-deep-dive
+(journal/ deny still active — report at ledgers/improvements/2026-07-17-morning-candidates.md)

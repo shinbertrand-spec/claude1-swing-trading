@@ -1,0 +1,21 @@
+🔔 *Morning Candidates — 2026-07-16*
+
+⚠️ *Blocker:* 9 open positions vs 8-cap (hard rule, survives carve-out). Close/trim one before any new entry can clear Gate 4.
+
+1. *GS* · capital markets (XLF diversifier) · $1114.54 · setup 7/8 TT
+Why: Record Q2 beat (EPS $20.98 vs $14.47 est), record equities+FICC, fresh ATH
+Risk: Chasing extended post-earnings pop; no catalyst before Oct print
+Next earnings: 2026-10-13 (outside 10d window)
+
+2. *OKTA* · AI identity security (XLK — crowded) · $151.07 · setup 7/8 TT
+Why: 4 analyst PT hikes this week on agentic-AI identity demand; +21% in 7 sessions
+Risk: Extended +21%/7d; would make XLK 6 of 10 positions
+Next earnings: 2026-08-26 (outside 10d window)
+
+3. *HSIC* · dental/medical distribution (XLV) · $88.98 · setup 7/8 TT
+Why: BTIG Buy PT $100 + 4.1% US-dental organic growth + GoTu partnership
+Risk: Catalyst 4-5wks stale; earnings 08-04 only 13 trading days out
+Next earnings: 2026-08-04 (tight — 13 trading days)
+
+SPY: Stage 2 weakening (6/7). Pick 2 of 3. At your desk run /morning-deep-dive
+(journal/** deny still blocks the scan's normal output path — day 10; report at ledgers/improvements/2026-07-16-morning-candidates.md)

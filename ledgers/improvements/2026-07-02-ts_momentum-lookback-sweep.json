@@ -1,0 +1,126 @@
+[
+  {
+    "lookback_days": 126,
+    "n_signals": 856,
+    "full": {
+      "sharpe": 0.6887133686456893,
+      "mdd": -41.64830012544678,
+      "n": 781,
+      "fill": 0.919392523364486,
+      "gate": false
+    },
+    "oos_agg": {
+      "sharpe": 0.5835457370545104,
+      "mdd": -41.64788503216395,
+      "n": 525,
+      "fill": 0.9114583333333334,
+      "gate": false
+    },
+    "per_window": [
+      {
+        "is_end_year": 2020,
+        "oos_sharpe": 0.5817574339353171,
+        "oos_n": 83,
+        "clears": true
+      },
+      {
+        "is_end_year": 2021,
+        "oos_sharpe": 0.30811410354611757,
+        "oos_n": 87,
+        "clears": false
+      },
+      {
+        "is_end_year": 2022,
+        "oos_sharpe": 0.09320435082126849,
+        "oos_n": 92,
+        "clears": false
+      },
+      {
+        "is_end_year": 2023,
+        "oos_sharpe": 0.06894180884348307,
+        "oos_n": 94,
+        "clears": false
+      },
+      {
+        "is_end_year": 2024,
+        "oos_sharpe": 0.1757893961143194,
+        "oos_n": 86,
+        "clears": false
+      },
+      {
+        "is_end_year": 2025,
+        "oos_sharpe": 0.49070225830802544,
+        "oos_n": 83,
+        "clears": false
+      }
+    ],
+    "n_windows": 6,
+    "n_windows_above_floor": 1,
+    "window_pass_rate": 0.16666666666666666,
+    "window_clause_passed": false,
+    "weakest_passing_window": 0.5817574339353171,
+    "verdict": "RETIRE / REBUILD"
+  },
+  {
+    "lookback_days": 252,
+    "n_signals": 808,
+    "full": {
+      "sharpe": 1.3471473754609364,
+      "mdd": -16.931421004731355,
+      "n": 736,
+      "fill": 0.9183168316831684,
+      "gate": true
+    },
+    "oos_agg": {
+      "sharpe": 1.225824751761238,
+      "mdd": -16.926677376958377,
+      "n": 525,
+      "fill": 0.9114583333333334,
+      "gate": true
+    },
+    "per_window": [
+      {
+        "is_end_year": 2020,
+        "oos_sharpe": 0.6374968328055951,
+        "oos_n": 86,
+        "clears": true
+      },
+      {
+        "is_end_year": 2021,
+        "oos_sharpe": 0.5372199070919368,
+        "oos_n": 81,
+        "clears": true
+      },
+      {
+        "is_end_year": 2022,
+        "oos_sharpe": 0.29058496579739523,
+        "oos_n": 92,
+        "clears": false
+      },
+      {
+        "is_end_year": 2023,
+        "oos_sharpe": 0.40920179656451866,
+        "oos_n": 95,
+        "clears": false
+      },
+      {
+        "is_end_year": 2024,
+        "oos_sharpe": 0.6251454251228401,
+        "oos_n": 86,
+        "clears": true
+      },
+      {
+        "is_end_year": 2025,
+        "oos_sharpe": 0.4971716565291465,
+        "oos_n": 85,
+        "clears": false
+      }
+    ],
+    "n_windows": 6,
+    "n_windows_above_floor": 3,
+    "window_pass_rate": 0.5,
+    "window_clause_passed": true,
+    "weakest_passing_window": 0.5372199070919368,
+    "verdict": "DEPLOY \u2014 MARGINAL/FRAGILE"
+  }
+]

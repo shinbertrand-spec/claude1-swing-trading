@@ -1,0 +1,162 @@
+meta:
+  schema_version: "1.0"
+  ticker: ELV
+  company_name: Elevance Health Inc
+  asof: "2026-08-06T10:25:00-04:00"
+  state: trailing
+  ledger_path: ledgers/positions/ELV.yml
+  created_by: portfolio-manager/onboard
+  created_at: "2026-08-06T10:25:00-04:00"
+  notes:
+    - date: "2026-08-06"
+      event: onboarded_pre_framework
+      reason: "Onboarded from operator-verified Tiger broker screenshot. Real resting GTC stop ($357.00) recorded as position_state.current_stop / setup_classification.stop_price instead of the onboard-default max(cost*0.92, price-1xATR) formula (which would have picked $376.59 -- tighter). Fill/entry date unknown (journal gap, sometime 2026-06-15 to 2026-08-06); position_state.starter leg intentionally OMITTED rather than fabricated, since entry_leg.fill_date is schema-required."
+
+quote:
+  last: 389.17
+  bid: 389.17
+  ask: 389.17
+  session: regular
+  source: web:finviz.com
+  fetched_at: "2026-08-06T10:23:00-04:00"
+
+fundamentals:
+  market_cap_usd: 84400000000
+  avg_daily_volume_shares: 1660000
+  next_earnings_date: "2026-10-21"
+  next_earnings_source: tool:earnings_calendar.py
+  source: web:finviz.com
+  fetched_at: "2026-08-06T10:23:00-04:00"
+
+technical:
+  price_above_50dma: false
+  price_above_150dma: true
+  price_above_200dma: true
+  ma_alignment_50_150_200: true
+  ma200_rising: true
+  price_pct_above_52w_low: 42.15776487917342
+  price_pct_below_52w_high: 10.805974964728215
+  trend_template_passes: 6
+  stage: 2
+  atr_14: 12.578115106815634
+  computed_at: "2026-08-06T14:22:42+00:00"
+  source: yfinance:ELV
+
+regime:
+  broad_market_ticker: SPY
+  broad_market_trend_template_passes: 6
+  broad_market_stage_class: stage_2_weakening
+  sector_etf: XLV
+  sector_trend_template_passes: 6
+  sector_qualifies_for_long: true
+  regime_multiplier: 0.75
+  computed_at: "2026-08-06T14:22:41+00:00"
+
+setup_classification:
+  type: Manual
+  confluence_checklist: []
+  trace_refs: [1, 2, 3]
+  pivot_price: 374.69
+  stop_price: 357.00
+  stop_distance_pct: 0.082663
+  notes: "pivot_price is synthetic (= cost basis); pre-framework position had no documented pivot. stop_price is the REAL GTC stop resting at Tiger broker, not the framework-default formula. stop_distance_pct exceeds the Minervini 8% cap (8.27%) because the broker stop pre-dates this framework's stop discipline and is being honored as broker-truth per operator instruction, not re-tightened on onboard."
+
+catalyst:
+  type: none
+  description: "Pre-framework position onboarded retroactively; original entry catalyst unknown."
+  verified: false
+  fetched_at: "2026-08-06T10:25:00-04:00"
+
+position_state:
+  stage: trailing
+  intended_full_shares: 10
+  combined_breakeven: 374.69
+  current_stop: 357.00
+  trail_ma: 20_day_MA
+  trail_state_legacy: initial
+  alerts_sent: []
+
+reasoning_trace:
+  - id: 1
+    tool: tools/regime_check.py
+    inputs: {candidate_ticker: ELV, sector_etf: XLV, broad_ticker: SPY, candidate_rs_rating: null}
+    output:
+      broad_market: {ticker: SPY, trend_template_passes: 6, stage_class: stage_2_weakening, stage: 1}
+      sector: {ticker: XLV, trend_template_passes: 6, stage_class: stage_2_weakening, qualifies_for_long: true, stage: 1}
+      candidate:
+        ticker: ELV
+        trend_template_passes: 6
+        stage: 2
+        criteria:
+          c1_price_above_150_and_200_sma: true
+          c2_sma150_above_sma200: true
+          c3_sma200_rising_30d: true
+          c4_sma50_above_150_and_200: true
+          c5_price_above_sma50: false
+          c6_price_30pct_above_52w_low: true
+          c7_price_within_25pct_of_52w_high: true
+          c8_rs_rating_ge_70: false
+      regime_multiplier: 0.75
+      candidate_qualifies_for_entry: true
+      circuit_breaker_stage_4: false
+    fetched_at: "2026-08-06T14:22:41+00:00"
+  - id: 2
+    tool: tools/trend_template.py
+    inputs: {ticker: ELV, include_rs: true, rs_rating: null}
+    output:
+      trend_template_passes: 6
+      trend_template_total: 8
+      criteria:
+        c1_price_above_150_and_200_sma: true
+        c2_sma150_above_sma200: true
+        c3_sma200_rising_30d: true
+        c4_sma50_above_150_and_200: true
+        c5_price_above_sma50: false
+        c6_price_30pct_above_52w_low: true
+        c7_price_within_25pct_of_52w_high: true
+        c8_rs_rating_ge_70: false
+      stage: 2
+      rs_status: unknown
+      stats:
+        price: 389.1000061035156
+        sma_50: 396.07180053710937
+        sma_150: 357.66100016276044
+        sma_200: 351.8663998413086
+        sma_200_30d_ago: 342.34659973144534
+        high_52w: 436.239990234375
+        low_52w: 273.7099914550781
+        pct_above_52w_low: 42.15776487917342
+        pct_below_52w_high: 10.805974964728215
+    fetched_at: "2026-08-06T14:22:42+00:00"
+  - id: 3
+    tool: tools/atr_compute.py
+    inputs: {ticker: ELV, period: 14}
+    output:
+      atr: 12.578115106815634
+      atr_pct_of_close: 0.0323261755577289
+      period: 14
+      last_close: 389.1000061035156
+      last_close_date: "2026-08-06 00:00:00-04:00"
+    fetched_at: "2026-08-06T14:22:43+00:00"
+  - id: 4
+    tool: tools/earnings_calendar.py
+    inputs: {ticker: ELV}
+    output:
+      next_earnings_date: "2026-10-21"
+      trading_days_to_earnings: 54
+      within_blackout_window: false
+      blackout_threshold_days: 10
+      source_field: "calendar.Earnings Date"
+      source: yfinance:ELV
+    fetched_at: "2026-08-06T14:22:44+00:00"
+  - id: 5
+    tool: "manual:web:finviz.com"
+    inputs: {ticker: ELV, url: "https://finviz.com/quote.ashx?t=ELV"}
+    output:
+      last: 389.17
+      market_cap_usd: 84400000000
+      avg_daily_volume_shares: 1660000
+      note: "Last close prior session was $391.24; current intraday last $389.17 as of Aug 06 10:22 AM ET."
+    fetched_at: "2026-08-06T10:23:00-04:00"
+
+notes: "Onboarded via portfolio-manager onboard mode on 2026-08-06. Pre-framework position; entry rationale unknown. Cost basis $374.69 / 10sh confirmed via operator's Tiger broker screenshot (verified 2026-08-06). Unrealized P&L at onboard: +3.86% (well clear of the 8%-from-cost close-without-waiting threshold -- no loud flag needed). Real GTC stop $357.00 resting at broker is used as-is (broker truth per operator override of the default onboard stop formula); the formula would have picked $376.59 (tighter, ATR-based) -- broker stop is looser/wider than the framework default by design choice of the operator, not a framework recommendation. Entry/fill date is UNKNOWN -- lost to a journal gap between 2026-06-15 and 2026-08-06; do not treat any date elsewhere in this ledger as a real fill date. Setup type Manual, grade omitted (not assigned -- pre-framework position did not pass the morning routine). STAGING NOTE: this file is a validated copy of the ledger that could NOT be written to its real path (ledgers/positions/ELV.yml is Write/Edit-denied this session per .claude/settings.local.json). Move this file to ledgers/positions/ELV.yml (renaming, dropping this staging note) once the deny is lifted."

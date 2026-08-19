@@ -1,0 +1,22 @@
+🔔 *Morning Candidates — 2026-07-23*
+
+⚠️ Book still 9/8 positions — trim before ANY new entry. All 3 picks are XLF post-Q2-beat financials = ONE correlated basket, not three bets.
+
+1. *IBKR* · retail brokerage · $91.08 · setup 7/8 Stage 2
+Why: Q2 beat 7/21 — accounts +34% YoY, commission rev +30% on record volume
+Risk: 55% above 52w low, already extended; carried from yesterday
+Next earnings: 2026-10-21 (64 trading days)
+
+2. *MS* · wealth/IB record equities desk · $216.15 · setup 7/8 Stage 2
+Why: Record Q2 (7/15) — equities rev $6.3B (~$1.9B above est), EPS $3.46 vs $2.93
+Risk: Post-earnings pop may be priced in; same XLF basket
+Next earnings: 2026-10-14 (59 trading days)
+
+3. *GS* · IB/trading, record 157yr quarter · $1,077.29 · setup 7/8 Stage 2
+Why: Q2 EPS $20.98 (45% beat), record equities rev $7.42B +72% YoY
+Risk: $1,077/sh limits share granularity under 10% cap; same XLF basket
+Next earnings: 2026-10-13 (58 trading days)
+
+FA dropped vs yesterday — now inside the 10-day earnings blackout (reports 8/6). SPY stage_2_weakening, regime multiplier 0.75.
+
+Pick 2 of 3. At your desk run /morning-deep-dive

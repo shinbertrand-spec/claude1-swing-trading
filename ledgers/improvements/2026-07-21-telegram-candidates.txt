@@ -1,0 +1,22 @@
+🔔 *Morning Candidates — 2026-07-21*
+
+⚠️ Book at 9 positions vs the 8-cap — a position must close before any new entry.
+SPY: Stage 2 weakening (5/7) — size at 0.75x.
+
+1. *PSX* · refining margins · $212.17 · setup 7/8 TT
+Why: RJ/Citi/Jefferies PT hikes (RJ $235) on tight crack spreads + falling gasoline inventories
+Risk: whole refining complex (DK/PAA/PARR/KNTK) cleared the same screen — one correlated trade, a crack-spread reversal hits all at once
+Next earnings: 2026-08-05 (11 trading days — outside 10d window)
+
+2. *RXO* · freight brokerage · $28.72 · setup 7/8 TT
+Why: brokerage volumes +80% YoY on tightening truckload capacity; BMO Outperform $35 PT, Barclays bullish
+Risk: +114% YTD — extended move, climax-reversal risk on any freight-rate disappointment
+Next earnings: 2026-08-06 (12 trading days — outside 10d window)
+
+3. *ESTA* · reconstruction medtech · $94.54 · setup 7/8 TT
+Why: Q1 revenue +44.7% YoY, guidance raised; Citi PT hike + Russell 2000 add
+Risk: thin ADV (611K sh) magnifies slippage/gap risk; industry litigation overhang
+Next earnings: 2026-08-06 (12 trading days — outside 10d window)
+
+Pick 2 of 3. At your desk run /morning-deep-dive
+(journal write-deny day 11 — report in ledgers/improvements/, pushed direct)

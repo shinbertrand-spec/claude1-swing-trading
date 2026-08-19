@@ -1,0 +1,68 @@
+{
+  "_comment": "Three v2-schema position-index entries the portfolio-manager onboard mode WOULD have appended to journal/positions.json.positions[] on 2026-08-06, staged here because journal/positions.json is Write/Edit-denied this session (per .claude/settings.local.json). Operator: merge these into journal/positions.json.positions[] once the deny is lifted, then delete this file. Also note: the corresponding ledgers/positions/<TICKER>.yml files could NOT be written either (same-session deny on ledgers/positions/**); the fully-validated ledger docs are staged alongside this file at ledgers/improvements/2026-08-06-onboard-ELV.yml, -GOOGL.yml, -LMT.yml -- move each to its real path (dropping the trailing STAGING NOTE sentence) at the same time.",
+  "entries": [
+    {
+      "ticker": "ELV",
+      "ledger_path": "ledgers/positions/ELV.yml",
+      "entry_date": null,
+      "entry_price": 374.69,
+      "shares": 10,
+      "stop": 357.00,
+      "thesis": "Pre-framework position onboarded retroactively; original entry catalyst unknown. Entry/fill date UNKNOWN -- lost to a journal gap between 2026-06-15 and 2026-08-06; do not fabricate. Cost basis $374.69 / 10sh confirmed via operator's Tiger broker screenshot (verified 2026-08-06). Real GTC stop $357.00 resting at broker recorded as-is (broker truth); the onboard-default formula max(cost*0.92, price-1xATR) would have picked $376.59 (tighter) -- broker stop is looser by operator's own resting order, not a framework recommendation. Unrealized P&L at onboard +3.86%, well clear of the 8%-from-cost threshold.",
+      "sector": "XLV",
+      "catalysts": [
+        {
+          "date": "2026-10-21",
+          "event": "earnings"
+        }
+      ],
+      "trail_state": "initial",
+      "alerts_sent": [],
+      "stage": "trailing",
+      "setup_type": "Manual",
+      "setup_grade": null
+    },
+    {
+      "ticker": "GOOGL",
+      "ledger_path": "ledgers/positions/GOOGL.yml",
+      "entry_date": null,
+      "entry_price": 324.65,
+      "shares": 13,
+      "stop": 340.00,
+      "thesis": "Pre-framework position onboarded retroactively; original entry catalyst unknown. Entry/fill date UNKNOWN -- lost to a journal gap between 2026-06-15 and 2026-08-06; do not fabricate. Cost basis $324.65 / 13sh confirmed via operator's Tiger broker screenshot (verified 2026-08-06). Real GTC stop $340.00 resting at broker recorded as-is (broker truth); the onboard-default formula max(cost*0.92, price-1xATR) would have picked $348.95 (tighter) -- broker stop is looser by operator's own resting order, not a framework recommendation. Unrealized P&L at onboard +11.56%, well clear of the 8%-from-cost threshold. NOTE: sector regime (XLC) reads stage_4 / 2 of 7 trend-template passes at onboard time despite GOOGL itself scoring 7/8 name-level -- flagged for operator awareness on future stop/trim decisions.",
+      "sector": "XLC",
+      "catalysts": [
+        {
+          "date": "2026-10-29",
+          "event": "earnings"
+        }
+      ],
+      "trail_state": "breakeven",
+      "alerts_sent": [],
+      "stage": "trailing",
+      "setup_type": "Manual",
+      "setup_grade": null
+    },
+    {
+      "ticker": "LMT",
+      "ledger_path": "ledgers/positions/LMT.yml",
+      "entry_date": null,
+      "entry_price": 570.36,
+      "shares": 4,
+      "stop": 560.00,
+      "thesis": "Pre-framework position onboarded retroactively; original entry catalyst unknown. Entry/fill date UNKNOWN -- lost to a journal gap between 2026-06-15 and 2026-08-06; do not fabricate. Cost basis $570.36 / 4sh confirmed via operator's Tiger broker screenshot (verified 2026-08-06). Real GTC stop $560.00 resting at broker recorded as-is (broker truth); the onboard-default formula max(cost*0.92, price-1xATR) would have picked $567.37 (tighter) -- broker stop is looser by operator's own resting order, not a framework recommendation. Unrealized P&L at onboard +2.23%, well clear of the 8%-from-cost threshold.",
+      "sector": "XLI",
+      "catalysts": [
+        {
+          "date": "2026-10-20",
+          "event": "earnings"
+        }
+      ],
+      "trail_state": "initial",
+      "alerts_sent": [],
+      "stage": "trailing",
+      "setup_type": "Manual",
+      "setup_grade": null
+    }
+  ]
+}

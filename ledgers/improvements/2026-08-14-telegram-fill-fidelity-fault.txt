@@ -1,0 +1,11 @@
+🔴 FILL-FIDELITY CYCLE 1: FAULT — signals emitted, zero orders placed (the prereg's escalate-immediately branch).
+
+The 9:35 /auto-paper run emitted 8 ts_momentum signals (signal date 08-13: ARWR INTC LITE MU MXL SNDK STX WDC) but died mid-init — nothing reached the broker. Verified: 0 open orders at Tiger, positions.json untouched, no partial state.
+
+ROOT CAUSE: signal-day init (universe refetch + 8-candidate build) blew past the Bash tool's default 120s timeout → harness backgrounded it → the headless --print session ended its turn "awaiting notification", which terminated the session and killed init as an orphan. Task Scheduler saw exit 0 — silent. 0-candidate days finish ~10s past the mark, so only rebalance mornings ever trip this. Likeliest mechanism behind the whole nine-week drought.
+
+PER PREREG: cycle 1 scored FAULT; the fault is the finding; next eligible cycle = 09-14 rebalance → 09-15 placement (3 cycles left before the 11-17 review). No late re-placement attempted — fire /auto-paper manually today only if you want the sleeve invested; that's your call, outside the scoring.
+
+NEEDS YOU (before 09-14): the fix is a Step-1 patch to .claude/commands/auto-paper.md (explicit timeout: 600000 + never end the turn while a phase runs in background) — that path is write-denied for me. Exact patch text staged in ledgers/improvements/2026-08-14-ts-momentum-fill-fidelity-cycle-1.md.
+
+Monitor itself: nothing open (book flat, 0 starter positions), no stops to ratchet.

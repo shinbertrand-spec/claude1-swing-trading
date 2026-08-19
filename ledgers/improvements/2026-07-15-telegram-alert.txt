@@ -1,0 +1,9 @@
+⚠️ Morning scan blocked — 8th straight trading day (2026-07-15)
+
+The journal write deny in .claude/settings.local.json is still active, so no candidate files or summaries have been written since 07-01, and the wrapper had nothing to push. Push-notification escalations never reached you (Remote Control inactive) — this may be the first alert you see about it.
+
+NEW this session: I can run scripts/send-to-telegram.ps1 directly, which is how this message reached you. Today's candidate scan is running now — candidates follow in the next message.
+
+Fix (at the IDE, 2 min): edit .claude/settings.local.json and DELETE the two deny lines for Write and Edit on journal (a carve-out alone won't work — deny beats allow). Full recipe: ledgers/improvements/2026-07-15-morning-scan-blocked.md
+
+Same deny also breaks /eod-journal, /auto-paper (journal/paper-auto), and /news-hourly relays.

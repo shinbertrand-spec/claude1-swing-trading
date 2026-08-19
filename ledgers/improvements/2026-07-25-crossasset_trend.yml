@@ -1,0 +1,74 @@
+# Cross-asset trend (Phase 0 validation, 2026-07-25) — NOT yet a tools/ spec.
+# Applies the PROVEN trend kind (ts_momentum, the sole live survivor's engine)
+# to a genuine-diversifier universe of liquid ETF/crypto proxies that trade on
+# the existing equity rails (Tiger cash-equity broker + cash-equity simulator).
+#
+# Deliberately EXCLUDES US-correlated equity (EFA/EEM/VNQ) so this is a clean
+# test of "does trend on NON-equity assets clear the bar AND decorrelate from
+# the US-equity trend book (ts_momentum_liquid_us)?".
+#
+# LONG-ONLY by construction (stack invariant; NFLX incident). This forgoes the
+# short-side crisis alpha of classic managed futures — accepted tradeoff.
+#
+# Params: only ts_momentum_liquid_us's DECLARED grid values (lookback 126/252,
+# top_k 8) — no grid-widening. 2 combos so the C1 DSR gate can compute.
+
+meta:
+  name: crossasset_trend
+  version: "0.1"
+  source: "Moskowitz-Ooi-Pedersen 2012 (TS momentum) applied cross-asset; Clenow managed-futures diversification"
+  description: |
+    Time-series (absolute-return-sign) momentum on a long-only cross-asset
+    ETF/crypto diversifier universe. Monthly rebalance, top-K by trailing
+    return, ATR catastrophe stop. Identical engine to ts_momentum_liquid_us;
+    only the universe changes. Phase-0 validation running from an allowed
+    ledgers/improvements/ spec (inline universe) — promotion to tools/ is the
+    operator's call.
+  horizon_days: 21
+  status: phase0_validation
+
+kind: ts_momentum
+
+universe:
+  # Inline diversifier universe (no registered name) — trades on equity rails.
+  tickers:
+    - TLT      # 20y+ Treasuries
+    - IEF      # 7-10y Treasuries
+    - GLD      # gold
+    - SLV      # silver
+    - DBC      # broad commodities
+    - DBA      # agriculture
+    - USO      # crude oil
+    - UUP      # US dollar index
+    - BTC-USD  # bitcoin
+    - ETH-USD  # ether
+  benchmark: SPY
+
+period:
+  start: "2010-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: [126, 252]     # ts_momentum_liquid_us declared grid — NO widening
+  rebalance_period_days: 21
+  max_hold_days: 21
+  top_k: 8
+  atr_period: 20
+  atr_stop_multiple: 3.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5

@@ -138,6 +138,10 @@ desktop.ini
 
 # Underscore-prefixed scratch / one-off scripts (not part of the operational set)
 scripts/_*
+# Same convention for improvement-ledger scratch: _critic*/_probe* working
+# files (stress-test scripts, perturbation runs, stdout captures). The DATED
+# operational records in ledgers/improvements/ ARE tracked.
+ledgers/improvements/_*
 
 # Research screenshots — local scratch, may contain broker PII (keep README tracked)
 research/screenshots/*

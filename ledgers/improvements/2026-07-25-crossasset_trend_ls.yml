@@ -1,0 +1,79 @@
+# Cross-asset trend + SYNTHETIC SHORTS via inverse ETFs (Phase 0b, 2026-07-25).
+#
+# Long-only-mechanical long/short cross-asset trend. Same proven ts_momentum
+# engine. Universe = long diversifier ETFs (asset uptrend) + -1x INVERSE ETFs
+# (asset downtrend). The trend signal buys the inverse ETF when its underlying
+# downtrends — synthetic short exposure on the existing long-only rails. NO real
+# shorts, NO new broker, NO removal of the NFLX long-only guards.
+#
+# The equity-short names (SH/PSQ/RWM/EFZ/EUM) are the crisis-hedge component:
+# they uptrend when equities crash, offsetting the long-equity ts_momentum book.
+#
+# Crypto EXCLUDED (operator preference + weekend-calendar + MDD blowup).
+# Leveraged (-2x/-3x) inverse ETFs EXCLUDED (daily-reset decay). -1x only.
+# Inverse-ETF decay/fees are embedded in the actual yfinance price series, so
+# the net-of-cost backtest captures them; net-cost sim adds spread/impact on top.
+
+meta:
+  name: crossasset_trend_ls
+  version: "0.1"
+  source: "TS momentum applied cross-asset long/short via -1x inverse ETFs (managed-futures analogue, long-only implementation)"
+  description: |
+    ts_momentum on a long + synthetic-short cross-asset ETF universe. Monthly
+    rebalance, top-K by trailing return, ATR stop. Inverse ETFs give DOWNtrend
+    capture without real shorts. Phase-0b validation from an allowed
+    ledgers/improvements/ spec (inline universe).
+  horizon_days: 21
+  status: phase0_validation
+
+kind: ts_momentum
+
+universe:
+  tickers:
+    # long diversifiers (asset uptrend)
+    - TLT      # long 20y+ Treasuries
+    - IEF      # long 7-10y Treasuries
+    - GLD      # long gold
+    - SLV      # long silver
+    - DBC      # long broad commodities
+    - DBA      # long agriculture
+    - USO      # long crude oil
+    - UUP      # long US dollar
+    # synthetic shorts (asset downtrend, -1x inverse)
+    - SH       # short S&P 500
+    - PSQ      # short Nasdaq 100
+    - RWM      # short Russell 2000
+    - TBF      # short 20y Treasuries
+    - EFZ      # short EAFE (dev intl)
+    - EUM      # short EM
+    - DGZ      # short gold
+  benchmark: SPY
+
+period:
+  start: "2010-01-01"
+  end: "2026-05-25"
+
+walk_forward:
+  mode: rolling
+  is_years: 3
+  oos_years: 1
+  step_years: 1
+
+params:
+  lookback_days: [126, 252]     # ts_momentum declared grid — NO widening
+  rebalance_period_days: 21
+  max_hold_days: 21
+  top_k: 8
+  atr_period: 20
+  atr_stop_multiple: 3.0
+  risk_per_trade: 0.01
+
+execution:
+  trail: fixed
+
+gate:
+  sharpe_min: 1.0
+  max_dd_pct: 25.0
+  n_min: 30
+  min_window_sharpe: 0.5
+  min_window_pass_rate: 0.5
