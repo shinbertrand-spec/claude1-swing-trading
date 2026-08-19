@@ -64,6 +64,18 @@ invalidation_triggers:   # >=2. Observable from PUBLIC data. Written BEFORE
     source: ""           # escalate to operator IMMEDIATELY (do not wait for
     cadence: ""          # cadence); status -> invalidated unless the operator
     next_check: "YYYY-MM-DD"   # explicitly overrides in writing.
+  # SCARCITY THESES: a thesis resting on a material/capacity being scarce
+  # needs BOTH trigger families — they are different failure modes and one
+  # cannot watch the other (codified 2026-08-19, packaging pre-reg):
+  #   (A) CONSTRAINT EASES  — more of the same input arrives. Test in
+  #       GOOD (yielded) units, not announcements: yield improvement is
+  #       unannounced capacity and fires this family silently.
+  #   (B) CONSTRAINT BYPASSED — the input is REPLACED by a substitute
+  #       (e.g. glass core for ABF). Track the replacement's qualification,
+  #       capacity, AND incumbent capitulation (the incumbent funding the
+  #       substitute is the strongest tell). Note the trap: if the thesis's
+  #       demand driver is the same escalation the substitute exists to
+  #       solve, the demand driver IS the obsolescence driver.
   - id: T2
     trigger: ""
     source: ""

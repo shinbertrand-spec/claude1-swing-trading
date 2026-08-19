@@ -76,6 +76,45 @@ Therefore:
   door, date — so a future session can re-run it when the capex schedule
   changes.
 
+#### 🔴 Denominate the budget in GOOD UNITS, not gross — yield is unannounced capacity
+
+**Both sides of the budget must be in YIELDED units.** A budget written in
+gross film volume or nameplate substrate capacity **systematically
+overstates the constraint**, because the largest supply lever in this chain
+is invisible: **yield improvement adds effective capacity with no capex, no
+announcement, and no press release.**
+
+Why this is a near-certainty rather than a tail risk:
+
+- Large-body, high-layer-count AI substrates yield materially worse than
+  commodity substrates — **warpage and thermal stress are the named failure
+  modes** at exactly the 14→18-layer escalation this mechanism rests on.
+  That means yields start LOW, which is precisely where the learning curve
+  has the most room.
+- Learning-curve yield improvement is the most reliable phenomenon in
+  semiconductor manufacturing. A move from (say) 60% → 75% good-unit yield
+  is **~+25% effective supply from the same gross film and the same
+  nameplate lines** — comparable to half the entire announced ~+50%
+  expansion, delivered silently.
+- Consequence: the ~+50% announced film expansion is a FLOOR on effective
+  supply growth, not a ceiling. The constraint can ease invisibly while
+  every announced number stays unchanged.
+
+Binding requirements on the draft:
+
+1. The reconciliation table carries an **explicit yield assumption line on
+   both sides**, with its source and date. A budget with no stated yield
+   assumption is not a budget and does not pass this pre-registration.
+2. It carries a **yield sensitivity**: if a plausible learning-curve path
+   (state it) closes the demand/supply gap, then **the constraint is not
+   binding in good units and the thesis fails at the budget stage** — before
+   drafting, not after.
+3. **Observability, stated honestly:** yield is rarely disclosed directly.
+   Infer it through the statutory doors from disclosed shipment units vs
+   nameplate capacity, gross-margin trajectory on the substrate segment,
+   and scrap / inventory-write-down lines — and record the inference as
+   inference (`claim_status`), never as a disclosed figure.
+
 🔴 **What it must NOT become:** "the bottleneck will migrate from CoWoS to
 substrates" is a MIGRATION FORECAST and is banned (handoff §6; `stack-map`
 `migration_forecast` was deleted for exactly this reason). Note the
@@ -166,3 +205,77 @@ correction).
 
 **"No qualified candidate" remains a valid outcome of this pass**
 (rules.yml `sourcing.no_candidate_is_valid`) — as it was for water.
+
+---
+
+## 🔴 TWO INVALIDATION TRIGGER FAMILIES — separate, because they are different failure modes
+
+A thesis resting on a material's scarcity dies two distinct ways, and one
+trigger cannot watch both. **Both families are mandatory on any thesis from
+this pass.**
+
+### Family A — CONSTRAINT EASES (more of the same material)
+
+The supply-expansion path already written into the mechanism: the film
+supplier's ~¥50bn / ~+50% programme, Ibiden's ¥500bn, plus the **good-unit
+yield lever above** (which fires this family silently — Family A must be
+tested in yielded units, not announcements).
+
+### Family B — CONSTRAINT IS BYPASSED (the material is replaced)
+
+**GLASS CORE SUBSTRATES are the named industry bypass for exactly the ABF
+layer-count limits this mechanism rests on.** This is the more dangerous
+family, and it has a property that must be stated plainly:
+
+> 🔴 **The thesis's demand driver IS its obsolescence driver.** The layer-count
+> escalation (12 → 14 → 18) that creates the 5–10× film multiplier is the
+> same escalation glass core is being built to solve — warpage and thermal
+> stress at high layer counts are the stated reason glass exists. **The
+> harder the constraint binds, the stronger the incentive to bypass it.**
+> A thesis that cites layer-count escalation as its demand engine cannot
+> treat glass substitution as a remote risk; it is the direct consequence
+> of its own premise.
+
+**Baseline as of 2026-08-19** (search_summary tier — re-pull through the
+statutory doors before writing; SKC/Absolics via DART (KR), Samsung via
+DART, Intel via EDGAR, AT&S via the Austrian OAM):
+
+| Player | Status | Date |
+|---|---|---|
+| **Absolics** (SKC subsidiary; Applied Materials ~30% stake) | Covington GA fab — world's first dedicated glass-substrate plant; equipment installed; **mass-production SAMPLES shipping to AMD**, pre-qualification | Jan 2026 |
+| **SKC** | **>₩600bn of a ₩1tn capital increase allocated to Absolics to fast-track** | Mar 2026 |
+| **Samsung** | pilot line at Sejong; **targets glass interposers by 2028** | 2026 |
+| **Intel** | **>$1bn** invested in Chandler AZ glass pilot line | ongoing |
+
+**Read: the bypass is funded, staffed and sampling — but not yet qualified
+in volume.** The constraint is real today and the replacement is dated and
+capitalised, which is itself the clearest confirmation of the book's
+12–24-month horizon (`rules.yml meta.book_horizon`): this is not a
+constraint anyone should expect to own for five years.
+
+**Triggers to arm in any thesis from this pass** (thresholds observable and
+dated, per the standing trigger contract):
+
+- **B1 — qualification:** first glass-core substrate **QUALIFIED (beyond
+  samples) into a shipping AI accelerator** at any named player. Source:
+  AMD / NVIDIA / Absolics / Samsung disclosures + the statutory doors.
+  This is the binary event; firing it escalates immediately.
+- **B2 — capacity:** announced glass-core capacity crossing a stated
+  fraction (write the number in the thesis) of the ABF substrate capacity
+  serving AI packages.
+- **B3 — incumbent capitulation (the strongest tell):** an **ABF incumbent
+  itself** (Ibiden / Shinko / AT&S) announcing glass-core capex. The
+  constraint holder hedging its own moat is the clearest possible signal
+  that the moat has a date on it — and it is observable through the same
+  EDINET/TDnet doors the thesis already uses.
+
+---
+
+## STATUS: PRE-REGISTRATION CLOSED (2026-08-19)
+
+No further amendments. The next unit of work on this theme is the pass
+itself, executed in the protocol order above — mechanism (done) → re-pull
+through statutory doors → **good-unit film budget** (blocking) → screens →
+value capture → adversarial pass with both trigger families armed. Water
+stays closed; the ownership layer stays a question; the 09-15 fidelity
+cycle outranks all of it.
