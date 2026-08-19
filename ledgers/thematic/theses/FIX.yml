@@ -13,18 +13,30 @@ created_at: "2026-08-09"
 # rewritten as one. Original (2026-08-09) labour-bound sentence preserved in
 # verify_log for the record.
 thesis: >
-  Comfort Systems converts its $11.94B legally committed backlog (+99% YoY,
-  2025-12-31) at the >25% gross margins embedded in fixed-price contracts
-  signed in the 2024-25 seller's market — a DURATION claim: committed work,
-  with ~$662B of hyperscaler signed-but-not-commenced leases upstream of it,
-  executes through 2027-28 at booked economics even if new AI-capex growth
+  Comfort Systems converts its $11.94B contracted backlog (+99.3% YoY,
+  2025-12-31; +93.2pp of that organic) at the elevated gross margins
+  embedded in fixed-price contracts signed in the 2024-25 seller's market
+  — a NEAR-TERM TIMING claim: contracted work, with hyperscaler
+  signed-but-not-commenced leases upstream of it, converts over the next
+  ~6-12 months at booked economics even as new-bookings growth
   decelerates to the consensus path (~+25% 2027, ~+6% 2028).
 
 # Nomination-standard mechanism (one sentence, with a quantity):
-# "FIX's next ~1.5 years of revenue is already sold — $11.94B of legally
-# committed fixed-price backlog (+99% YoY) booked at >25% gross margin —
-# so near-term margin is set by contract vintage at execution, insulated
-# from the booking-cycle deceleration the multiple prices."
+# "FIX's next ~9-12 months of revenue is already contracted — $11.94B of
+# fixed-price backlog (+99.3% YoY, 93.2pp of it organic) booked at the
+# 2024-25 vintage's elevated margins against a ~$13B annualized run-rate —
+# so near-term margin is set by contract vintage at execution, not by the
+# booking-cycle deceleration the multiple prices."
+#
+# 🔴 CORRECTED 2026-08-19: the 2026-08-19 first draft of this mechanism
+# claimed "~1.5 years of revenue already sold" and the word "legally
+# committed". BOTH are contradicted by the company's own FY2025 10-K:
+# backlog "represents revenue that is likely to be reflected in our
+# operating results over the next SIX TO TWELVE MONTHS" and "project work
+# generally lasts less than one year"; and backlog is "contracted or
+# committed" work explicitly "subject to unexpected adjustments and
+# cancellations" (see backlog_terms below). The claim is corrected here,
+# not defended.
 
 layer: skilled_labor     # stack-map.yml layer of record — but NOTE (2026-08-19):
                          # after the rewrite the mechanism is CONTRACTUAL
@@ -70,6 +82,75 @@ market_error:
     lease pipeline (GAAP recognizes at commencement) is invisible to the
     backlog-growth heuristic most models run on.
   when_bottleneck_became_consensus: "mid-2026 (labor as site-selection constraint enters mainstream coverage ~Jul-2026)"
+
+  # ---------------------------------------------------------------------
+  # BACKLOG TERMS — added 2026-08-19 (operator: "legally committed" is the
+  # thesis's load-bearing word; state the actual terms and the prior-shock
+  # behaviour). Source: FY2025 10-K (filed 2026-02-19) + FY2020 10-K
+  # (filed 2021-02-25), both read in primary this date.
+  # ---------------------------------------------------------------------
+  backlog_terms:
+    what_the_company_actually_says: >
+      VERBATIM risk-factor heading, FY2025 10-K: "Our backlog is subject
+      to unexpected adjustments and cancellations, which means that
+      amounts included in our backlog may not result in actual revenue or
+      translate into profits." Definition: "Backlog reflects revenue still
+      to be recognized under contracted or committed installation and
+      replacement project work" — and "Projects may remain in our backlog
+      for an extended period of time, or project cancellations or scope
+      adjustments may occur with respect to contracts reflected in our
+      backlog."
+    verdict_on_the_word: >
+      "LEGALLY COMMITTED" IS NOT SUPPORTED and has been removed from the
+      thesis sentence. The disclosed terms are "contracted or committed"
+      work that is cancellable and scope-adjustable at the customer's
+      instance; no cancellation-fee, take-or-pay, or termination-payment
+      schedule is disclosed anywhere in the 10-K. The thesis rests on
+      customers' CONTINUED INTENT plus switching costs, not on a legal
+      lock. This is the single largest weakening found in the file to
+      date.
+    duration_disclosed: >
+      "Project work generally lasts less than one year"; backlog
+      "represents revenue that is likely to be reflected in our operating
+      results over the next six to twelve months" (identical language in
+      the FY2020 and FY2025 10-Ks — not a megaproject-era change).
+    prior_demand_shock_COVID_2020: >
+      THE TEST CASE, and it is adverse: FY2020 backlog fell to $1.51B
+      from $1.60B — headline only −5.6% — but the SAME-STORE backlog
+      decline was **−23.4% YoY**, "broad-based", with the headline
+      cushioned by three acquisitions (TAS $164.3M, T E C $72.8M, NC
+      electrical $47.4M). Read: in a real demand shock, organic
+      contracted backlog contracted by roughly a quarter within a year,
+      and M&A masked it in the reported number. A −23.4% organic
+      repeat from $11.94B is ~$2.8B of backlog, versus the T1
+      invalidation line at $10.5B (−12%) — i.e. **a COVID-magnitude
+      shock breaches T1 with room to spare**, which is the honest
+      calibration of that trigger.
+    why_this_matters_now: >
+      The keystone event currently blocking entry IS a datacentre pause
+      (2026-08-03 Texas compliance gate + the 2026-08-11 EIA load-growth
+      cut). The thesis's load-bearing asset is cancellable backlog whose
+      end-market is the thing being paused, and the one historical
+      analogue shows organic backlog −23.4% in a shock. The
+      keystone-monitor flag on this thesis is therefore not procedural —
+      it is aimed at exactly the mechanism.
+
+  backlog_composition:   # added 2026-08-19 (operator: split +99% organic vs acquired)
+    total: "$11.944B at 2025-12-31 vs $5.994B at 2024-12-31 = +99.3% YoY"
+    acquired_component: >
+      ~$361.2M of the increase, ≈6.0pp of the 99.3% — Right Way
+      ($106.2M), Century ($91.6M), Feyen Zylstra ($90.9M), Meisner
+      ($72.5M).
+    organic_component: "same-store increase $5.59B, +93.2% (the company's own figure)"
+    reading: >
+      The growth is OVERWHELMINGLY ORGANIC — recorded because it cuts
+      FOR the thesis and the file should carry favourable findings with
+      the same discipline as adverse ones. It removes the "serial
+      acquirer buying its backlog" objection for FY2025 (unlike FY2020,
+      where acquisitions masked an organic decline — see above). It does
+      NOT address cancellability, which is the separate and larger
+      weakness.
+    segment_split: "Mechanical $9.03B (75.6%) / Electrical $2.92B (24.4%)"
   when_price_moved: >
     2024-2026, substantially: FIX ~5x off its 52-week low ($276→$1,500 range
     per Mar-2026; $1,694.55 at thesis creation = ~46x FY26 consensus EPS
@@ -224,7 +305,20 @@ disqualifier_check:
                                        # = normal-course claims, immaterial
                                        # accruals, no regulatory matter disclosed.
                                        # TIME-DECAYING: re-run within 60d of entry.
-  customer_concentration_exposed: watch   # tech 45% of revenue, hyperscaler-heavy — sector concentration is the point of the thesis AND its gap-risk; single-customer split not disclosed in sources read
+  customer_concentration_exposed: watch   # QUANTIFIED 2026-08-19 (the
+                                       # 08-31 queued pull, done early):
+                                       # FY2025 10-K risk factor discloses
+                                       # ONE CUSTOMER = 12.8% of consolidated
+                                       # 2025 revenue. Agent work COMPLETE —
+                                       # the figure exists, is dated, sourced.
+                                       # Cell stays `watch` because the
+                                       # accept/decline is the OPERATOR's call
+                                       # per the clearing plan; it is now an
+                                       # informed decision, not a blind one.
+                                       # Context: tech = 45% of revenue,
+                                       # hyperscaler-heavy — the sector
+                                       # concentration is simultaneously the
+                                       # thesis and its gap risk.
   sector_weekly_downtrend: pass       # CLOSED 2026-08-18: XLI weekly close
                                        # 184.99 vs RISING 30-wk MA 174.35 (+6.1%),
                                        # 8/8 recent weeks above — no weekly
@@ -264,7 +358,26 @@ disqualifier_check:
       by: "pull 2026-08-31; decision deferred to entry"
 
 horizon:
-  expected_years: "2-4"
+  # 🔴 RESTATED 2026-08-19 (operator: record the horizon explicitly).
+  expected_years: "~1.5 (≈18 months) — NOT 2-4; the prior '2-4' is retired"
+  what_this_thesis_is: >
+    AN ~18-MONTH TIMING THESIS ON A MISPRICED DECELERATION, not a
+    long-term commitment and not a compounder hold. The claim is that
+    the market prices a booking-cycle slowdown into a company whose
+    next ~6-12 months of revenue is already contracted at prior-vintage
+    margins; the mispricing, if it exists, resolves as those contracts
+    convert. Once the 2024-25 vintage has run off, the thesis has
+    NOTHING left to say — it does not roll forward on its own.
+  margin_is_peak_vintage: >
+    STATED EXPLICITLY: >25% gross margin is a PEAK-VINTAGE figure and
+    reverts. Company-reported full-year gross margin went 21.0% (2024)
+    → 24.1% (2025); the >25% print was a quarterly high, achieved in
+    the most favourable pricing environment the company has recorded.
+    The thesis does NOT assume that margin persists — it assumes the
+    already-signed vintage converts at its booked economics before
+    reversion shows up in new bookings. Any version of this thesis that
+    needs >25% to CONTINUE is a different, weaker thesis and is not
+    this one.
   what_makes_it_shorter: >
     T3 firing (early labor unlock); T5 displacement; a hyperscaler capex
     PAUSE (not deceleration — a pause) which converts backlog duration into
@@ -358,3 +471,40 @@ verify_log:
       not required. Everything else stands: covered tier (~5% ceiling, no
       override), E1 blocked by the customer-concentration watch + the
       unresolved keystone firing, price late.
+  - date: "2026-08-19"
+    searched_for_refutation:
+      - "backlog cancellation/deferral TERMS in primary (FY2025 10-K, filed 2026-02-19) — is 'legally committed' supportable?"
+      - "prior demand-shock behaviour of this company's backlog (FY2020 10-K, COVID)"
+      - "organic vs acquired decomposition of the +99% (FY2025 10-K MD&A)"
+      - "duration: how long does backlog actually take to convert (both 10-Ks)"
+    found: >
+      Three adverse, one favourable, and one correction to my own prior
+      wording. ADVERSE: (1) "legally committed" is NOT supportable —
+      the company's own risk factor says backlog "is subject to
+      unexpected adjustments and cancellations" and "may not result in
+      actual revenue"; no cancellation-fee or take-or-pay schedule is
+      disclosed. The word is removed. (2) In the one available demand
+      shock (COVID FY2020), SAME-STORE backlog fell −23.4% YoY while the
+      headline showed only −5.6%, cushioned by three acquisitions — a
+      repeat of that magnitude from $11.94B lands ~$2.8B below today and
+      breaches the T1 line ($10.5B) comfortably. (3) The keystone event
+      currently blocking entry is itself a datacentre pause, i.e. aimed
+      at exactly this mechanism. FAVOURABLE: (4) the +99.3% is
+      overwhelmingly ORGANIC — acquisitions contributed ~$361.2M (≈6.0pp);
+      same-store +93.2% — which removes the "bought its backlog"
+      objection for FY2025 (notably the reverse of FY2020). CORRECTION:
+      (5) my 2026-08-19 first-draft mechanism claimed "~1.5 years of
+      revenue already sold"; the company says backlog converts over "six
+      to twelve months" and "project work generally lasts less than one
+      year" — corrected in place, not defended. Also closed early: the
+      08-31 concentration pull — one customer = 12.8% of 2025 revenue.
+    verdict: >
+      weakened further, and still a candidate. The mechanism survives as
+      a ~6-12-month conversion claim inside an ~18-month timing thesis,
+      but its load-bearing word is downgraded from "legally committed" to
+      "contracted and cancellable", and the one historical shock analogue
+      is materially adverse. Entry remains blocked (concentration watch +
+      keystone firing); covered tier, ~5% ceiling, no override. The file
+      is now honest about being a timing trade on a cancellable book,
+      which is a smaller and more defensible claim than the one it
+      started with on 2026-08-09.

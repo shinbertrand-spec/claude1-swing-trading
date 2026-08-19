@@ -110,27 +110,61 @@ sourcing:   # operator 2026-08-18 (ERII gate): how candidates enter the funnel
   listing_scope: >
     EXPLICIT DECISION (2026-08-19 — this was an UNWRITTEN constraint that
     silently disqualified both deferred questions, which made it the
-    binding constraint; now written): **FOREIGN-LISTED CANDIDATES ARE
+    binding constraint; now written): **NON-US-LISTED CANDIDATES ARE
     PERMITTED** on venues the operator's broker actually covers — Tiger
-    reaches HK / SG / AU / JP (operator-confirmed; the agent-side
+    reaches SG / HK / AU / JP (operator-confirmed; the agent-side
     TigerClient wrapper is US-shaped in its docstrings, but this book
     PLACES NO ORDERS, so execution access is an operator fact, not an
-    agent one). Friction handling, stated per surface: (a) disqualifier
-    cells verify against the local statutory disclosure platform (ASX
-    announcements / SGXNet / HKEXnews) instead of EDGAR — same evidence
-    standard, different door; (b) the finviz-based screener does not
-    cover these names — its checks run manually from the same platforms;
-    (c) prices via yfinance suffix tickers (.AX/.SI/.HK/.T) — works
-    today; (d) analyst counts from aggregators, dated and sourced as
-    usual. COST OWNED: verification cadence is slower and partially
-    manual; a foreign thesis carries a `verification_surface:` note
-    naming its platforms. EDGE HONESTY: the Ivković LOCAL component
-    (+5.0pp) is structurally absent for this operator in any foreign
-    name — only the non-S&P-500 neglected component (+2.4pp) plausibly
-    applies, and R3's caveat (documented-not-promised) applies doubly.
-    CONSEQUENCE: the ownership-layer question RE-OPENS as expressible
-    (NXT.AX / GMG.AX / Keppel DC become screenable) — subject to
-    mechanism-first like everything else.
+    agent one).
+  geography_correction: >
+    🔴 CORRECTED 2026-08-19 (the first statement of listing_scope had the
+    geography INVERTED and it materially reversed the edge argument):
+    **the operator is SINGAPORE-BASED. SGX is the HOME exchange; US
+    listings are the FOREIGN ones.** Consequences, all reversed from the
+    original note:
+    (a) Ivković's LOCAL channel is AVAILABLE on SGX (and regionally on
+    HKEX) — it is not "structurally absent". The applicable figure on the
+    home exchange is therefore the **local AND non-S&P-500 combination
+    (+6.9pp)**, the strongest cell in the study, not the +2.4pp
+    non-S&P-500-only cell.
+    (b) The local channel is a real mechanism here, not a formality:
+    Singapore's 2019-2022 datacentre moratorium is exactly the
+    local-fact class the mechanism describes — a siting/permitting
+    constraint visible to a resident long before it entered global
+    coverage.
+    (c) REALIZATION IS TESTABLE PER THESIS, NEVER ASSUMED. A thesis
+    claiming the local channel must say what specifically is knowable
+    from here that is not in global coverage. "I live here" is not an
+    edge claim; a named local fact is.
+    (d) SOURCING PRIORITY: **SGX and HKEX go FIRST in the next sourcing
+    pass**, ahead of US and AU names.
+  tooling_tension: >
+    STATED HONESTLY: the EDGE venue and the TOOLING venue are opposite.
+    The richest verification surface this project has is EDGAR (US) —
+    edgartools MCP, full-text search, structured financials — while the
+    venues carrying the documented local edge (SGXNet, HKEXnews) have
+    the weakest agent-side tooling and need manual retrieval. So the
+    friction cost lands precisely on the names with the best edge case.
+    Handling, per surface: (a) disqualifier cells verify against SGXNet /
+    HKEXnews / ASX announcements — same evidence standard, manual door;
+    (b) the finviz screener does not cover these names — its checks run
+    manually; (c) prices via yfinance suffix tickers (.SI/.HK/.AX/.T);
+    (d) analyst counts from aggregators, dated and sourced. Every non-US
+    thesis carries a `verification_surface:` note naming its platforms.
+  coverage_measured_per_name: >
+    Tier is MEASURED PER NAME, never inferred from the venue. A non-US
+    listing is not automatically neglected: **GMG.AX (Goodman Group) is a
+    top-10 ASX constituent with heavy institutional coverage and very
+    likely FAILS the tier test** — index membership plus analyst count
+    decide it, measured and dated, exactly as for a US name. (The
+    Ivković criterion is non-S&P-500 for US names; the equivalent test
+    abroad is major-home-index membership plus coverage count.)
+  consequence: >
+    The ownership-layer question RE-OPENS as expressible — Keppel DC
+    (SGX) is now both reachable AND on the home exchange where the local
+    channel applies; NXT.AX / GMG.AX are reachable but tier-measured
+    first, with GMG.AX expected to fail. All subject to mechanism-first
+    like everything else.
 
 sizing:   # handoff §3 — the standing rule any future sizing logic must implement.
           # Phase 1 built no conviction-weighting logic, so nothing was deleted;
