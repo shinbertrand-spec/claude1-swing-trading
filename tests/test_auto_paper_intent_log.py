@@ -76,6 +76,14 @@ def paper_dirs(tmp_path, monkeypatch):
             computed_at="2026-05-27T00:00:00+00:00",
         )
     monkeypatch.setattr(_pipeline, "_run_screener", _clean_screener)
+    # B1 gate chain: stub to pass-through so these tests stay hermetic —
+    # without this, place_candidate runs the real chain, which appends fixture
+    # verdicts to the PRODUCTION ledgers/paper-auto/_gates/*.jsonl and rewrites
+    # journal/paper-auto/sleeve_breaker.json on every pytest run (pollution
+    # found 2026-08-13). Chain wiring is covered by
+    # test_auto_paper_pipeline_gate_chain.py.
+    monkeypatch.setattr(_pipeline, "_run_gate_chain",
+                        lambda cand, **kw: (None, None))
     return ledger_dir, positions_json
 
 

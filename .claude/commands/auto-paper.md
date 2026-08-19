@@ -14,12 +14,30 @@ Per [auto-paper LLM/Python boundary refactor 2026-05-28]. Architecture-level rat
 
 ## Step 1 — Initialize the run
 
-Run:
+Run — **with an explicit 10-minute timeout on the Bash tool call (`timeout: 600000`), never the 120s default**:
 ```bash
 uv run python -m tools.auto_paper.run_entry --phase init
 ```
 
 Expected stdout final line: `PHASE_INIT_OK run_dir=<path> invocations=<N>`.
+
+> **Why the explicit timeout (2026-08-14 FAULT, fill-fidelity cycle 1).** On a
+> signal day, phase_init does a forced universe refetch (the 9:35 run always
+> finds the previous day's cache ~24h old) PLUS a per-candidate build+size
+> pass — wall-clock runs past the Bash tool's default 120s foreground window.
+> At 120s the harness auto-backgrounds the command; on 2026-08-14 the headless
+> `--print` session then ended its turn "awaiting the completion notification",
+> which in `--print` mode TERMINATES the session and kills the backgrounded
+> python as an orphan — init died mid-flight after emitting 8 signals, zero
+> orders placed. Two rules, both binding:
+>
+> 1. Always pass `timeout: 600000` on this Bash call so init stays foreground.
+> 2. If the command is ever backgrounded anyway (init exceeding 10 min is
+>    itself reportable — surface it), you MUST NOT end your turn while the
+>    phase is still running: poll the background task's output file
+>    (Read / TaskOutput) until the `PHASE_INIT_OK` / `PHASE_INIT_GATED`
+>    marker or a non-zero exit appears, then continue the steps. In headless
+>    mode, ending the turn kills the run.
 
 **Pre-session orphan sweep (Priority 2, automatic).** Before touching candidates, `phase_init` runs a fresh read-only orphan check (`reconcile.presession_sweep`): it compares live broker holdings against the paper-auto starter ledgers. If the broker holds a position with **no ledger (Mode B orphan)** or an **unparseable ledger (corrupt-held)**, it persists `journal/paper-auto/orphan_discovery_<date>.yml`, sets the cron gate, and exits with `PHASE_INIT_GATED reason=presession_orphan_sweep` (exit code 2). This is defense-in-depth: it catches orphans even if the post-RTH reconciler never ran. Stuck-closing (Mode A) positions are surfaced as a `NOTE` but NOT gated (the post-RTH reconciler owns those). To resume: reconcile the orphan (onboard or flatten) then `uv run python -m tools.auto_paper.cron_gate` clear, or `python -c "from tools.auto_paper import cron_gate; cron_gate.clear_gate()"`.
 

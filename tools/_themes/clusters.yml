@@ -25,8 +25,12 @@
 # is itself the swing morning-research AI complex. Ticker formatting + survivor
 # caveats inherit from that file.
 
+# 2026-08-14: SNDK + MXL added (operator-approved, cross-project rules-audit +
+# cycle-1 skeptic finding, live-demonstrated same day: SNDK bypassed the theme
+# gate at placement because this map predates the WDC→SanDisk spin-off; MXL =
+# AI-datacenter optical/connectivity beta per the same batch's panel work).
 version: 1
-updated_at: 2026-06-20
+updated_at: 2026-08-14
 
 themes:
   AI-momentum:
@@ -63,6 +67,7 @@ themes:
       - MRVL
       - MSFT
       - MU
+      - MXL
       - NBIS
       - NOW
       - NRG
@@ -71,6 +76,7 @@ themes:
       - PLTR
       - QCOM
       - SMCI
+      - SNDK
       - SNOW
       - STX
       - TLN
