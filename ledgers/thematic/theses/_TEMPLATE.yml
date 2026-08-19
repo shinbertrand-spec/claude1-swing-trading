@@ -101,8 +101,12 @@ sizing_inputs:           # rules.yml §sizing — the agent computes inputs; the
 keystone_ref: "../keystone-monitor.yml"   # rules.yml R4 — a monitor firing
                          # flags this thesis regardless of its own triggers.
 
-horizon:
-  expected_years: ""
+horizon:                 # Book horizon is 12-24 MONTHS (rules.yml
+  expected_years: ""     # meta.book_horizon) — bottlenecks self-resolve, so
+                         # this book structurally produces short-horizon
+                         # theses. Anything above ~2 years must defend why
+                         # THIS constraint does not self-resolve on the
+                         # usual schedule; the burden is on the long claim.
   what_makes_it_shorter: ""
 
 rebuy_test:              # the never-selling failure mode

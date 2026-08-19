@@ -9,6 +9,29 @@
 meta:
   version: 1
   built_at: "2026-08-18"
+  book_horizon: >
+    🔴 AMENDED 2026-08-19 (operator): **THE BOOK'S REAL HORIZON IS 12-24
+    MONTHS, NOT "long-term commitments".** Evidence, from the book's own
+    output rather than preference: two candidates examined to mechanism
+    depth, two ~12-24-month mechanisms — FIX is an ~18-month timing thesis
+    on a contracted backlog that converts in 6-12 months, and the
+    advanced-packaging mechanism is bounded by a third party's capex
+    schedule with the mispricing resolving well inside 24 months. That is
+    STRUCTURAL, not coincidental: **bottlenecks self-resolve.** A
+    constraint attracts capital, capital adds capacity, the constraint
+    eases — so a book organised around locating binding constraints
+    STRUCTURALLY PRODUCES SHORT-HORIZON THESES. A thesis here dies on
+    schedule when the constraint loosens; that is the design, not a
+    failure.
+    WHAT THIS DOES NOT CHANGE: the machinery is already correctly scaled
+    to this horizon — dated invalidation triggers, quarterly
+    re-verification, scheduled-attention sells (R2), the disposition
+    ledger's 6/18-month forward checks. Only the DESCRIPTION was wrong.
+    Nothing about cadence, sizing, or the envelope moves.
+    CONSEQUENCE for new theses: `horizon.expected_years` above ~2 needs
+    an explicit defence of why THIS constraint does not self-resolve on
+    the usual schedule — the burden is on the long claim, not the short
+    one.
   handoff: "Output/2026-08-18-claude1-handoff-thematic-phase2-discipline-layer.md (vault)"
   evidence: "wiki/notes/2026-08-18-thematic-conviction-book-evidence-audit.md (vault)"
   banned_assumption: >

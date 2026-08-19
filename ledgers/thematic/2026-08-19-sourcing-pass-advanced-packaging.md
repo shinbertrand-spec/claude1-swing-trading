@@ -44,6 +44,38 @@ capacity-constrained **today**, at the quantities the 2026 CoWoS ramp
 already requires. It is a present-state claim with attestation from the
 constrained parties, not a forecast.
 
+### 🔴 BLOCKING — the film budget must be reconciled BEFORE any thesis is drafted
+
+Film consumption ≈ **units × package area × layer count**. All three
+multiplicands are growing, and they draw on **one constrained input**
+against **~+50% announced supply growth to 2030**.
+
+The arithmetic that makes this blocking: **12 → 18 layers is itself ~+50%.**
+Content growth ALONE consumes approximately the entire announced expansion —
+before a single incremental unit, and before any package-area growth (bigger
+interposers, more HBM stacks per package, which pushes the same direction).
+
+Therefore:
+
+- **A thesis claiming BOTH content growth AND unit growth DOUBLE-COUNTS.**
+  Both draw on the same film. The pre-registration bars that thesis.
+- **The draft must state WHICH the expansion funds** — content (layer/area
+  escalation on roughly flat units), or units (volume growth at roughly flat
+  content) — and show the arithmetic. It cannot fund both at the announced
+  rate.
+- If the reconciliation shows the expansion funds **neither** fully (the
+  likely case if units grow at all), say so plainly: that is the strongest
+  version of the constraint AND simultaneously the tightest ceiling on any
+  constraint-holder's volume (see the ceiling clause below).
+- **Run it on the RE-PULLED STATUTORY FIGURES**, not the search-summary
+  table above: layer counts and film-per-package from the substrate makers'
+  own EDINET/TDnet disclosures and the film supplier's own capacity
+  statements; units from the accelerator makers' disclosures. A budget
+  built on secondary figures is not a budget.
+- Record the reconciliation as a table in the thesis file — inputs, source
+  door, date — so a future session can re-run it when the capex schedule
+  changes.
+
 🔴 **What it must NOT become:** "the bottleneck will migrate from CoWoS to
 substrates" is a MIGRATION FORECAST and is banned (handoff §6; `stack-map`
 `migration_forecast` was deleted for exactly this reason). Note the
@@ -51,6 +83,36 @@ tension honestly — CoWoS's own gap is *narrowing* 20%→10%, which is the
 shape of a constraint easing, and a thesis that needs the constraint to
 *move* is forecasting. Any thesis from this pass must stand on the
 substrate chain being tight **now**, measured, or it does not get written.
+
+### 🔴 THE CEILING — written into the mechanism, not appended as a risk
+
+"Film secured for current guidance but **NOT for upside**" is not colour;
+it is **the shape of the trade**. A substrate maker that cannot obtain
+incremental film cannot beat its own volume guidance no matter what
+accelerator demand does — **its upside is bounded by a third party's capex
+schedule** (the film supplier's ~¥50bn/~+50% programme running to 2030).
+
+Consequences, binding on any draft from this pass:
+
+- **This is a MOAT-MISPRICING thesis:** the claim can only be that the
+  market underprices the DURABILITY and MARGIN of a position inside a
+  choke point whose supply response is externally scheduled and slow —
+  i.e. pricing power and mix, on capped volume.
+- **THE DEMAND-STORY VERSION IS BARRED, EXPLICITLY.** Any thesis of the
+  form "AI accelerator demand grows X%, therefore this name's volumes /
+  revenue grow with it" is rejected at draft. The film ceiling caps volume
+  *regardless of demand*, and a demand-driven version of this thesis is
+  refuted by the very quote the mechanism rests on. Writing both — "the
+  constraint is severe" AND "our name's volumes surprise upward" — is the
+  same double-count the film budget bars, in narrative form.
+- **The upside is therefore someone else's decision.** State, in the
+  thesis, what the film supplier's announced capex schedule implies for
+  the candidate's volume ceiling by year, and treat any acceleration of
+  that schedule as an INVALIDATION trigger (the constraint loosening is
+  the thesis dying, on schedule, exactly like FIX's licensure clock).
+- Corollary for sizing inputs: a capped-volume, margin-driven thesis has a
+  **narrower** upside distribution than a demand-driven one. Do not
+  present it with demand-story upside arithmetic.
 
 ---
 
